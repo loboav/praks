@@ -1,59 +1,126 @@
+using GraphVisualizationApp.Models;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using graph_visualization_app.Models;
 
-namespace graph_visualization_app.Services
+namespace GraphVisualizationApp.Services
 {
-    public class GraphService
+    public class GraphService : IGraphService
     {
-        private readonly List<GraphObject> _graphObjects;
-        private readonly List<GraphRelation> _graphRelations;
+        private readonly GraphDbContext _db;
+        public GraphService(GraphDbContext db) { _db = db; }
 
-        public GraphService()
+        public async Task<List<ObjectType>> GetObjectTypesAsync() => await _db.ObjectTypes.ToListAsync();
+        public async Task<ObjectType> CreateObjectTypeAsync(ObjectType type)
         {
-            _graphObjects = new List<GraphObject>();
-            _graphRelations = new List<GraphRelation>();
+            _db.ObjectTypes.Add(type);
+            await _db.SaveChangesAsync();
+            return type;
+        }
+        public async Task<List<RelationType>> GetRelationTypesAsync() => await _db.RelationTypes.ToListAsync();
+        public async Task<RelationType> CreateRelationTypeAsync(RelationType type)
+        {
+            _db.RelationTypes.Add(type);
+            await _db.SaveChangesAsync();
+            return type;
+        }
+        public async Task<List<GraphObject>> GetObjectsAsync() => await _db.GraphObjects.Include(o => o.Properties).ToListAsync();
+        public async Task<GraphObject> CreateObjectAsync(GraphObject obj)
+        {
+            _db.GraphObjects.Add(obj);
+            await _db.SaveChangesAsync();
+            return obj;
+        }
+        public async Task<List<GraphRelation>> GetRelationsAsync() => await _db.GraphRelations.Include(r => r.Properties).ToListAsync();
+        public async Task<GraphRelation> CreateRelationAsync(GraphRelation rel)
+        {
+            _db.GraphRelations.Add(rel);
+            await _db.SaveChangesAsync();
+            return rel;
+        }
+        public async Task<List<ObjectProperty>> GetObjectPropertiesAsync(int objectId) => await _db.ObjectProperties.Where(p => p.ObjectId == objectId).ToListAsync();
+        public async Task<ObjectProperty> AddObjectPropertyAsync(ObjectProperty prop)
+        {
+            _db.ObjectProperties.Add(prop);
+            await _db.SaveChangesAsync();
+            return prop;
+        }
+        public async Task<List<RelationProperty>> GetRelationPropertiesAsync(int relationId) => await _db.RelationProperties.Where(p => p.RelationId == relationId).ToListAsync();
+        public async Task<RelationProperty> AddRelationPropertyAsync(RelationProperty prop)
+        {
+            _db.RelationProperties.Add(prop);
+            await _db.SaveChangesAsync();
+            return prop;
+        }
+        // Поиск всех путей между двумя объектами (DFS, ограничение по глубине)
+        public async Task<List<List<int>>> FindPathsAsync(int fromId, int toId)
+        {
+            var result = new List<List<int>>();
+            var graph = await _db.GraphRelations.ToListAsync();
+            void Dfs(int current, List<int> path, HashSet<int> visited)
+            {
+                if (current == toId)
+                {
+                    result.Add(new List<int>(path));
+                    return;
+                }
+                visited.Add(current);
+                foreach (var rel in graph.Where(r => r.Source == current && !visited.Contains(r.Target)))
+                {
+                    path.Add(rel.Target);
+                    Dfs(rel.Target, path, visited);
+                    path.RemoveAt(path.Count - 1);
+                }
+                visited.Remove(current);
+            }
+            Dfs(fromId, new List<int> { fromId }, new HashSet<int>());
+            return result;
         }
 
-        public Task<GraphObject> CreateObject(GraphObject graphObject)
+        // --- Добавлено для поддержки контроллера ---
+        public async Task<object> GetGraphAsync()
         {
-            _graphObjects.Add(graphObject);
-            return Task.FromResult(graphObject);
+            return new {
+                Objects = await GetObjectsAsync(),
+                Relations = await GetRelationsAsync()
+            };
         }
 
-        public Task<GraphRelation> CreateRelation(GraphRelation graphRelation)
+        public async Task<GraphObject> GetObjectAsync(int id)
         {
-            _graphRelations.Add(graphRelation);
-            return Task.FromResult(graphRelation);
+            return await _db.GraphObjects.Include(o => o.Properties).FirstOrDefaultAsync(o => o.Id == id);
         }
 
-        public Task<GraphObject> GetObjectById(string id)
+        public async Task<GraphRelation> GetRelationAsync(int id)
         {
-            var graphObject = _graphObjects.FirstOrDefault(o => o.Id == id);
-            return Task.FromResult(graphObject);
+            return await _db.GraphRelations.Include(r => r.Properties).FirstOrDefaultAsync(r => r.Id == id);
         }
 
-        public Task<List<GraphRelation>> GetRelationsByObjectId(string objectId)
+        public async Task<List<GraphObject>> FindPathAsync(int startId, int endId)
         {
-            var relations = _graphRelations.Where(r => r.SourceId == objectId || r.TargetId == objectId).ToList();
-            return Task.FromResult(relations);
-        }
-
-        public Task<List<GraphObject>> GetAllObjects()
-        {
-            return Task.FromResult(_graphObjects);
-        }
-
-        public Task<List<GraphRelation>> GetAllRelations()
-        {
-            return Task.FromResult(_graphRelations);
-        }
-
-        public Task<List<GraphObject>> FindPath(string startId, string endId)
-        {
-            // Implement pathfinding logic here
-            return Task.FromResult(new List<GraphObject>());
+            // Примитивная реализация поиска пути (BFS)
+            var nodes = await _db.GraphObjects.ToListAsync();
+            var edges = await _db.GraphRelations.ToListAsync();
+            var queue = new Queue<List<int>>();
+            var visited = new HashSet<int>();
+            queue.Enqueue(new List<int> { startId });
+            while (queue.Count > 0)
+            {
+                var path = queue.Dequeue();
+                int last = path.Last();
+                if (last == endId)
+                {
+                    return nodes.Where(n => path.Contains(n.Id)).ToList();
+                }
+                if (!visited.Add(last)) continue;
+                foreach (var e in edges.Where(e => e.Source == last))
+                {
+                    var newPath = new List<int>(path) { e.Target };
+                    queue.Enqueue(newPath);
+                }
+            }
+            return new List<GraphObject>();
         }
     }
 }
