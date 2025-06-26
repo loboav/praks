@@ -2,6 +2,7 @@ using GraphVisualizationApp.Models;
 using GraphVisualizationApp.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace GraphVisualizationApp.Controllers
@@ -54,28 +55,64 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpGet("object-types")]
-        public async Task<IActionResult> GetObjectTypes() => Ok(await _service.GetObjectTypesAsync());
+        public async Task<IActionResult> GetObjectTypes()
+        {
+            var types = await _service.GetObjectTypesAsync();
+            var dtos = types.Select(GraphService.ToDto).ToList();
+            return Ok(dtos);
+        }
 
         [HttpPost("object-types")]
-        public async Task<IActionResult> CreateObjectType([FromBody] ObjectType type) => Ok(await _service.CreateObjectTypeAsync(type));
+        public async Task<IActionResult> CreateObjectType([FromBody] ObjectType type)
+        {
+            var created = await _service.CreateObjectTypeAsync(type);
+            return Ok(GraphService.ToDto(created));
+        }
 
         [HttpGet("relation-types")]
-        public async Task<IActionResult> GetRelationTypes() => Ok(await _service.GetRelationTypesAsync());
+        public async Task<IActionResult> GetRelationTypes()
+        {
+            var types = await _service.GetRelationTypesAsync();
+            var dtos = types.Select(GraphService.ToDto).ToList();
+            return Ok(dtos);
+        }
 
         [HttpPost("relation-types")]
-        public async Task<IActionResult> CreateRelationType([FromBody] RelationType type) => Ok(await _service.CreateRelationTypeAsync(type));
+        public async Task<IActionResult> CreateRelationType([FromBody] RelationType type)
+        {
+            var created = await _service.CreateRelationTypeAsync(type);
+            return Ok(GraphService.ToDto(created));
+        }
 
         [HttpGet("objects")]
-        public async Task<IActionResult> GetObjects() => Ok(await _service.GetObjectsAsync());
+        public async Task<IActionResult> GetObjects()
+        {
+            var objects = await _service.GetObjectsAsync();
+            var dtos = objects.Select(GraphService.ToDto).ToList();
+            return Ok(dtos);
+        }
 
         [HttpPost("objects")]
-        public async Task<IActionResult> CreateObject([FromBody] GraphObject obj) => Ok(await _service.CreateObjectAsync(obj));
+        public async Task<IActionResult> CreateObject([FromBody] GraphObject obj)
+        {
+            var created = await _service.CreateObjectAsync(obj);
+            return Ok(GraphService.ToDto(created));
+        }
 
         [HttpGet("relations")]
-        public async Task<IActionResult> GetRelations() => Ok(await _service.GetRelationsAsync());
+        public async Task<IActionResult> GetRelations()
+        {
+            var rels = await _service.GetRelationsAsync();
+            var dtos = rels.Select(GraphService.ToDto).ToList();
+            return Ok(dtos);
+        }
 
         [HttpPost("relations")]
-        public async Task<IActionResult> CreateRelation([FromBody] GraphRelation rel) => Ok(await _service.CreateRelationAsync(rel));
+        public async Task<IActionResult> CreateRelation([FromBody] GraphRelation rel)
+        {
+            var created = await _service.CreateRelationAsync(rel);
+            return Ok(GraphService.ToDto(created));
+        }
 
         [HttpGet("object-properties/{objectId}")]
         public async Task<IActionResult> GetObjectProperties(int objectId) => Ok(await _service.GetObjectPropertiesAsync(objectId));

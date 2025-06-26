@@ -19,6 +19,7 @@
     <Compile Include="..\Services\GraphService.cs" />
     <Compile Include="..\Services\IGraphService.cs" />
     <Compile Include="..\Models\GraphModels.cs" />
+    <Compile Include="..\Models\GraphDtos.cs" />
     <Compile Include="..\GraphDbContext.cs" />
   </ItemGroup>
 

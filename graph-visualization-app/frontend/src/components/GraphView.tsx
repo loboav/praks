@@ -1,20 +1,29 @@
 import React, { useEffect, useRef, useState } from "react";
-import { DataSet, Network } from "vis-network/standalone";
 import { GraphObject, GraphRelation, ObjectType, RelationType } from "../types/graph";
+import GraphCanvas from "./GraphCanvas";
+import ObjectCard from "./ObjectCard";
+import RelationCard from "./RelationCard";
+import SearchPanel from "./SearchPanel";
+import AddObjectModal from "./modals/AddObjectModal";
+import AddRelationModal from "./modals/AddRelationModal";
+import AddObjectTypeModal from "./modals/AddObjectTypeModal";
+import AddRelationTypeModal from "./modals/AddRelationTypeModal";
+import Toolbar from "./Toolbar";
 
 const api = (path: string, opts?: any) =>
   fetch("/api/graph" + path, opts).then(r => r.json());
 
 export default function GraphView() {
-  const container = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<GraphObject[]>([]);
   const [edges, setEdges] = useState<GraphRelation[]>([]);
   const [objectTypes, setObjectTypes] = useState<ObjectType[]>([]);
   const [relationTypes, setRelationTypes] = useState<RelationType[]>([]);
   const [selected, setSelected] = useState<any>(null);
   const [path, setPath] = useState<number[]>([]);
+  const [addObjectOpen, setAddObjectOpen] = useState(false);
+  const [addRelation, setAddRelation] = useState<{ source: GraphObject | null; target: GraphObject | null }>({ source: null, target: null });
+  const [addRelationOpen, setAddRelationOpen] = useState(false);
 
-  // Загрузка данных
   useEffect(() => {
     api("/object-types").then(setObjectTypes);
     api("/relation-types").then(setRelationTypes);
@@ -22,148 +31,230 @@ export default function GraphView() {
     api("/relations").then(setEdges);
   }, []);
 
-  // Визуализация
-  useEffect(() => {
-    if (!container.current) return;
-    const visNodes = new DataSet(nodes.map(n => ({
-      id: n.id, label: n.name, group: String(n.objectTypeId) // group должен быть строкой
-    })));
-    const visEdges = new DataSet(edges.map(e => ({
-      id: e.id, from: e.source, to: e.target, label: relationTypes.find(rt => rt.id === e.relationTypeId)?.name
-    })));
-    const network = new Network(container.current, { nodes: visNodes, edges: visEdges }, {
-      nodes: { shape: "ellipse" }, edges: { arrows: "to" }
-    });
-    network.on("selectNode", params => {
-      const node = nodes.find(n => n.id === params.nodes[0]);
-      setSelected({ type: "node", data: node });
-    });
-    network.on("selectEdge", params => {
-      const edge = edges.find(e => e.id === params.edges[0]);
-      setSelected({ type: "edge", data: edge });
-    });
-    return () => network.destroy();
-  }, [nodes, edges, relationTypes]);
-
-  // Примитивные формы для CRUD (можно доработать)
-  const [newObjectType, setNewObjectType] = useState({ name: '', description: '' });
-  const [newRelationType, setNewRelationType] = useState({ name: '', description: '', objectTypeId: 0 });
-  const [newObject, setNewObject] = useState<{ name: string; objectTypeId: number; properties: Record<string, string> }>({
-    name: '',
-    objectTypeId: 0,
-    properties: {}
-  });
-  const [newRelation, setNewRelation] = useState<{ source: number; target: number; relationTypeId: number; properties: Record<string, string> }>({
-    source: 0,
-    target: 0,
-    relationTypeId: 0,
-    properties: {}
-  });
-
-  const handleCreateObjectType = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await fetch('/api/graph/object-type', {
+  const handleAddObject = async (data: { name: string; objectTypeId: number; properties: Record<string, string> }) => {
+    const typeObj = objectTypes.find(t => t.id === data.objectTypeId);
+    if (!typeObj) {
+      alert('Ошибка: не найден тип объекта!');
+      return;
+    }
+    // Только Name и Description для ObjectType
+    const objectTypePayload = {
+      Name: typeObj.name,
+      Description: typeObj.description || ''
+    };
+    // Свойства без вложенного Object
+    const propertiesArr = Object.entries(data.properties).map(([key, value]) => ({
+      Key: key,
+      Value: value
+    }));
+    const payload: any = {
+      Name: data.name,
+      ObjectType: objectTypePayload,
+      Properties: propertiesArr,
+      IncomingRelations: [],
+      OutgoingRelations: []
+    };
+    const res = await fetch('/api/graph/objects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newObjectType)
+      body: JSON.stringify(payload)
     });
-    setNewObjectType({ name: '', description: '' });
-    api("/object-types").then(setObjectTypes);
+    if (!res.ok) {
+      const text = await res.text();
+      alert('Ошибка создания объекта: ' + text);
+      return;
+    }
+    const updated = await api('/objects');
+    setNodes(updated);
   };
 
-  const handleCreateRelationType = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await fetch('/api/graph/relation-type', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newRelationType)
-    });
-    setNewRelationType({ name: '', description: '', objectTypeId: 0 });
-    api("/relation-types").then(setRelationTypes);
-  };
-
-  const handleCreateObject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await fetch('/api/graph/create-object', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newObject)
-    });
-    setNewObject({ name: '', objectTypeId: 0, properties: {} });
-    api("/objects").then(setNodes);
-  };
-
-  const handleCreateRelation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await fetch('/api/graph/create-relation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newRelation)
-    });
-    setNewRelation({ source: 0, target: 0, relationTypeId: 0, properties: {} });
-    api("/relations").then(setEdges);
-  };
-
-  // Поиск пути
   const findPath = async (from: number, to: number) => {
     const res = await api(`/find-path?sourceId=${from}&targetId=${to}`);
     setPath(res);
   };
 
+  const handleNodeAction = (action: string, node: GraphObject) => {
+    if (action === 'create-relation') {
+      setAddRelation({ source: node, target: null });
+    } else if (action === 'edit') {
+      handleEditNode(node);
+    } else if (action === 'delete') {
+      handleDeleteNode(node);
+    }
+  };
+
+  const handleSelectNode = (node: GraphObject) => {
+    setSelected({ type: "node", data: node });
+    if (addRelation.source && !addRelation.target && node.id !== addRelation.source.id) {
+      setAddRelation(r => ({ ...r, target: node }));
+      setAddRelationOpen(true);
+    }
+  };
+
+  const handleAddRelation = async (data: { source: number; target: number; relationTypeId: number; properties: Record<string, string> }) => {
+    await fetch('/api/graph/relations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const updated = await api('/relations');
+    setEdges(updated);
+  };
+
+  // Toolbar режимы
+  const handleToolbarSelect = () => alert('Режим выделения (MVP)');
+  const handleToolbarMove = () => alert('Режим перемещения (MVP)');
+  const handleToolbarAlign = () => alert('Выравнивание (MVP)');
+  const handleToolbarFilter = () => alert('Фильтр (MVP)');
+
+  // Модальное окно для типа объекта
+  const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
+  const handleAddObjectType = () => setAddObjectTypeOpen(true);
+  const handleCreateObjectType = async (data: { name: string; description?: string }) => {
+    const payload: any = { Name: data.name, Objects: [], RelationTypes: [] };
+    if (data.description && data.description.trim() !== '') {
+      payload.Description = data.description;
+    }
+    const res = await fetch('/api/graph/object-types', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      alert('Ошибка создания типа объекта: ' + text);
+      return;
+    }
+    const types = await api('/object-types');
+    setObjectTypes(types);
+  };
+
+  // Модальное окно для типа связи
+  const [addRelationTypeOpen, setAddRelationTypeOpen] = useState(false);
+  const handleAddRelationType = () => setAddRelationTypeOpen(true);
+  const handleCreateRelationType = async (data: { name: string; description?: string; objectTypeId: number }) => {
+    await fetch('/api/graph/relation-types', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const relTypes = await api('/relation-types');
+    setRelationTypes(relTypes);
+  };
+
+  // Actions bar
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Фильтрация типов связей по типу исходного объекта
+  const filteredRelationTypes = addRelation.source && addRelation.source.objectTypeId
+    ? relationTypes.filter(rt => rt.objectTypeId === addRelation.source!.objectTypeId)
+    : relationTypes;
+
+  // Заглушки для редактирования и удаления
+  const handleEditNode = (node: GraphObject) => {
+    alert('Редактирование объекта (реализовать форму)');
+  };
+  const handleDeleteNode = async (node: GraphObject) => {
+    if (window.confirm('Удалить объект?')) {
+      await fetch(`/api/graph/objects/${node.id}`, { method: 'DELETE' });
+      setNodes(nodes.filter(n => n.id !== node.id));
+    }
+  };
+  const handleEditEdge = (edge: GraphRelation) => {
+    alert('Редактирование связи (реализовать форму)');
+  };
+  const handleDeleteEdge = async (edge: GraphRelation) => {
+    if (window.confirm('Удалить связь?')) {
+      await fetch(`/api/graph/relations/${edge.id}`, { method: 'DELETE' });
+      setEdges(edges.filter(e => e.id !== edge.id));
+    }
+  };
+
   return (
-    <div>
-      <div style={{ display: "flex", gap: 16 }}>
-        <div>
-          <h3>Граф</h3>
-          <div ref={container} style={{ width: 600, height: 400, border: "1px solid #ccc" }} />
+    <div style={{ width: '100vw', height: '100vh', background: '#f4f6fa', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#f4f6fa', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          <Toolbar
+            onSelect={handleToolbarSelect}
+            onMove={handleToolbarMove}
+            onAlign={handleToolbarAlign}
+            onFilter={handleToolbarFilter}
+            onAddObjectType={handleAddObjectType}
+            onAddRelationType={handleAddRelationType}
+          />
+          <div style={{ flex: 1, position: 'relative', minWidth: 0, minHeight: 0 }}>
+            <GraphCanvas
+              nodes={nodes}
+              edges={edges}
+              relationTypes={relationTypes}
+              onSelectNode={handleSelectNode}
+              onSelectEdge={edge => setSelected({ type: "edge", data: edge })}
+              onNodeAction={handleNodeAction}
+            />
+            {selected?.type === "node" && <ObjectCard object={selected.data} />}
+            {selected?.type === "edge" && (
+              <RelationCard relation={selected.data} onEdit={() => handleEditEdge(selected.data)} onDelete={() => handleDeleteEdge(selected.data)} />
+            )}
+          </div>
         </div>
-        <div>
-          <h3>Типы объектов</h3>
-          <ul>
-            {objectTypes.map(t => <li key={t.id}>{t.name}</li>)}
-          </ul>
-          <h3>Типы связей</h3>
-          <ul>
-            {relationTypes.map(t => <li key={t.id}>{t.name} (для типа {t.objectTypeId})</li>)}
-          </ul>
-          <h3>Объекты</h3>
-          <ul>
-            {nodes.map(n => <li key={n.id}>{n.name} (тип {n.objectTypeId})</li>)}
-          </ul>
-          <h3>Связи</h3>
-          <ul>
-            {edges.map(e => <li key={e.id}>#{e.id}: {e.source} → {e.target} ({e.relationTypeId})</li>)}
-          </ul>
+        {/* Actions bar снизу с иконками */}
+        <div style={{ height: 60, background: '#23272f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, fontSize: 18, fontWeight: 500, letterSpacing: 0.5 }}>
+          <button onClick={() => setAddObjectOpen(true)} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#fff" strokeWidth="2"/><path d="M12 8v8M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Добавить объект</span></button>
+          <button onClick={() => setAddRelation({ source: null, target: null })} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="7" cy="12" r="3" stroke="#fff" strokeWidth="2"/><circle cx="17" cy="12" r="3" stroke="#fff" strokeWidth="2"/><path d="M10 12h4" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Добавить связь</span></button>
+          <button onClick={() => setSearchOpen(true)} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#fff" strokeWidth="2"/><path d="M20 20l-3-3" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Поиск пути</span></button>
+          <button onClick={() => alert('Фильтр (MVP)')} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M6 12h12M8 18h8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Фильтр</span></button>
         </div>
-        <div>
-          <h3>Карточка</h3>
-          {selected?.type === "node" && (
-            <div>
-              <b>Объект:</b> {selected.data.name}
-              <ul>
-                {Object.entries(selected.data.properties || {}).map(([k, v]) => <li key={k}>{k}: {String(v)}</li>)}
-              </ul>
+        <AddObjectModal
+          open={addObjectOpen}
+          onClose={() => setAddObjectOpen(false)}
+          onCreate={handleAddObject}
+          objectTypes={objectTypes}
+        />
+        <AddRelationModal
+          open={addRelationOpen}
+          onClose={() => { setAddRelation({ source: null, target: null }); setAddRelationOpen(false); }}
+          onCreate={data => { handleAddRelation(data); setAddRelation({ source: null, target: null }); setAddRelationOpen(false); }}
+          relationTypes={filteredRelationTypes}
+          sourceId={addRelation.source?.id || 0}
+          targetId={addRelation.target?.id || 0}
+        />
+        <AddObjectTypeModal
+          open={addObjectTypeOpen}
+          onClose={() => setAddObjectTypeOpen(false)}
+          onCreate={handleCreateObjectType}
+        />
+        <AddRelationTypeModal
+          open={addRelationTypeOpen}
+          onClose={() => setAddRelationTypeOpen(false)}
+          onCreate={handleCreateRelationType}
+          objectTypes={objectTypes}
+        />
+        {/* Модальное окно поиска пути */}
+        {searchOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.18)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: '#fff', padding: 28, borderRadius: 12, minWidth: 340, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', fontFamily: 'Segoe UI' }}>
+              <SearchPanel findPath={findPath} path={path} />
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <button onClick={() => setSearchOpen(false)} style={{ background: '#eee', color: '#333', border: 'none', borderRadius: 6, padding: '7px 18px', fontWeight: 500, fontSize: 16, cursor: 'pointer' }}>Закрыть</button>
+              </div>
             </div>
-          )}
-          {selected?.type === "edge" && (
-            <div>
-              <b>Связь:</b> #{selected.data.id}
-              <ul>
-                {Object.entries(selected.data.properties || {}).map(([k, v]) => <li key={k}>{k}: {String(v)}</li>)}
-              </ul>
-            </div>
-          )}
-        </div>
-      </div>
-      <div>
-        <h3>Поиск пути</h3>
-        <form onSubmit={e => { e.preventDefault(); findPath(Number(e.currentTarget.from.value), Number(e.currentTarget.to.value)); }}>
-          <input name="from" type="number" placeholder="ID от" required />
-          <input name="to" type="number" placeholder="ID до" required />
-          <button type="submit">Найти путь</button>
-        </form>
-        {path.length > 0 && <div>Путь: {path.join(" → ")}</div>}
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+const actionBtn: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: '#fff',
+  borderRadius: 8,
+  padding: '8px 18px',
+  fontSize: 17,
+  fontWeight: 500,
+  display: 'flex',
+  alignItems: 'center',
+  cursor: 'pointer',
+  transition: 'background 0.15s',
+};

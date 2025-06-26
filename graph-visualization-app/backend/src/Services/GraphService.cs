@@ -122,5 +122,35 @@ namespace GraphVisualizationApp.Services
             }
             return new List<GraphObject>();
         }
+
+        // --- Маппинг моделей в DTO ---
+        public static ObjectTypeDto ToDto(ObjectType type) => new ObjectTypeDto
+        {
+            Id = type.Id,
+            Name = type.Name,
+            Description = type.Description
+        };
+        public static RelationTypeDto ToDto(RelationType type) => new RelationTypeDto
+        {
+            Id = type.Id,
+            Name = type.Name,
+            Description = type.Description,
+            ObjectTypeId = type.ObjectTypeId
+        };
+        public static GraphObjectDto ToDto(GraphObject obj) => new GraphObjectDto
+        {
+            Id = obj.Id,
+            Name = obj.Name,
+            ObjectTypeId = obj.ObjectTypeId,
+            Properties = obj.Properties?.ToDictionary(p => p.Key, p => p.Value) ?? new Dictionary<string, string>()
+        };
+        public static GraphRelationDto ToDto(GraphRelation rel) => new GraphRelationDto
+        {
+            Id = rel.Id,
+            Source = rel.Source,
+            Target = rel.Target,
+            RelationTypeId = rel.RelationTypeId,
+            Properties = rel.Properties?.ToDictionary(p => p.Key, p => p.Value) ?? new Dictionary<string, string>()
+        };
     }
 }
