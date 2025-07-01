@@ -18,6 +18,8 @@ export interface GraphObject {
     objectTypeId: number;
     type?: ObjectType;
     properties: Record<string, string>;
+    PositionX?: number;
+    PositionY?: number;
 }
 
 export interface GraphRelation {

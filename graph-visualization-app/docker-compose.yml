@@ -32,5 +32,5 @@ services:
       - POSTGRES_DB=graphdb
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=yourpassword
-    volumes:
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    # volumes:
+    #   - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql

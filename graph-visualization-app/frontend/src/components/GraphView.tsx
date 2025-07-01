@@ -9,6 +9,7 @@ import AddRelationModal from "./modals/AddRelationModal";
 import AddObjectTypeModal from "./modals/AddObjectTypeModal";
 import AddRelationTypeModal from "./modals/AddRelationTypeModal";
 import Toolbar from "./Toolbar";
+import Sidebar from "./Sidebar";
 
 const api = (path: string, opts?: any) =>
   fetch("/api/graph" + path, opts).then(r => r.json());
@@ -32,27 +33,14 @@ export default function GraphView() {
   }, []);
 
   const handleAddObject = async (data: { name: string; objectTypeId: number; properties: Record<string, string> }) => {
-    const typeObj = objectTypes.find(t => t.id === data.objectTypeId);
-    if (!typeObj) {
-      alert('Ошибка: не найден тип объекта!');
-      return;
-    }
-    // Только Name и Description для ObjectType
-    const objectTypePayload = {
-      Name: typeObj.name,
-      Description: typeObj.description || ''
-    };
-    // Свойства без вложенного Object
     const propertiesArr = Object.entries(data.properties).map(([key, value]) => ({
       Key: key,
       Value: value
     }));
-    const payload: any = {
+    const payload = {
       Name: data.name,
-      ObjectType: objectTypePayload,
-      Properties: propertiesArr,
-      IncomingRelations: [],
-      OutgoingRelations: []
+      ObjectTypeId: data.objectTypeId,
+      Properties: propertiesArr
     };
     const res = await fetch('/api/graph/objects', {
       method: 'POST',
@@ -75,7 +63,15 @@ export default function GraphView() {
 
   const handleNodeAction = (action: string, node: GraphObject) => {
     if (action === 'create-relation') {
-      setAddRelation({ source: node, target: null });
+      // Если уже выбран source, а клик по другому объекту — это target
+      if (addRelation.source && !addRelation.target && node.id !== addRelation.source.id) {
+        setAddRelation(r => ({ ...r, target: node }));
+        setAddRelationOpen(true);
+      } else {
+        // Первый клик — выбираем source
+        setAddRelation({ source: node, target: null });
+        // Не открываем модалку сразу, ждём второго объекта
+      }
     } else if (action === 'edit') {
       handleEditNode(node);
     } else if (action === 'delete') {
@@ -85,18 +81,28 @@ export default function GraphView() {
 
   const handleSelectNode = (node: GraphObject) => {
     setSelected({ type: "node", data: node });
-    if (addRelation.source && !addRelation.target && node.id !== addRelation.source.id) {
-      setAddRelation(r => ({ ...r, target: node }));
-      setAddRelationOpen(true);
-    }
+    // Не открываем модалку для связи здесь, только через onNodeAction
   };
 
   const handleAddRelation = async (data: { source: number; target: number; relationTypeId: number; properties: Record<string, string> }) => {
-    await fetch('/api/graph/relations', {
+    // Формируем payload в стиле .NET backend
+    const payload = {
+      SourceId: data.source,
+      TargetId: data.target,
+      RelationTypeId: data.relationTypeId,
+      Properties: Object.entries(data.properties).map(([Key, Value]) => ({ Key, Value }))
+    };
+    console.log('POST /api/graph/relations', payload);
+    const res = await fetch('/api/graph/relations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(payload)
     });
+    if (!res.ok) {
+      const text = await res.text();
+      alert('Ошибка создания связи: ' + text);
+      return;
+    }
     const updated = await api('/relations');
     setEdges(updated);
   };
@@ -150,9 +156,30 @@ export default function GraphView() {
     ? relationTypes.filter(rt => rt.objectTypeId === addRelation.source!.objectTypeId)
     : relationTypes;
 
-  // Заглушки для редактирования и удаления
+  // Генерируем координаты для объектов без координат и приводим к x/y/id:string для GraphCanvas
+  const nodesWithPositions = nodes.map(node => {
+    const x = typeof node.PositionX === 'number' ? node.PositionX : Math.random() * 600 + 100;
+    const y = typeof node.PositionY === 'number' ? node.PositionY : Math.random() * 400 + 100;
+    return {
+      ...node,
+      // id оставляем числом, чтобы не ломать типизацию
+      PositionX: x,
+      PositionY: y,
+      x,
+      y,
+      label: node.name || ''
+    };
+  });
+  // Для отладки: выводим, что реально передаём в GraphCanvas
+  console.log('nodesWithPositions', nodesWithPositions);
+  console.log('edges', edges);
+
+  // Редактирование и удаление объектов и связей
+  const [editNode, setEditNode] = useState<GraphObject | null>(null);
+  const [editEdge, setEditEdge] = useState<GraphRelation | null>(null);
+
   const handleEditNode = (node: GraphObject) => {
-    alert('Редактирование объекта (реализовать форму)');
+    setEditNode(node);
   };
   const handleDeleteNode = async (node: GraphObject) => {
     if (window.confirm('Удалить объект?')) {
@@ -161,7 +188,7 @@ export default function GraphView() {
     }
   };
   const handleEditEdge = (edge: GraphRelation) => {
-    alert('Редактирование связи (реализовать форму)');
+    setEditEdge(edge);
   };
   const handleDeleteEdge = async (edge: GraphRelation) => {
     if (window.confirm('Удалить связь?')) {
@@ -170,21 +197,83 @@ export default function GraphView() {
     }
   };
 
+  // Сохранение изменений объекта
+  const handleSaveEditNode = async (data: { id: number; name: string; objectTypeId: number; properties: Record<string, string> }) => {
+    const propertiesArr = Object.entries(data.properties).map(([key, value]) => ({ Key: key, Value: value }));
+    const payload = {
+      Id: data.id,
+      Name: data.name,
+      ObjectTypeId: data.objectTypeId,
+      Properties: propertiesArr
+    };
+    const res = await fetch(`/api/graph/objects/${data.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      alert('Ошибка редактирования объекта: ' + text);
+      return;
+    }
+    const updated = await api('/objects');
+    setNodes(updated);
+    setEditNode(null);
+  };
+
+  // Сохранение изменений связи
+  const handleSaveEditEdge = async (data: { id: number; relationTypeId: number; properties: Record<string, string> }) => {
+    const propertiesArr = Object.entries(data.properties).map(([key, value]) => ({ Key: key, Value: value }));
+    const payload = {
+      Id: data.id,
+      RelationTypeId: data.relationTypeId,
+      Properties: propertiesArr
+    };
+    const res = await fetch(`/api/graph/relations/${data.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      alert('Ошибка редактирования связи: ' + text);
+      return;
+    }
+    const updated = await api('/relations');
+    setEdges(updated);
+    setEditEdge(null);
+  };
+
+  // Удаление типа объекта
+  const handleDeleteObjectType = async (id: number) => {
+    if (window.confirm('Удалить тип объекта?')) {
+      await fetch(`/api/objecttype/${id}`, { method: 'DELETE' });
+      setObjectTypes(objectTypes.filter(t => t.id !== id));
+    }
+  };
+  // Удаление типа связи
+  const handleDeleteRelationType = async (id: number) => {
+    if (window.confirm('Удалить тип связи?')) {
+      await fetch(`/api/graph/relation-types/${id}`, { method: 'DELETE' });
+      setRelationTypes(relationTypes.filter(t => t.id !== id));
+    }
+  };
+
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#f4f6fa', overflow: 'hidden' }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#f4f6fa', overflow: 'hidden' }}>
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          <Toolbar
-            onSelect={handleToolbarSelect}
-            onMove={handleToolbarMove}
-            onAlign={handleToolbarAlign}
-            onFilter={handleToolbarFilter}
+          <Sidebar
+            objectTypes={objectTypes}
+            relationTypes={relationTypes}
             onAddObjectType={handleAddObjectType}
             onAddRelationType={handleAddRelationType}
+            onDeleteObjectType={handleDeleteObjectType}
+            onDeleteRelationType={handleDeleteRelationType}
           />
           <div style={{ flex: 1, position: 'relative', minWidth: 0, minHeight: 0 }}>
             <GraphCanvas
-              nodes={nodes}
+              nodes={nodesWithPositions}
               edges={edges}
               relationTypes={relationTypes}
               onSelectNode={handleSelectNode}
@@ -205,18 +294,41 @@ export default function GraphView() {
           <button onClick={() => alert('Фильтр (MVP)')} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M6 12h12M8 18h8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Фильтр</span></button>
         </div>
         <AddObjectModal
-          open={addObjectOpen}
-          onClose={() => setAddObjectOpen(false)}
+          open={addObjectOpen || !!editNode}
+          onClose={() => { setAddObjectOpen(false); setEditNode(null); }}
           onCreate={handleAddObject}
+          onEdit={handleSaveEditNode}
           objectTypes={objectTypes}
+          editData={editNode ? {
+            id: editNode.id,
+            name: editNode.name,
+            objectTypeId: editNode.objectTypeId,
+            properties: Array.isArray(editNode.properties)
+              ? editNode.properties.reduce((acc: any, p: any) => {
+                  acc[p.key || p.Key] = p.value || p.Value;
+                  return acc;
+                }, {})
+              : (typeof editNode.properties === 'object' ? editNode.properties : {})
+          } : undefined}
         />
         <AddRelationModal
-          open={addRelationOpen}
-          onClose={() => { setAddRelation({ source: null, target: null }); setAddRelationOpen(false); }}
+          open={addRelationOpen || !!editEdge}
+          onClose={() => { setAddRelation({ source: null, target: null }); setAddRelationOpen(false); setEditEdge(null); }}
           onCreate={data => { handleAddRelation(data); setAddRelation({ source: null, target: null }); setAddRelationOpen(false); }}
+          onEdit={handleSaveEditEdge}
           relationTypes={filteredRelationTypes}
-          sourceId={addRelation.source?.id || 0}
-          targetId={addRelation.target?.id || 0}
+          sourceId={addRelation.source?.id || (editEdge ? editEdge.source : 0)}
+          targetId={addRelation.target?.id || (editEdge ? editEdge.target : 0)}
+          editData={editEdge ? {
+            id: editEdge.id,
+            relationTypeId: editEdge.relationTypeId,
+            properties: Array.isArray(editEdge.properties)
+              ? editEdge.properties.reduce((acc: any, p: any) => {
+                  acc[p.key || p.Key] = p.value || p.Value;
+                  return acc;
+                }, {})
+              : (typeof editEdge.properties === 'object' ? editEdge.properties : {})
+          } : undefined}
         />
         <AddObjectTypeModal
           open={addObjectTypeOpen}

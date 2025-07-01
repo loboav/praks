@@ -18,6 +18,14 @@ namespace GraphVisualizationApp.Services
             await _db.SaveChangesAsync();
             return type;
         }
+        public async Task<bool> DeleteObjectTypeAsync(int id)
+        {
+            var type = await _db.ObjectTypes.FindAsync(id);
+            if (type == null) return false;
+            _db.ObjectTypes.Remove(type);
+            await _db.SaveChangesAsync();
+            return true;
+        }
         public async Task<List<RelationType>> GetRelationTypesAsync() => await _db.RelationTypes.ToListAsync();
         public async Task<RelationType> CreateRelationTypeAsync(RelationType type)
         {

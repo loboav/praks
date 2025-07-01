@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-interface AddObjectTypeModalProps {
+export interface AddObjectTypeModalProps {
   open: boolean;
   onClose: () => void;
   onCreate: (data: { name: string; description?: string }) => void;

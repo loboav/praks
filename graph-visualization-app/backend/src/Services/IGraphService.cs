@@ -8,6 +8,7 @@ namespace GraphVisualizationApp.Services
     {
         Task<List<ObjectType>> GetObjectTypesAsync();
         Task<ObjectType> CreateObjectTypeAsync(ObjectType type);
+        Task<bool> DeleteObjectTypeAsync(int id);
         Task<List<RelationType>> GetRelationTypesAsync();
         Task<RelationType> CreateRelationTypeAsync(RelationType type);
         Task<List<GraphObject>> GetObjectsAsync();
