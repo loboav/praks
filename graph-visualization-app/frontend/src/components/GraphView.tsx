@@ -12,7 +12,7 @@ import Toolbar from "./Toolbar";
 import Sidebar from "./Sidebar";
 
 const api = (path: string, opts?: any) =>
-  fetch("/api/graph" + path, opts).then(r => r.json());
+  fetch("/api" + path, opts).then(r => r.json());
 
 export default function GraphView() {
   const [nodes, setNodes] = useState<GraphObject[]>([]);
@@ -26,8 +26,8 @@ export default function GraphView() {
   const [addRelationOpen, setAddRelationOpen] = useState(false);
 
   useEffect(() => {
-    api("/object-types").then(setObjectTypes);
-    api("/relation-types").then(setRelationTypes);
+    api("/objecttype").then(setObjectTypes);
+    api("/relationtype").then(setRelationTypes);
     api("/objects").then(setNodes);
     api("/relations").then(setEdges);
   }, []);
@@ -42,7 +42,7 @@ export default function GraphView() {
       ObjectTypeId: data.objectTypeId,
       Properties: propertiesArr
     };
-    const res = await fetch('/api/graph/objects', {
+    const res = await fetch('/api/objects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -87,13 +87,13 @@ export default function GraphView() {
   const handleAddRelation = async (data: { source: number; target: number; relationTypeId: number; properties: Record<string, string> }) => {
     // Формируем payload в стиле .NET backend
     const payload = {
-      SourceId: data.source,
-      TargetId: data.target,
+      Source: data.source,
+      Target: data.target,
       RelationTypeId: data.relationTypeId,
       Properties: Object.entries(data.properties).map(([Key, Value]) => ({ Key, Value }))
     };
-    console.log('POST /api/graph/relations', payload);
-    const res = await fetch('/api/graph/relations', {
+    console.log('POST /api/relations', payload);
+    const res = await fetch('/api/relations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -121,7 +121,7 @@ export default function GraphView() {
     if (data.description && data.description.trim() !== '') {
       payload.Description = data.description;
     }
-    const res = await fetch('/api/graph/object-types', {
+    const res = await fetch('/api/objecttype', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -131,7 +131,7 @@ export default function GraphView() {
       alert('Ошибка создания типа объекта: ' + text);
       return;
     }
-    const types = await api('/object-types');
+    const types = await api('/objecttype');
     setObjectTypes(types);
   };
 
@@ -139,12 +139,12 @@ export default function GraphView() {
   const [addRelationTypeOpen, setAddRelationTypeOpen] = useState(false);
   const handleAddRelationType = () => setAddRelationTypeOpen(true);
   const handleCreateRelationType = async (data: { name: string; description?: string; objectTypeId: number }) => {
-    await fetch('/api/graph/relation-types', {
+    await fetch('/api/relationtype', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    const relTypes = await api('/relation-types');
+    const relTypes = await fetch('/api/relationtype').then(r => r.json());
     setRelationTypes(relTypes);
   };
 
@@ -183,7 +183,7 @@ export default function GraphView() {
   };
   const handleDeleteNode = async (node: GraphObject) => {
     if (window.confirm('Удалить объект?')) {
-      await fetch(`/api/graph/objects/${node.id}`, { method: 'DELETE' });
+      await fetch(`/api/objects/${node.id}`, { method: 'DELETE' });
       setNodes(nodes.filter(n => n.id !== node.id));
     }
   };
@@ -192,7 +192,7 @@ export default function GraphView() {
   };
   const handleDeleteEdge = async (edge: GraphRelation) => {
     if (window.confirm('Удалить связь?')) {
-      await fetch(`/api/graph/relations/${edge.id}`, { method: 'DELETE' });
+      await fetch(`/api/relations/${edge.id}`, { method: 'DELETE' });
       setEdges(edges.filter(e => e.id !== edge.id));
     }
   };
@@ -206,7 +206,7 @@ export default function GraphView() {
       ObjectTypeId: data.objectTypeId,
       Properties: propertiesArr
     };
-    const res = await fetch(`/api/graph/objects/${data.id}`, {
+    const res = await fetch(`/api/objects/${data.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -229,7 +229,7 @@ export default function GraphView() {
       RelationTypeId: data.relationTypeId,
       Properties: propertiesArr
     };
-    const res = await fetch(`/api/graph/relations/${data.id}`, {
+    const res = await fetch(`/api/relations/${data.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -254,7 +254,7 @@ export default function GraphView() {
   // Удаление типа связи
   const handleDeleteRelationType = async (id: number) => {
     if (window.confirm('Удалить тип связи?')) {
-      await fetch(`/api/graph/relation-types/${id}`, { method: 'DELETE' });
+      await fetch(`/api/relationtype/${id}`, { method: 'DELETE' });
       setRelationTypes(relationTypes.filter(t => t.id !== id));
     }
   };

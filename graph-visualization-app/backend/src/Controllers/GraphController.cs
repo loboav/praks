@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace GraphVisualizationApp.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api")]
     public class GraphController : ControllerBase
     {
         private readonly IGraphService _service;
@@ -98,6 +98,17 @@ namespace GraphVisualizationApp.Controllers
         {
             var created = await _service.CreateObjectAsync(obj);
             return Ok(GraphService.ToDto(created));
+        }
+
+        [HttpPut("objects/{id}")]
+        public async Task<IActionResult> UpdateObject(int id, [FromBody] GraphObject obj)
+        {
+            if (obj == null || obj.Id != id)
+                return BadRequest();
+            var updated = await _service.UpdateObjectAsync(obj);
+            if (updated == null)
+                return NotFound();
+            return Ok(GraphService.ToDto(updated));
         }
 
         [HttpGet("relations")]

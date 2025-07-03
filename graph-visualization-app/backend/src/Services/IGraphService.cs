@@ -25,5 +25,12 @@ namespace GraphVisualizationApp.Services
         Task<GraphObject> GetObjectAsync(int id);
         Task<GraphRelation> GetRelationAsync(int id);
         Task<List<GraphObject>> FindPathAsync(int startId, int endId);
+
+        // --- Для обновления объекта ---
+        Task<GraphObject> UpdateObjectAsync(GraphObject obj);
+
+        // --- Массовое обновление объектов и связей ---
+        Task<int> UpdateObjectsBatchAsync(List<int> ids, Dictionary<string, object> fields);
+        Task<int> UpdateRelationsBatchAsync(List<int> ids, Dictionary<string, object> fields);
     }
 }

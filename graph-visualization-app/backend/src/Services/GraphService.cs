@@ -11,6 +11,82 @@ namespace GraphVisualizationApp.Services
         private readonly GraphDbContext _db;
         public GraphService(GraphDbContext db) { _db = db; }
 
+        // Массовое обновление объектов
+        public async Task<int> UpdateObjectsBatchAsync(List<int> ids, Dictionary<string, object> fields)
+        {
+            var objects = await _db.GraphObjects.Include(o => o.Properties).Where(o => ids.Contains(o.Id)).ToListAsync();
+            foreach (var obj in objects)
+            {
+                if (fields.ContainsKey("Name"))
+                    obj.Name = fields["Name"]?.ToString();
+                if (fields.ContainsKey("ObjectTypeId"))
+                    obj.ObjectTypeId = int.Parse(fields["ObjectTypeId"].ToString());
+                if (fields.ContainsKey("Properties") && fields["Properties"] is Dictionary<string, string> props)
+                {
+                    _db.ObjectProperties.RemoveRange(obj.Properties);
+                    foreach (var prop in props)
+                    {
+                        _db.ObjectProperties.Add(new ObjectProperty
+                        {
+                            ObjectId = obj.Id,
+                            Key = prop.Key,
+                            Value = prop.Value
+                        });
+                    }
+                }
+            }
+            return await _db.SaveChangesAsync();
+        }
+
+        // Массовое обновление связей
+        public async Task<int> UpdateRelationsBatchAsync(List<int> ids, Dictionary<string, object> fields)
+        {
+            var relations = await _db.GraphRelations.Include(r => r.Properties).Where(r => ids.Contains(r.Id)).ToListAsync();
+            foreach (var rel in relations)
+            {
+                if (fields.ContainsKey("RelationTypeId"))
+                    rel.RelationTypeId = int.Parse(fields["RelationTypeId"].ToString());
+                if (fields.ContainsKey("Properties") && fields["Properties"] is Dictionary<string, string> props)
+                {
+                    _db.RelationProperties.RemoveRange(rel.Properties);
+                    foreach (var prop in props)
+                    {
+                        _db.RelationProperties.Add(new RelationProperty
+                        {
+                            RelationId = rel.Id,
+                            Key = prop.Key,
+                            Value = prop.Value
+                        });
+                    }
+                }
+            }
+            return await _db.SaveChangesAsync();
+        }
+
+        public async Task<GraphObject> UpdateObjectAsync(GraphObject obj)
+        {
+            var existing = await _db.GraphObjects.Include(o => o.Properties).FirstOrDefaultAsync(o => o.Id == obj.Id);
+            if (existing == null) return null;
+            existing.Name = obj.Name;
+            existing.ObjectTypeId = obj.ObjectTypeId;
+            // Обновление свойств: удаляем старые, добавляем новые
+            _db.ObjectProperties.RemoveRange(existing.Properties);
+            if (obj.Properties != null)
+            {
+                foreach (var prop in obj.Properties)
+                {
+                    _db.ObjectProperties.Add(new ObjectProperty
+                    {
+                        ObjectId = existing.Id,
+                        Key = prop.Key,
+                        Value = prop.Value
+                    });
+                }
+            }
+            await _db.SaveChangesAsync();
+            return existing;
+        }
+
         public async Task<List<ObjectType>> GetObjectTypesAsync() => await _db.ObjectTypes.ToListAsync();
         public async Task<ObjectType> CreateObjectTypeAsync(ObjectType type)
         {
