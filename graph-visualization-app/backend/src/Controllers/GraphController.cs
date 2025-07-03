@@ -15,6 +15,31 @@ namespace GraphVisualizationApp.Controllers
         private readonly IGraphService _service;
         public GraphController(IGraphService service) { _service = service; }
 
+        // --- Batch update объектов ---
+        public class BatchUpdateRequest
+        {
+            public List<int> Ids { get; set; }
+            public Dictionary<string, object> Fields { get; set; }
+        }
+
+        [HttpPost("objects/batch-update")]
+        public async Task<IActionResult> BatchUpdateObjects([FromBody] BatchUpdateRequest req)
+        {
+            if (req == null || req.Ids == null || req.Ids.Count == 0 || req.Fields == null)
+                return BadRequest();
+            var updated = await _service.UpdateObjectsBatchAsync(req.Ids, req.Fields);
+            return Ok(new { updated });
+        }
+
+        [HttpPost("relations/batch-update")]
+        public async Task<IActionResult> BatchUpdateRelations([FromBody] BatchUpdateRequest req)
+        {
+            if (req == null || req.Ids == null || req.Ids.Count == 0 || req.Fields == null)
+                return BadRequest();
+            var updated = await _service.UpdateRelationsBatchAsync(req.Ids, req.Fields);
+            return Ok(new { updated });
+        }
+
         [HttpGet("graph")]
         public async Task<IActionResult> GetGraph()
         {

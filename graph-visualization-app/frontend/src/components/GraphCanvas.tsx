@@ -17,9 +17,10 @@ interface GraphCanvasProps {
   onNodeAction?: (action: string, node: GraphObject) => void;
   onAlign?: () => void;
   onMove?: () => void;
+  selectedNodes?: number[];
 }
 
-const GraphCanvas: React.FC<GraphCanvasProps> = ({ nodes, edges, relationTypes, onSelectNode, onSelectEdge, onNodeAction }) => {
+const GraphCanvas: React.FC<GraphCanvasProps> = ({ nodes, edges, relationTypes, onSelectNode, onSelectEdge, onNodeAction, selectedNodes: propsSelectedNodes }) => {
   // Синхронизируем состояние с props.nodes
   const initialRfNodes = nodes.map(node => ({
     id: node.id.toString(),
@@ -28,7 +29,12 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({ nodes, edges, relationTypes, 
       x: node.PositionX ?? 400,
       y: node.PositionY ?? 300
     },
-    style: { border: '2px solid #2196f3', borderRadius: 8, padding: 8, background: '#fff' },
+    style: {
+      border: (propsSelectedNodes && propsSelectedNodes.includes(node.id)) ? '2px solid #f00' : '2px solid #2196f3',
+      borderRadius: 8,
+      padding: 8,
+      background: '#fff'
+    },
   }));
   const [rfNodes, setRfNodes, onNodesChange] = require('reactflow').useNodesState(initialRfNodes);
 

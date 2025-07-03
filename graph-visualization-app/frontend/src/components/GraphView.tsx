@@ -10,6 +10,7 @@ import AddObjectTypeModal from "./modals/AddObjectTypeModal";
 import AddRelationTypeModal from "./modals/AddRelationTypeModal";
 import Toolbar from "./Toolbar";
 import Sidebar from "./Sidebar";
+import BatchEditModal from "./BatchEditModal";
 
 const api = (path: string, opts?: any) =>
   fetch("/api" + path, opts).then(r => r.json());
@@ -24,6 +25,10 @@ export default function GraphView() {
   const [addObjectOpen, setAddObjectOpen] = useState(false);
   const [addRelation, setAddRelation] = useState<{ source: GraphObject | null; target: GraphObject | null }>({ source: null, target: null });
   const [addRelationOpen, setAddRelationOpen] = useState(false);
+
+  // --- Массовое выделение ---
+  const [selectedNodes, setSelectedNodes] = useState<number[]>([]);
+  const [batchEditOpen, setBatchEditOpen] = useState(false);
 
   useEffect(() => {
     api("/objecttype").then(setObjectTypes);
@@ -276,10 +281,46 @@ export default function GraphView() {
               nodes={nodesWithPositions}
               edges={edges}
               relationTypes={relationTypes}
-              onSelectNode={handleSelectNode}
+              onSelectNode={node => {
+                if (window.event && (window.event as MouseEvent).ctrlKey) {
+                  setSelectedNodes(prev =>
+                    prev.includes(node.id) ? prev.filter(id => id !== node.id) : [...prev, node.id]
+                  );
+                } else {
+                  setSelectedNodes([node.id]);
+                }
+                setSelected({ type: "node", data: node });
+              }}
               onSelectEdge={edge => setSelected({ type: "edge", data: edge })}
               onNodeAction={handleNodeAction}
+              selectedNodes={selectedNodes}
             />
+        {/* Кнопка массового редактирования */}
+        {selectedNodes.length > 1 && (
+          <button style={{ position: 'fixed', bottom: 80, right: 40, zIndex: 1002, background: '#2196f3', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontSize: 18, fontWeight: 600, boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}
+            onClick={() => setBatchEditOpen(true)}>
+            Редактировать выбранные ({selectedNodes.length})
+          </button>
+        )}
+
+        {/* Модалка массового редактирования */}
+        {batchEditOpen && (
+          <BatchEditModal
+            open={batchEditOpen}
+            onClose={() => setBatchEditOpen(false)}
+            onSave={async (fields) => {
+              await fetch('/api/objects/batch-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: selectedNodes, fields })
+              });
+              setBatchEditOpen(false);
+              setSelectedNodes([]);
+              const updated = await api('/objects');
+              setNodes(updated);
+            }}
+          />
+        )}
             {selected?.type === "node" && <ObjectCard object={selected.data} />}
             {selected?.type === "edge" && (
               <RelationCard relation={selected.data} onEdit={() => handleEditEdge(selected.data)} onDelete={() => handleDeleteEdge(selected.data)} />
