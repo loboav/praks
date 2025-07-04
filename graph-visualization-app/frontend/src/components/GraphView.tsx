@@ -37,16 +37,18 @@ export default function GraphView() {
     api("/relations").then(setEdges);
   }, []);
 
-  const handleAddObject = async (data: { name: string; objectTypeId: number; properties: Record<string, string> }) => {
+  const handleAddObject = async (data: { name: string; objectTypeId: number; properties: Record<string, string>; color?: string; icon?: string }) => {
     const propertiesArr = Object.entries(data.properties).map(([key, value]) => ({
       Key: key,
       Value: value
     }));
-    const payload = {
+    const payload: any = {
       Name: data.name,
       ObjectTypeId: data.objectTypeId,
       Properties: propertiesArr
     };
+    if (data.color) payload.Color = data.color;
+    if (data.icon) payload.Icon = data.icon;
     const res = await fetch('/api/objects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -203,14 +205,16 @@ export default function GraphView() {
   };
 
   // Сохранение изменений объекта
-  const handleSaveEditNode = async (data: { id: number; name: string; objectTypeId: number; properties: Record<string, string> }) => {
+  const handleSaveEditNode = async (data: { id: number; name: string; objectTypeId: number; properties: Record<string, string>; color?: string; icon?: string }) => {
     const propertiesArr = Object.entries(data.properties).map(([key, value]) => ({ Key: key, Value: value }));
-    const payload = {
+    const payload: any = {
       Id: data.id,
       Name: data.name,
       ObjectTypeId: data.objectTypeId,
       Properties: propertiesArr
     };
+    if (data.color) payload.Color = data.color;
+    if (data.icon) payload.Icon = data.icon;
     const res = await fetch(`/api/objects/${data.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -349,7 +353,9 @@ export default function GraphView() {
                   acc[p.key || p.Key] = p.value || p.Value;
                   return acc;
                 }, {})
-              : (typeof editNode.properties === 'object' ? editNode.properties : {})
+              : (typeof editNode.properties === 'object' ? editNode.properties : {}),
+            color: editNode.color,
+            icon: editNode.icon
           } : undefined}
         />
         <AddRelationModal

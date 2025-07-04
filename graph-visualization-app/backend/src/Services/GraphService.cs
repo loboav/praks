@@ -20,7 +20,15 @@ namespace GraphVisualizationApp.Services
                 if (fields.ContainsKey("Name"))
                     obj.Name = fields["Name"]?.ToString();
                 if (fields.ContainsKey("ObjectTypeId"))
-                    obj.ObjectTypeId = int.Parse(fields["ObjectTypeId"].ToString());
+                {
+                    var val = fields["ObjectTypeId"]?.ToString();
+                    if (!string.IsNullOrEmpty(val) && int.TryParse(val, out var parsed))
+                        obj.ObjectTypeId = parsed;
+                }
+                if (fields.ContainsKey("Color"))
+                    obj.Color = fields["Color"]?.ToString();
+                if (fields.ContainsKey("Icon"))
+                    obj.Icon = fields["Icon"]?.ToString();
                 if (fields.ContainsKey("Properties") && fields["Properties"] is Dictionary<string, string> props)
                 {
                     _db.ObjectProperties.RemoveRange(obj.Properties);
@@ -45,7 +53,13 @@ namespace GraphVisualizationApp.Services
             foreach (var rel in relations)
             {
                 if (fields.ContainsKey("RelationTypeId"))
-                    rel.RelationTypeId = int.Parse(fields["RelationTypeId"].ToString());
+                {
+                    var val = fields["RelationTypeId"]?.ToString();
+                    if (!string.IsNullOrEmpty(val) && int.TryParse(val, out var parsed))
+                        rel.RelationTypeId = parsed;
+                }
+                if (fields.ContainsKey("Color"))
+                    rel.Color = fields["Color"]?.ToString();
                 if (fields.ContainsKey("Properties") && fields["Properties"] is Dictionary<string, string> props)
                 {
                     _db.RelationProperties.RemoveRange(rel.Properties);
@@ -66,9 +80,11 @@ namespace GraphVisualizationApp.Services
         public async Task<GraphObject> UpdateObjectAsync(GraphObject obj)
         {
             var existing = await _db.GraphObjects.Include(o => o.Properties).FirstOrDefaultAsync(o => o.Id == obj.Id);
-            if (existing == null) return null;
+            if (existing == null) return null!;
             existing.Name = obj.Name;
             existing.ObjectTypeId = obj.ObjectTypeId;
+            existing.Color = obj.Color;
+            existing.Icon = obj.Icon;
             // Обновление свойств: удаляем старые, добавляем новые
             _db.ObjectProperties.RemoveRange(existing.Properties);
             if (obj.Properties != null)
@@ -211,22 +227,24 @@ namespace GraphVisualizationApp.Services
         public static ObjectTypeDto ToDto(ObjectType type) => new ObjectTypeDto
         {
             Id = type.Id,
-            Name = type.Name,
+            Name = type.Name ?? string.Empty,
             Description = type.Description
         };
         public static RelationTypeDto ToDto(RelationType type) => new RelationTypeDto
         {
             Id = type.Id,
-            Name = type.Name,
+            Name = type.Name ?? string.Empty,
             Description = type.Description,
             ObjectTypeId = type.ObjectTypeId
         };
         public static GraphObjectDto ToDto(GraphObject obj) => new GraphObjectDto
         {
             Id = obj.Id,
-            Name = obj.Name,
+            Name = obj.Name ?? string.Empty,
             ObjectTypeId = obj.ObjectTypeId,
-            Properties = obj.Properties?.ToDictionary(p => p.Key, p => p.Value) ?? new Dictionary<string, string>()
+            Properties = obj.Properties?.ToDictionary(p => p.Key ?? string.Empty, p => p.Value ?? string.Empty) ?? new Dictionary<string, string>(),
+            Color = obj.Color,
+            Icon = obj.Icon
         };
         public static GraphRelationDto ToDto(GraphRelation rel) => new GraphRelationDto
         {
@@ -234,7 +252,8 @@ namespace GraphVisualizationApp.Services
             Source = rel.Source,
             Target = rel.Target,
             RelationTypeId = rel.RelationTypeId,
-            Properties = rel.Properties?.ToDictionary(p => p.Key, p => p.Value) ?? new Dictionary<string, string>()
+            Properties = rel.Properties?.ToDictionary(p => p.Key ?? string.Empty, p => p.Value ?? string.Empty) ?? new Dictionary<string, string>(),
+            Color = rel.Color
         };
     }
 }

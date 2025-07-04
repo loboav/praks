@@ -35,6 +35,8 @@ namespace GraphVisualizationApp.Models
         public ICollection<ObjectProperty> Properties { get; set; } = new List<ObjectProperty>();
         public ICollection<GraphRelation> OutgoingRelations { get; set; } = new List<GraphRelation>();
         public ICollection<GraphRelation> IncomingRelations { get; set; } = new List<GraphRelation>();
+        public string? Color { get; set; }
+        public string? Icon { get; set; }
     }
 
     public class ObjectProperty
@@ -56,6 +58,7 @@ namespace GraphVisualizationApp.Models
         public int RelationTypeId { get; set; }
         public RelationType? RelationType { get; set; }
         public ICollection<RelationProperty> Properties { get; set; } = new List<RelationProperty>();
+        public string? Color { get; set; }
     }
 
     public class RelationProperty

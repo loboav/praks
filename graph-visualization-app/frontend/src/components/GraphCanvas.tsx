@@ -24,16 +24,17 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({ nodes, edges, relationTypes, 
   // Синхронизируем состояние с props.nodes
   const initialRfNodes = nodes.map(node => ({
     id: node.id.toString(),
-    data: { label: node.name, orig: node },
+    data: { label: node.icon ? `${node.icon} ${node.name}` : node.name, orig: node },
     position: {
       x: node.PositionX ?? 400,
       y: node.PositionY ?? 300
     },
     style: {
-      border: (propsSelectedNodes && propsSelectedNodes.includes(node.id)) ? '2px solid #f00' : '2px solid #2196f3',
+      border: (propsSelectedNodes && propsSelectedNodes.includes(node.id)) ? '2px solid #f00' : `2px solid ${node.color || '#2196f3'}`,
       borderRadius: 8,
       padding: 8,
-      background: '#fff'
+      background: '#fff',
+      color: node.color || undefined
     },
   }));
   const [rfNodes, setRfNodes, onNodesChange] = require('reactflow').useNodesState(initialRfNodes);
@@ -47,7 +48,7 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({ nodes, edges, relationTypes, 
     source: edge.source.toString(),
     target: edge.target.toString(),
     label: relationTypes.find(rt => rt.id === edge.relationTypeId)?.name || '',
-    style: { stroke: '#2196f3', strokeWidth: 2 },
+    style: { stroke: edge.color || '#2196f3', strokeWidth: 2 },
     animated: true,
   }));
 

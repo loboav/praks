@@ -12,6 +12,7 @@ export interface RelationType {
     objectType?: ObjectType;
 }
 
+
 export interface GraphObject {
     id: number;
     name: string;
@@ -20,6 +21,8 @@ export interface GraphObject {
     properties: Record<string, string>;
     PositionX?: number;
     PositionY?: number;
+    color?: string; // HEX или CSS-цвет
+    icon?: string;  // имя иконки или emoji
 }
 
 export interface GraphRelation {
@@ -29,4 +32,5 @@ export interface GraphRelation {
     relationTypeId: number;
     relationType?: RelationType;
     properties: Record<string, string>;
+    color?: string; // HEX или CSS-цвет
 }

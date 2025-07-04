@@ -18,8 +18,8 @@ namespace GraphVisualizationApp.Controllers
         // --- Batch update объектов ---
         public class BatchUpdateRequest
         {
-            public List<int> Ids { get; set; }
-            public Dictionary<string, object> Fields { get; set; }
+        public required List<int> Ids { get; set; }
+        public required Dictionary<string, object> Fields { get; set; }
         }
 
         [HttpPost("objects/batch-update")]

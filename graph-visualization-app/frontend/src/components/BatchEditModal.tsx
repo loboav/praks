@@ -3,12 +3,33 @@ import React, { useState } from 'react';
 interface BatchEditModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (fields: { objectTypeId?: number; properties?: Record<string, string> }) => void;
+  onSave: (fields: { objectTypeId?: number; properties?: Record<string, string>; color?: string; icon?: string }) => void;
 }
+
+
+const iconList = [
+  '',
+  '⭐',
+  '💡',
+  '📦',
+  '🖥️',
+  '📁',
+  '⚙️',
+  '🔒',
+  '🔑',
+  '📄',
+  '🧩',
+  '🗂️',
+  '🧑',
+  '🏢',
+  '🌐',
+];
 
 const BatchEditModal: React.FC<BatchEditModalProps> = ({ open, onClose, onSave }) => {
   const [objectTypeId, setObjectTypeId] = useState('');
   const [properties, setProperties] = useState<Record<string, string>>({});
+  const [color, setColor] = useState<string>('');
+  const [icon, setIcon] = useState<string>('');
 
   if (!open) return null;
 
@@ -23,6 +44,18 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ open, onClose, onSave }
           onChange={e => setObjectTypeId(e.target.value)}
           style={{ marginBottom: 12, width: '100%' }}
         />
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+          <div>
+            <label style={{ fontSize: 14 }}>Цвет объекта:</label><br />
+            <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: 40, height: 32, border: 'none', background: 'none' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 14 }}>Иконка:</label><br />
+            <select value={icon} onChange={e => setIcon(e.target.value)} style={{ fontSize: 20, height: 32 }}>
+              {iconList.map(i => <option key={i} value={i}>{i || '—'}</option>)}
+            </select>
+          </div>
+        </div>
         {/* UI для свойств */}
         <textarea
           placeholder="Свойства (JSON)"
@@ -36,7 +69,15 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ open, onClose, onSave }
         />
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ background: '#eee', color: '#333', border: 'none', borderRadius: 6, padding: '7px 18px', fontWeight: 500, fontSize: 16, cursor: 'pointer' }}>Отмена</button>
-          <button onClick={() => onSave({ ...(objectTypeId ? { objectTypeId: Number(objectTypeId) } : {}), ...(Object.keys(properties).length ? { properties } : {}) })} style={{ background: '#2196f3', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 18px', fontWeight: 500, fontSize: 16, cursor: 'pointer' }}>Сохранить</button>
+          <button
+            onClick={() => onSave({
+              ...(objectTypeId ? { objectTypeId: Number(objectTypeId) } : {}),
+              ...(Object.keys(properties).length ? { properties } : {}),
+              ...(color ? { color } : {}),
+              ...(icon ? { icon } : {})
+            })}
+            style={{ background: '#2196f3', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 18px', fontWeight: 500, fontSize: 16, cursor: 'pointer' }}
+          >Сохранить</button>
         </div>
       </div>
     </div>

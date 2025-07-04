@@ -3,10 +3,10 @@ import React, { useState } from 'react';
 interface AddObjectModalProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (data: { name: string; objectTypeId: number; properties: Record<string, string> }) => void;
-  onEdit?: (data: { id: number; name: string; objectTypeId: number; properties: Record<string, string> }) => void;
+  onCreate: (data: { name: string; objectTypeId: number; properties: Record<string, string>; color?: string; icon?: string }) => void;
+  onEdit?: (data: { id: number; name: string; objectTypeId: number; properties: Record<string, string>; color?: string; icon?: string }) => void;
   objectTypes: { id: number; name: string; description?: string }[];
-  editData?: { id: number; name: string; objectTypeId: number; properties: Record<string, string> };
+  editData?: { id: number; name: string; objectTypeId: number; properties: Record<string, string>; color?: string; icon?: string };
 }
 
 const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate, onEdit, objectTypes, editData }) => {
@@ -18,6 +18,26 @@ const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate
       ? Object.entries(editData.properties).map(([key, value]) => ({ key, value }))
       : []
   );
+  const [color, setColor] = useState<string>(editData?.color || '');
+  const [icon, setIcon] = useState<string>(editData?.icon || '');
+
+  const iconList = [
+    '',
+    '⭐',
+    '💡',
+    '📦',
+    '🖥️',
+    '📁',
+    '⚙️',
+    '🔒',
+    '🔑',
+    '📄',
+    '🧩',
+    '🗂️',
+    '🧑',
+    '🏢',
+    '🌐',
+  ];
 
   // Сброс objectTypeId и полей при каждом открытии окна
   React.useEffect(() => {
@@ -25,6 +45,8 @@ const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate
       setObjectTypeId(objectTypes[0].id);
       setName('');
       setProperties([]);
+      setColor('');
+      setIcon('');
     }
     if (open && isEdit && editData) {
       setName(editData.name);
@@ -34,6 +56,8 @@ const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate
           ? Object.entries(editData.properties).map(([key, value]) => ({ key, value }))
           : []
       );
+      setColor(editData.color || '');
+      setIcon(editData.icon || '');
     }
   }, [open, objectTypes, isEdit, editData]);
 
@@ -42,23 +66,28 @@ const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const propsObj = Object.fromEntries(properties.map(p => [p.key, p.value]));
+    const extra = { ...(color ? { color } : {}), ...(icon ? { icon } : {}) };
     if (isEdit && onEdit && editData) {
       onEdit({
         id: editData.id,
         name,
         objectTypeId,
-        properties: propsObj
+        properties: propsObj,
+        ...extra
       });
     } else {
       onCreate({
         name,
         objectTypeId,
-        properties: propsObj
+        properties: propsObj,
+        ...extra
       });
     }
     setName('');
     setObjectTypeId(objectTypes[0]?.id || 0);
     setProperties([]);
+    setColor('');
+    setIcon('');
     onClose();
   };
 
@@ -78,6 +107,18 @@ const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
+          </div>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
+            <div>
+              <label style={{ fontSize: 14 }}>Цвет объекта:</label><br />
+              <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: 40, height: 32, border: 'none', background: 'none' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 14 }}>Иконка:</label><br />
+              <select value={icon} onChange={e => setIcon(e.target.value)} style={{ fontSize: 20, height: 32 }}>
+                {iconList.map(i => <option key={i} value={i}>{i || '—'}</option>)}
+              </select>
+            </div>
           </div>
           <div style={{ marginBottom: 18 }}>
             <label>Свойства:</label>
