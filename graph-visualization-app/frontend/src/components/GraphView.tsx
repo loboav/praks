@@ -10,7 +10,6 @@ import AddObjectTypeModal from "./modals/AddObjectTypeModal";
 import AddRelationTypeModal from "./modals/AddRelationTypeModal";
 import Toolbar from "./Toolbar";
 import Sidebar from "./Sidebar";
-import BatchEditModal from "./BatchEditModal";
 
 const api = (path: string, opts?: any) =>
   fetch("/api" + path, opts).then(r => r.json());
@@ -26,10 +25,6 @@ export default function GraphView() {
   const [addRelation, setAddRelation] = useState<{ source: GraphObject | null; target: GraphObject | null }>({ source: null, target: null });
   const [addRelationOpen, setAddRelationOpen] = useState(false);
 
-  // --- Массовое выделение ---
-  const [selectedNodes, setSelectedNodes] = useState<number[]>([]);
-  const [batchEditOpen, setBatchEditOpen] = useState(false);
-
   useEffect(() => {
     api("/objecttype").then(setObjectTypes);
     api("/relationtype").then(setRelationTypes);
@@ -37,18 +32,16 @@ export default function GraphView() {
     api("/relations").then(setEdges);
   }, []);
 
-  const handleAddObject = async (data: { name: string; objectTypeId: number; properties: Record<string, string>; color?: string; icon?: string }) => {
+  const handleAddObject = async (data: { name: string; objectTypeId: number; properties: Record<string, string> }) => {
     const propertiesArr = Object.entries(data.properties).map(([key, value]) => ({
       Key: key,
       Value: value
     }));
-    const payload: any = {
+    const payload = {
       Name: data.name,
       ObjectTypeId: data.objectTypeId,
       Properties: propertiesArr
     };
-    if (data.color) payload.Color = data.color;
-    if (data.icon) payload.Icon = data.icon;
     const res = await fetch('/api/objects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,8 +87,8 @@ export default function GraphView() {
   const handleAddRelation = async (data: { source: number; target: number; relationTypeId: number; properties: Record<string, string> }) => {
     // Формируем payload в стиле .NET backend
     const payload = {
-      Source: data.source,
-      Target: data.target,
+      SourceId: data.source,
+      TargetId: data.target,
       RelationTypeId: data.relationTypeId,
       Properties: Object.entries(data.properties).map(([Key, Value]) => ({ Key, Value }))
     };
@@ -117,7 +110,41 @@ export default function GraphView() {
   // Toolbar режимы
   const handleToolbarSelect = () => alert('Режим выделения (MVP)');
   const handleToolbarMove = () => alert('Режим перемещения (MVP)');
-  const handleToolbarAlign = () => alert('Выравнивание (MVP)');
+  // Выравнивание: по кругу или деревом
+  const [alignType, setAlignType] = useState<'circle' | 'tree'>('circle');
+  const handleToolbarAlign = () => {
+    if (nodes.length === 0) return;
+    if (alignType === 'circle') {
+      const centerX = 500, centerY = 350, radius = 250;
+      const angleStep = (2 * Math.PI) / nodes.length;
+      const aligned = nodes.map((node, i) => ({
+        ...node,
+        PositionX: centerX + radius * Math.cos(i * angleStep),
+        PositionY: centerY + radius * Math.sin(i * angleStep),
+      }));
+      setNodes(aligned);
+    } else if (alignType === 'tree') {
+      // Простая реализация дерева: размещаем по уровням сверху вниз
+      const levelHeight = 120;
+      const rootX = 500;
+      // Для простоты: считаем все объекты "корнями" и размещаем их в ряд
+      const nodesPerLevel = Math.ceil(Math.sqrt(nodes.length));
+      let aligned: any[] = [];
+      let idx = 0;
+      for (let level = 0; idx < nodes.length; level++) {
+        const count = Math.min(nodesPerLevel, nodes.length - idx);
+        const startX = rootX - ((count - 1) * 120) / 2;
+        for (let i = 0; i < count; i++, idx++) {
+          aligned.push({
+            ...nodes[idx],
+            PositionX: startX + i * 120,
+            PositionY: 100 + level * levelHeight,
+          });
+        }
+      }
+      setNodes(aligned);
+    }
+  };
   const handleToolbarFilter = () => alert('Фильтр (MVP)');
 
   // Модальное окно для типа объекта
@@ -213,8 +240,8 @@ export default function GraphView() {
       ObjectTypeId: data.objectTypeId,
       Properties: propertiesArr
     };
-    if (data.color) payload.Color = data.color;
-    if (data.icon) payload.Icon = data.icon;
+    if (data.color !== undefined) payload.Color = data.color;
+    if (data.icon !== undefined) payload.Icon = data.icon;
     const res = await fetch(`/api/objects/${data.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -285,46 +312,10 @@ export default function GraphView() {
               nodes={nodesWithPositions}
               edges={edges}
               relationTypes={relationTypes}
-              onSelectNode={node => {
-                if (window.event && (window.event as MouseEvent).ctrlKey) {
-                  setSelectedNodes(prev =>
-                    prev.includes(node.id) ? prev.filter(id => id !== node.id) : [...prev, node.id]
-                  );
-                } else {
-                  setSelectedNodes([node.id]);
-                }
-                setSelected({ type: "node", data: node });
-              }}
+              onSelectNode={handleSelectNode}
               onSelectEdge={edge => setSelected({ type: "edge", data: edge })}
               onNodeAction={handleNodeAction}
-              selectedNodes={selectedNodes}
             />
-        {/* Кнопка массового редактирования */}
-        {selectedNodes.length > 1 && (
-          <button style={{ position: 'fixed', bottom: 80, right: 40, zIndex: 1002, background: '#2196f3', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontSize: 18, fontWeight: 600, boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}
-            onClick={() => setBatchEditOpen(true)}>
-            Редактировать выбранные ({selectedNodes.length})
-          </button>
-        )}
-
-        {/* Модалка массового редактирования */}
-        {batchEditOpen && (
-          <BatchEditModal
-            open={batchEditOpen}
-            onClose={() => setBatchEditOpen(false)}
-            onSave={async (fields) => {
-              await fetch('/api/objects/batch-update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: selectedNodes, fields })
-              });
-              setBatchEditOpen(false);
-              setSelectedNodes([]);
-              const updated = await api('/objects');
-              setNodes(updated);
-            }}
-          />
-        )}
             {selected?.type === "node" && <ObjectCard object={selected.data} />}
             {selected?.type === "edge" && (
               <RelationCard relation={selected.data} onEdit={() => handleEditEdge(selected.data)} onDelete={() => handleDeleteEdge(selected.data)} />
@@ -336,7 +327,17 @@ export default function GraphView() {
           <button onClick={() => setAddObjectOpen(true)} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#fff" strokeWidth="2"/><path d="M12 8v8M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Добавить объект</span></button>
           <button onClick={() => setAddRelation({ source: null, target: null })} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="7" cy="12" r="3" stroke="#fff" strokeWidth="2"/><circle cx="17" cy="12" r="3" stroke="#fff" strokeWidth="2"/><path d="M10 12h4" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Добавить связь</span></button>
           <button onClick={() => setSearchOpen(true)} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#fff" strokeWidth="2"/><path d="M20 20l-3-3" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Поиск пути</span></button>
-          <button onClick={() => alert('Фильтр (MVP)')} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M6 12h12M8 18h8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Фильтр</span></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={handleToolbarAlign} style={actionBtn}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#fff" strokeWidth="2"/><path d="M12 2v20M2 12h20" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>
+              <span style={{ marginLeft: 8 }}>Выравнивание</span>
+            </button>
+            <select value={alignType} onChange={e => setAlignType(e.target.value as 'circle' | 'tree')} style={{ marginLeft: 4, borderRadius: 6, border: 'none', padding: '6px 10px', fontSize: 16, fontWeight: 500, background: '#fff', color: '#23272f', cursor: 'pointer' }}>
+              <option value="circle">Круг</option>
+              <option value="tree">Дерево</option>
+            </select>
+          </div>
+          <button onClick={handleToolbarFilter} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M6 12h12M8 18h8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Фильтр</span></button>
         </div>
         <AddObjectModal
           open={addObjectOpen || !!editNode}
@@ -353,9 +354,7 @@ export default function GraphView() {
                   acc[p.key || p.Key] = p.value || p.Value;
                   return acc;
                 }, {})
-              : (typeof editNode.properties === 'object' ? editNode.properties : {}),
-            color: editNode.color,
-            icon: editNode.icon
+              : (typeof editNode.properties === 'object' ? editNode.properties : {})
           } : undefined}
         />
         <AddRelationModal

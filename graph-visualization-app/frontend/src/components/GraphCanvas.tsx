@@ -41,7 +41,7 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({ nodes, edges, relationTypes, 
 
   useEffect(() => {
     setRfNodes(initialRfNodes);
-  }, [nodes.length]);
+  }, [nodes, propsSelectedNodes]);
 
   const rfEdges = edges.map(edge => ({
     id: edge.id.toString(),
