@@ -4,10 +4,10 @@
 
 namespace GraphVisualizationApp.Migrations
 {
-    /// <inheritdoc />
+
     public partial class AddColorAndIconToGraphObjects : Migration
     {
-        /// <inheritdoc />
+
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
@@ -29,7 +29,7 @@ namespace GraphVisualizationApp.Migrations
                 nullable: true);
         }
 
-        /// <inheritdoc />
+
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(

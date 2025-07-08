@@ -15,7 +15,7 @@ namespace GraphVisualizationApp.Controllers
         private readonly IGraphService _service;
         public GraphController(IGraphService service) { _service = service; }
 
-        // --- Batch update объектов ---
+        
         public class BatchUpdateRequest
         {
         public required List<int> Ids { get; set; }

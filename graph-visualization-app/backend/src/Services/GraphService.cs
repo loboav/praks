@@ -11,7 +11,7 @@ namespace GraphVisualizationApp.Services
         private readonly GraphDbContext _db;
         public GraphService(GraphDbContext db) { _db = db; }
 
-        // Массовое обновление объектов
+
         public async Task<int> UpdateObjectsBatchAsync(List<int> ids, Dictionary<string, object> fields)
         {
             var objects = await _db.GraphObjects.Include(o => o.Properties).Where(o => ids.Contains(o.Id)).ToListAsync();
@@ -46,7 +46,7 @@ namespace GraphVisualizationApp.Services
             return await _db.SaveChangesAsync();
         }
 
-        // Массовое обновление связей
+
         public async Task<int> UpdateRelationsBatchAsync(List<int> ids, Dictionary<string, object> fields)
         {
             var relations = await _db.GraphRelations.Include(r => r.Properties).Where(r => ids.Contains(r.Id)).ToListAsync();
@@ -85,7 +85,7 @@ namespace GraphVisualizationApp.Services
             existing.ObjectTypeId = obj.ObjectTypeId;
             existing.Color = obj.Color;
             existing.Icon = obj.Icon;
-            // Обновление свойств: удаляем старые, добавляем новые
+
             _db.ObjectProperties.RemoveRange(existing.Properties);
             if (obj.Properties != null)
             {
@@ -153,7 +153,7 @@ namespace GraphVisualizationApp.Services
             await _db.SaveChangesAsync();
             return prop;
         }
-        // Поиск всех путей между двумя объектами (DFS, ограничение по глубине)
+
         public async Task<List<List<int>>> FindPathsAsync(int fromId, int toId)
         {
             var result = new List<List<int>>();
@@ -178,7 +178,7 @@ namespace GraphVisualizationApp.Services
             return result;
         }
 
-        // --- Добавлено для поддержки контроллера ---
+
         public async Task<object> GetGraphAsync()
         {
             return new {
@@ -199,7 +199,7 @@ namespace GraphVisualizationApp.Services
 
         public async Task<List<GraphObject>> FindPathAsync(int startId, int endId)
         {
-            // Примитивная реализация поиска пути (BFS)
+
             var nodes = await _db.GraphObjects.ToListAsync();
             var edges = await _db.GraphRelations.ToListAsync();
             var queue = new Queue<List<int>>();
@@ -223,7 +223,7 @@ namespace GraphVisualizationApp.Services
             return new List<GraphObject>();
         }
 
-        // --- Маппинг моделей в DTO ---
+
         public static ObjectTypeDto ToDto(ObjectType type) => new ObjectTypeDto
         {
             Id = type.Id,
