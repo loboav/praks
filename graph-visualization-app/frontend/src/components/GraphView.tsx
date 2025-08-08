@@ -85,10 +85,10 @@ export default function GraphView() {
   };
 
   const handleAddRelation = async (data: { source: number; target: number; relationTypeId: number; properties: Record<string, string> }) => {
-    // Формируем payload в стиле .NET backend
+    // Формируем payload в стиле .NET backend (исправлено: Source/Target вместо SourceId/TargetId)
     const payload = {
-      SourceId: data.source,
-      TargetId: data.target,
+      Source: data.source,
+      Target: data.target,
       RelationTypeId: data.relationTypeId,
       Properties: Object.entries(data.properties).map(([Key, Value]) => ({ Key, Value }))
     };
