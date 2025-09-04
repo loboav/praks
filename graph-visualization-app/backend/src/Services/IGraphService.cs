@@ -32,5 +32,9 @@ namespace GraphVisualizationApp.Services
 
         Task<int> UpdateObjectsBatchAsync(List<int> ids, Dictionary<string, object> fields);
         Task<int> UpdateRelationsBatchAsync(List<int> ids, Dictionary<string, object> fields);
+
+    // Layout
+    Task<GraphLayout?> GetLayoutAsync(int? graphId = null, string? userId = null);
+    Task<GraphLayout> SaveLayoutAsync(GraphLayout layout);
     }
 }

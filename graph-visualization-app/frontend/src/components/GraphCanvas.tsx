@@ -18,9 +18,10 @@ interface GraphCanvasProps {
   onAlign?: () => void;
   onMove?: () => void;
   selectedNodes?: number[];
+  onNodesPositionChange?: (positions: { id: number, x: number, y: number }[]) => void;
 }
 
-const GraphCanvas: React.FC<GraphCanvasProps> = ({ nodes, edges, relationTypes, onSelectNode, onSelectEdge, onNodeAction, selectedNodes: propsSelectedNodes }) => {
+const GraphCanvas: React.FC<GraphCanvasProps> = ({ nodes, edges, relationTypes, onSelectNode, onSelectEdge, onNodeAction, selectedNodes: propsSelectedNodes, onNodesPositionChange }) => {
   // Синхронизируем состояние с props.nodes
   const initialRfNodes = nodes.map(node => ({
     id: node.id.toString(),
@@ -58,7 +59,14 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({ nodes, edges, relationTypes, 
   // Обработка drag&drop (можно добавить сохранение в БД)
   const handleNodesChange = (changes: NodeChange[]) => {
     onNodesChange(changes);
-    // TODO: можно отправить новые координаты на сервер
+    // После любого перемещения сообщаем наверх актуальные позиции
+    if (typeof onNodesPositionChange === 'function') {
+      // rfNodes уже обновлены после onNodesChange
+      setTimeout(() => {
+        const positions = rfNodes.map((n: any) => ({ id: Number(n.id), x: n.position.x, y: n.position.y }));
+        onNodesPositionChange!(positions);
+      }, 0);
+    }
   };
 
   // Контекстное меню по правому клику

@@ -25,10 +25,52 @@ export default function GraphView() {
   const [addRelation, setAddRelation] = useState<{ source: GraphObject | null; target: GraphObject | null }>({ source: null, target: null });
   const [addRelationOpen, setAddRelationOpen] = useState(false);
 
+
+  // layout state
+  const [layout, setLayout] = useState<any>(null);
+  // актуальные позиции узлов (id, x, y) — больше не нужно отдельное состояние
+
+  // При изменении позиций узлов обновляем nodes
+  const handleNodesPositionChange = (positions: { id: number, x: number, y: number }[]) => {
+    setNodes(prevNodes => {
+      let changed = false;
+      const updated = prevNodes.map(n => {
+        const pos = positions.find(p => p.id === n.id);
+        if (pos && (n.PositionX !== pos.x || n.PositionY !== pos.y)) {
+          changed = true;
+          return { ...n, PositionX: pos.x, PositionY: pos.y };
+        }
+        return n;
+      });
+      return changed ? updated : prevNodes;
+    });
+  };
+
+  // Загрузка layout при инициализации
   useEffect(() => {
     api("/objecttype").then(setObjectTypes);
     api("/relationtype").then(setRelationTypes);
-    api("/objects").then(setNodes);
+    api("/objects").then(objs => {
+      // После загрузки объектов, загрузить layout и применить позиции
+      fetch('/api/layout').then(r => r.ok ? r.json() : null).then(l => {
+        if (l && l.layoutJson) {
+          try {
+            const layoutObj = JSON.parse(l.layoutJson);
+            if (layoutObj && Array.isArray(layoutObj.nodes)) {
+              // Применить позиции к объектам
+              const objsWithPos = objs.map((o: any) => {
+                const pos = layoutObj.nodes.find((n: any) => n.id === o.id);
+                return pos ? { ...o, PositionX: pos.x, PositionY: pos.y } : o;
+              });
+              setNodes(objsWithPos);
+              setLayout(layoutObj);
+              return;
+            }
+          } catch {}
+        }
+        setNodes(objs);
+      });
+    });
     api("/relations").then(setEdges);
   }, []);
 
@@ -105,6 +147,21 @@ export default function GraphView() {
     }
     const updated = await api('/relations');
     setEdges(updated);
+  };
+
+  // Сохранение layout
+  const handleSaveLayout = async () => {
+    // layout = { nodes: [{id, x, y}], ... }
+    const layoutObj = {
+      nodes: nodes.map(n => ({ id: n.id, x: n.PositionX ?? 0, y: n.PositionY ?? 0 })),
+      // zoom, pan можно добавить позже
+    };
+    await fetch('/api/layout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ layoutJson: JSON.stringify(layoutObj) })
+    });
+    alert('Сетка успешно сохранена!');
   };
 
   // Toolbar режимы
@@ -190,23 +247,16 @@ export default function GraphView() {
     ? relationTypes.filter(rt => rt.objectTypeId === addRelation.source!.objectTypeId)
     : relationTypes;
 
-  // Генерируем координаты для объектов без координат и приводим к x/y/id:string для GraphCanvas
-  const nodesWithPositions = nodes.map(node => {
-    const x = typeof node.PositionX === 'number' ? node.PositionX : Math.random() * 600 + 100;
-    const y = typeof node.PositionY === 'number' ? node.PositionY : Math.random() * 400 + 100;
-    return {
-      ...node,
-      // id оставляем числом, чтобы не ломать типизацию
-      PositionX: x,
-      PositionY: y,
-      x,
-      y,
-      label: node.name || ''
-    };
-  });
-  // Для отладки: выводим, что реально передаём в GraphCanvas
-  console.log('nodesWithPositions', nodesWithPositions);
-  console.log('edges', edges);
+  // Просто используем nodes, у которых уже есть актуальные координаты
+  const nodesWithPositions = nodes.map(node => ({
+    ...node,
+    x: typeof node.PositionX === 'number' ? node.PositionX : 0,
+    y: typeof node.PositionY === 'number' ? node.PositionY : 0,
+    label: node.name || ''
+  }));
+  // Для отладки: можно включить логи при необходимости
+  // console.log('nodesWithPositions', nodesWithPositions);
+  // console.log('edges', edges);
 
   // Редактирование и удаление объектов и связей
   const [editNode, setEditNode] = useState<GraphObject | null>(null);
@@ -315,6 +365,7 @@ export default function GraphView() {
               onSelectNode={handleSelectNode}
               onSelectEdge={edge => setSelected({ type: "edge", data: edge })}
               onNodeAction={handleNodeAction}
+              onNodesPositionChange={handleNodesPositionChange}
             />
             {selected?.type === "node" && <ObjectCard object={selected.data} />}
             {selected?.type === "edge" && (
@@ -323,7 +374,8 @@ export default function GraphView() {
           </div>
         </div>
         {/* Actions bar снизу с иконками */}
-        <div style={{ height: 60, background: '#23272f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, fontSize: 18, fontWeight: 500, letterSpacing: 0.5 }}>
+  <div style={{ height: 60, background: '#23272f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, fontSize: 18, fontWeight: 500, letterSpacing: 0.5 }}>
+          <button onClick={handleSaveLayout} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke="#fff" strokeWidth="2"/><path d="M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Сохранить</span></button>
           <button onClick={() => setAddObjectOpen(true)} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#fff" strokeWidth="2"/><path d="M12 8v8M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Добавить объект</span></button>
           <button onClick={() => setAddRelation({ source: null, target: null })} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="7" cy="12" r="3" stroke="#fff" strokeWidth="2"/><circle cx="17" cy="12" r="3" stroke="#fff" strokeWidth="2"/><path d="M10 12h4" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Добавить связь</span></button>
           <button onClick={() => setSearchOpen(true)} style={actionBtn}><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#fff" strokeWidth="2"/><path d="M20 20l-3-3" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg><span style={{ marginLeft: 8 }}>Поиск пути</span></button>

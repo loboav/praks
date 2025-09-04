@@ -13,6 +13,15 @@ namespace GraphVisualizationApp.Models
         public ICollection<GraphObject> Objects { get; set; } = new List<GraphObject>();
     }
 
+    public class GraphLayout
+    {
+        public int Id { get; set; }
+        public string? LayoutJson { get; set; } // JSON-строка с layout
+        public int? GraphId { get; set; } // если есть несколько графов
+        public string? UserId { get; set; } // если нужна поддержка пользователей
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    }
+
     public class RelationType
     {
         public int Id { get; set; }
