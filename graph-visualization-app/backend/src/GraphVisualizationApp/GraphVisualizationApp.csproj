@@ -21,6 +21,7 @@
     <Compile Include="..\Models\GraphModels.cs" />
     <Compile Include="..\Models\GraphDtos.cs" />
     <Compile Include="..\GraphDbContext.cs" />
+  <Compile Include="..\Algorithms\*.cs" />
   </ItemGroup>
 
 </Project>

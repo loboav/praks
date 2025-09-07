@@ -15,6 +15,19 @@ namespace GraphVisualizationApp.Controllers
         private readonly IGraphService _service;
         public GraphController(IGraphService service) { _service = service; }
 
+        [HttpGet("dijkstra-path")]
+        public async Task<IActionResult> FindShortestPathDijkstra([FromQuery] int fromId, [FromQuery] int toId)
+        {
+            var result = await _service.FindShortestPathDijkstraAsync(fromId, toId);
+            if (result == null || result.NodeIds == null || result.NodeIds.Count == 0)
+                return NotFound();
+            return Ok(new {
+                nodeIds = result.NodeIds,
+                edgeIds = result.EdgeIds,
+                totalWeight = result.TotalWeight
+            });
+        }
+
         
         public class BatchUpdateRequest
         {

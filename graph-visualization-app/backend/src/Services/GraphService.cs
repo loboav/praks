@@ -1,4 +1,5 @@
 using GraphVisualizationApp.Models;
+using GraphVisualizationApp.Algorithms;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +11,51 @@ namespace GraphVisualizationApp.Services
     {
         private readonly GraphDbContext _db;
         public GraphService(GraphDbContext db) { _db = db; }
+
+        // Поиск кратчайшего пути по Дейкстре
+    public async Task<GraphVisualizationApp.Algorithms.DijkstraPathFinder.PathResult> FindShortestPathDijkstraAsync(int fromId, int toId)
+        {
+            var nodes = await _db.GraphObjects.Include(o => o.Properties).ToListAsync();
+            var edges = await _db.GraphRelations.Include(r => r.Properties).ToListAsync();
+            // Преобразуем свойства связей в Dictionary<string, string>
+            var edgeList = edges.Select(e => {
+                var rel = new GraphRelation
+                {
+                    Id = e.Id,
+                    Source = e.Source,
+                    Target = e.Target,
+                    RelationTypeId = e.RelationTypeId,
+                    Color = e.Color,
+                    Properties = e.Properties?.ToList() ?? new List<RelationProperty>()
+                };
+                return rel;
+            }).ToList();
+            var nodeList = nodes.Select(n => new GraphObject
+            {
+                Id = n.Id,
+                Name = n.Name,
+                ObjectTypeId = n.ObjectTypeId,
+                Color = n.Color,
+                Icon = n.Icon,
+                Properties = n.Properties?.ToList() ?? new List<ObjectProperty>()
+            }).ToList();
+            var finder = new GraphVisualizationApp.Algorithms.DijkstraPathFinder();
+            // Преобразуем RelationProperty в Dictionary<string, string> для Properties
+            foreach (var edge in edgeList)
+            {
+                if (edge.Properties != null)
+                {
+                    var dict = new Dictionary<string, string>();
+                    foreach (var prop in edge.Properties)
+                        if (prop.Key != null && prop.Value != null)
+                            dict[prop.Key] = prop.Value;
+                    // В алгоритме используется edge.Properties как коллекция, а не словарь, поэтому ничего не меняем
+                }
+            }
+            // Для алгоритма используем только Id и Properties
+            // DijkstraPathFinder ожидает List<GraphObject>, List<GraphRelation>
+            return finder.FindShortestPath(nodeList, edgeList, fromId, toId);
+        }
 
             // Layout
             public async Task<GraphLayout?> GetLayoutAsync(int? graphId = null, string? userId = null)

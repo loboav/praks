@@ -19,7 +19,11 @@ namespace GraphVisualizationApp.Services
         Task<ObjectProperty> AddObjectPropertyAsync(ObjectProperty prop);
         Task<List<RelationProperty>> GetRelationPropertiesAsync(int relationId);
         Task<RelationProperty> AddRelationPropertyAsync(RelationProperty prop);
-        Task<List<List<int>>> FindPathsAsync(int fromId, int toId);
+
+    Task<List<List<int>>> FindPathsAsync(int fromId, int toId);
+
+    // Поиск кратчайшего пути по Дейкстре
+    Task<Algorithms.DijkstraPathFinder.PathResult> FindShortestPathDijkstraAsync(int fromId, int toId);
 
         Task<object> GetGraphAsync();
         Task<GraphObject> GetObjectAsync(int id);
