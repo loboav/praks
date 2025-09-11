@@ -33,6 +33,8 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({ nodes, edges
   const [pathModalOpen, setPathModalOpen] = useState(false);
   const [pathResult, setPathResult] = useState<{ nodeIds: number[]; edgeIds: number[]; totalWeight?: number; names?: string[] } | null>(null);
   const [findMessage, setFindMessage] = useState<string | null>(null);
+  const [pathModalPos, setPathModalPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   // Синхронизируем состояние с props.nodes
   const combinedSelectedNodes = (propsSelectedNodes && propsSelectedNodes.length > 0) ? propsSelectedNodes : selectedNodesLocal;
@@ -60,18 +62,26 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({ nodes, edges
   }, [nodes, propsSelectedNodes]);
   const combinedSelectedEdges = (selectedEdges && selectedEdges.length > 0) ? selectedEdges : selectedEdgesLocal;
 
-  const rfEdges = edges.map(edge => ({
-    id: edge.id.toString(),
-    source: edge.source.toString(),
-    target: edge.target.toString(),
-    label: relationTypes.find(rt => rt.id === edge.relationTypeId)?.name || '',
-    style: {
-      stroke: (combinedSelectedEdges && combinedSelectedEdges.includes(edge.id)) ? '#1976d2' : (edge.color || '#2196f3'),
-      strokeWidth: (combinedSelectedEdges && combinedSelectedEdges.includes(edge.id)) ? 8 : 2,
-      opacity: (combinedSelectedEdges && combinedSelectedEdges.length > 0 && !combinedSelectedEdges.includes(edge.id)) ? 0.18 : 1
-    },
-    animated: true,
-  }));
+  const rfEdges = edges.map(edge => {
+    const isHighlighted = combinedSelectedEdges && combinedSelectedEdges.includes(edge.id);
+    return {
+      id: edge.id.toString(),
+      source: edge.source.toString(),
+      target: edge.target.toString(),
+      label: relationTypes.find(rt => rt.id === edge.relationTypeId)?.name || '',
+      style: {
+        // highlighted path -> red and thick, non-animated
+        stroke: isHighlighted ? '#d32f2f' : (edge.color || '#2196f3'),
+        strokeWidth: isHighlighted ? 8 : 2,
+        // when path highlighted, dim other edges to reduce visual noise
+        opacity: isHighlighted ? 1 : (combinedSelectedEdges && combinedSelectedEdges.length > 0 ? 0.18 : 1),
+        // reduce dash / animation on highlighted path
+        strokeDasharray: isHighlighted ? undefined : '6 6'
+      },
+      // animate only non-highlighted (subtle moving) edges; highlighted path static
+      animated: !isHighlighted,
+    };
+  });
 
 
   // Контекстное меню
@@ -223,16 +233,33 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({ nodes, edges
 
       {/* path details modal */}
       {pathModalOpen && pathResult && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.28)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', padding: 20, borderRadius: 10, minWidth: 360, maxWidth: '90%', boxShadow: '0 12px 40px rgba(0,0,0,0.28)' }}>
-            <h3 style={{ marginTop: 0 }}>Найденный путь</h3>
-            <p style={{ margin: '6px 0 12px 0', color: '#666' }}>Вес: {pathResult.totalWeight ?? 'N/A'}</p>
-            <ol style={{ paddingLeft: 18 }}>
-              {pathResult.names && pathResult.names.map((n, idx) => <li key={idx} style={{ marginBottom: 6 }}>{n} <small style={{ color: '#999' }}>#{pathResult.nodeIds[idx]}</small></li>)}
-            </ol>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-              <button onClick={() => { setPathModalOpen(false); setSelectedNodesLocal([]); setSelectedEdgesLocal([]); setPathResult(null); }} style={{ background: '#e0e0e0', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}>Закрыть</button>
-              <button onClick={() => { setPathModalOpen(false); setSelectedNodesLocal([]); setSelectedEdgesLocal([]); setPathResult(null); }} style={{ background: '#1976d2', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}>ОК</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.12)', zIndex: 2000 }}>
+          <div
+            onMouseDown={(e) => {
+              dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pathModalPos?.x ?? window.innerWidth / 2 - 180, origY: pathModalPos?.y ?? window.innerHeight / 2 - 120 };
+              e.stopPropagation();
+            }}
+            onMouseMove={(e) => {
+              if (dragRef.current) {
+                const dx = e.clientX - dragRef.current.startX;
+                const dy = e.clientY - dragRef.current.startY;
+                setPathModalPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy });
+                e.stopPropagation();
+              }
+            }}
+            onMouseUp={() => { dragRef.current = null; }}
+            style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}
+          >
+            <div style={{ position: 'absolute', left: pathModalPos?.x ?? (window.innerWidth / 2 - 180), top: pathModalPos?.y ?? (window.innerHeight / 2 - 120), background: '#fff', padding: 20, borderRadius: 10, minWidth: 360, maxWidth: '90%', boxShadow: '0 12px 40px rgba(0,0,0,0.28)', cursor: 'move' }}>
+              <h3 style={{ marginTop: 0, marginBottom: 6 }}>Найденный путь</h3>
+              <p style={{ margin: '6px 0 12px 0', color: '#666' }}>Вес: {pathResult.totalWeight ?? 'N/A'}</p>
+              <ol style={{ paddingLeft: 18 }}>
+                {pathResult.names && pathResult.names.map((n, idx) => <li key={idx} style={{ marginBottom: 6 }}>{n} <small style={{ color: '#999' }}>#{pathResult.nodeIds[idx]}</small></li>)}
+              </ol>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                <button onClick={() => { setPathModalOpen(false); setSelectedNodesLocal([]); setSelectedEdgesLocal([]); setPathResult(null); setPathModalPos(null); }} style={{ background: '#e0e0e0', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}>Закрыть</button>
+                <button onClick={() => { setPathModalOpen(false); setSelectedNodesLocal([]); setSelectedEdgesLocal([]); setPathResult(null); setPathModalPos(null); }} style={{ background: '#1976d2', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}>ОК</button>
+              </div>
             </div>
           </div>
         </div>

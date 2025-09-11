@@ -333,5 +333,37 @@ namespace GraphVisualizationApp.Services
             Properties = rel.Properties?.ToDictionary(p => p.Key ?? string.Empty, p => p.Value ?? string.Empty) ?? new Dictionary<string, string>(),
             Color = rel.Color
         };
+
+        // Удаление объекта
+        public async Task<bool> DeleteObjectAsync(int id)
+        {
+            var obj = await _db.GraphObjects.FindAsync(id);
+            if (obj == null) return false;
+            // Удаляем связанные свойства и связи
+            var props = _db.ObjectProperties.Where(p => p.ObjectId == id).ToList();
+            _db.ObjectProperties.RemoveRange(props);
+            var rels = _db.GraphRelations.Where(r => r.Source == id || r.Target == id).ToList();
+            foreach (var r in rels)
+            {
+                var relProps = _db.RelationProperties.Where(p => p.RelationId == r.Id).ToList();
+                _db.RelationProperties.RemoveRange(relProps);
+            }
+            _db.GraphRelations.RemoveRange(rels);
+            _db.GraphObjects.Remove(obj);
+            await _db.SaveChangesAsync();
+            return true;
+        }
+
+        // Удаление связи
+        public async Task<bool> DeleteRelationAsync(int id)
+        {
+            var rel = await _db.GraphRelations.FindAsync(id);
+            if (rel == null) return false;
+            var relProps = _db.RelationProperties.Where(p => p.RelationId == id).ToList();
+            _db.RelationProperties.RemoveRange(relProps);
+            _db.GraphRelations.Remove(rel);
+            await _db.SaveChangesAsync();
+            return true;
+        }
     }
 }

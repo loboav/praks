@@ -30,6 +30,9 @@ namespace GraphVisualizationApp.Services
         Task<GraphRelation> GetRelationAsync(int id);
         Task<List<GraphObject>> FindPathAsync(int startId, int endId);
 
+    Task<bool> DeleteObjectAsync(int id);
+    Task<bool> DeleteRelationAsync(int id);
+
 
         Task<GraphObject> UpdateObjectAsync(GraphObject obj);
 

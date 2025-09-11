@@ -18,9 +18,25 @@ namespace GraphVisualizationApp.Controllers
         [HttpGet("dijkstra-path")]
         public async Task<IActionResult> FindShortestPathDijkstra([FromQuery] int fromId, [FromQuery] int toId)
         {
+          
+            var allObjects = await _service.GetObjectsAsync();
+            var hasFrom = allObjects.Any(o => o.Id == fromId);
+            var hasTo = allObjects.Any(o => o.Id == toId);
+            if (!hasFrom || !hasTo)
+            {
+                var missing = new List<string>();
+                if (!hasFrom) missing.Add("fromId");
+                if (!hasTo) missing.Add("toId");
+                return NotFound(new { reason = "missing_node", missing });
+            }
+
             var result = await _service.FindShortestPathDijkstraAsync(fromId, toId);
             if (result == null || result.NodeIds == null || result.NodeIds.Count == 0)
-                return NotFound();
+            {
+                
+                var rels = await _service.GetRelationsAsync();
+                return NotFound(new { reason = "no_path", fromId, toId, nodes = allObjects.Count, relations = rels.Count });
+            }
             return Ok(new {
                 nodeIds = result.NodeIds,
                 edgeIds = result.EdgeIds,
@@ -162,6 +178,22 @@ namespace GraphVisualizationApp.Controllers
         {
             var created = await _service.CreateRelationAsync(rel);
             return Ok(GraphService.ToDto(created));
+        }
+
+        [HttpDelete("objects/{id}")]
+        public async Task<IActionResult> DeleteObject(int id)
+        {
+            var ok = await _service.DeleteObjectAsync(id);
+            if (!ok) return NotFound();
+            return NoContent();
+        }
+
+        [HttpDelete("relations/{id}")]
+        public async Task<IActionResult> DeleteRelation(int id)
+        {
+            var ok = await _service.DeleteRelationAsync(id);
+            if (!ok) return NotFound();
+            return NoContent();
         }
 
         [HttpGet("object-properties/{objectId}")]

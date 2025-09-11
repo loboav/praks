@@ -33,9 +33,10 @@ namespace GraphVisualizationApp.Algorithms
                 if (u == toId || dist[u] == int.MaxValue)
                     break;
 
-                foreach (var edge in edges.Where(e => e.Source == u))
+                
+                foreach (var edge in edges.Where(e => e.Source == u || e.Target == u))
                 {
-                    int v = edge.Target;
+                    int v = edge.Source == u ? edge.Target : edge.Source;
                     int weight = 1;
                     if (edge.Properties != null)
                     {
@@ -55,23 +56,23 @@ namespace GraphVisualizationApp.Algorithms
 
             var path = new List<int>();
             var edgePath = new List<int>();
-            // Reconstruct path from toId back to fromId
+           
             int? current = toId;
             if (!dist.ContainsKey(toId) || dist[toId] == int.MaxValue)
             {
-                // no path
+                
                 return new PathResult { NodeIds = new List<int>(), EdgeIds = new List<int>(), TotalWeight = -1 };
             }
             while (current != null)
             {
-                // insert current node at the beginning
+                
                 path.Insert(0, current.Value);
-                // if there is an edge leading to current, insert it at beginning of edgePath
+              
                 if (edgePrev.ContainsKey(current.Value) && edgePrev[current.Value].HasValue)
                 {
                     edgePath.Insert(0, edgePrev[current.Value]!.Value);
                 }
-                // move to previous node if exists
+               
                 if (prev.ContainsKey(current.Value) && prev[current.Value].HasValue)
                 {
                     current = prev[current.Value];
@@ -81,7 +82,7 @@ namespace GraphVisualizationApp.Algorithms
                     break;
                 }
             }
-            // ensure path starts from fromId
+            
             if (path.Count == 0 || path[0] != fromId)
             {
                 return new PathResult { NodeIds = new List<int>(), EdgeIds = new List<int>(), TotalWeight = -1 };
