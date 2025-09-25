@@ -12,6 +12,7 @@ services:
       - ConnectionStrings__DefaultConnection=Host=db;Database=graphdb;Username=postgres;Password=yourpassword
     depends_on:
       - db
+    restart: on-failure
 
   frontend:
     build:
@@ -23,6 +24,7 @@ services:
       - NODE_OPTIONS=--openssl-legacy-provider
     depends_on:
       - backend
+    restart: on-failure
 
   db:
     image: postgres:15
@@ -32,5 +34,10 @@ services:
       - POSTGRES_DB=graphdb
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=yourpassword
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d graphdb || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     # volumes:
     #   - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql

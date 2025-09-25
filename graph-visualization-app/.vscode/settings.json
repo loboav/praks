@@ -1,0 +1,11 @@
+{
+  "typescript.validate.enable": false,
+  "javascript.validate.enable": false,
+  "eslint.enable": false,
+  "files.watcherExclude": {
+    "**/node_modules": true,
+    "**/frontend/node_modules": true,
+    "**/frontend/dist": true,
+    "**/frontend/build": true
+  }
+}

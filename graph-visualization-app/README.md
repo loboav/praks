@@ -1,68 +1,56 @@
 # Graph Visualization Application
+# Graph Visualization Application — руководство (RU)
 
-This project is a client-server application designed for visualizing and working with directed graphs. It utilizes .NET for the backend, PostgreSQL for the database, and JavaScript/TypeScript for the frontend. The application is structured to allow easy integration with Docker and includes libraries for graph visualization such as Vis Network, D3.js, and others.
+Это клиент-серверное приложение для визуализации и работы с ориентированными графами. Бэкенд написан на .NET, база данных — PostgreSQL, фронтенд — React + TypeScript. Репозиторий подготовлен для работы через Docker.
 
-## Project Structure
+Ключевые возможности:
+- CRUD для типов объектов и типов связей
+- Создание/удаление/правка объектов и связей
+- Свойства объектов и связей (ключ-значение)
+- Поиск путей (включая алгоритм Дейкстры)
+- Сохранение положения узлов (layout)
+
+Структура проекта (корень):
 
 ```
 graph-visualization-app
-├── backend              # Backend application
-│   ├── src
-│   │   ├── Controllers  # API controllers
-│   │   ├── Models       # Data models
-│   │   └── Services     # Business logic
-│   ├── appsettings.json # Configuration settings
-│   ├── Dockerfile       # Dockerfile for backend
-│   └── README.md        # Documentation for backend
-├── frontend             # Frontend application
-│   ├── public           # Public assets
-│   ├── src
-│   │   ├── components    # React components
-│   │   └── types         # TypeScript types
-│   ├── package.json     # NPM configuration
-│   ├── tsconfig.json    # TypeScript configuration
-│   ├── Dockerfile       # Dockerfile for frontend
-│   └── README.md        # Documentation for frontend
-├── db                   # Database scripts
-│   ├── init.sql        # SQL initialization script
-│   └── README.md        # Documentation for database
-├── docker-compose.yml   # Docker Compose configuration
-└── README.md            # General project documentation
+├── backend    # .NET приложение
+├── frontend   # React / TypeScript
+├── db         # SQL-скрипты для инициализации БД
+├── docker-compose.yml
+└── README.md
 ```
 
-## Features
+Важно: все шаги сборки выполняются внутри Docker-образов (frontend собирается в node-стейдже, backend — через dotnet publish в SDK-стейдже). Значит, локально вам НЕ нужны `node_modules` или `dotnet publish` — достаточно Docker.
 
-- **Graph API**: The backend provides a RESTful API for creating and managing graph objects and relations.
-- **Graph Visualization**: The frontend includes components for visualizing graphs using popular libraries.
-- **Database Integration**: PostgreSQL is used for storing graph data, with initialization scripts provided.
-- **Docker Support**: The application can be easily deployed using Docker.
+Быстрый старт (Docker-only, PowerShell):
 
-## Getting Started
+```powershell
+# Построить образы (без использования кэша, чтобы гарантировать свежую сборку)
+docker-compose build --no-cache
 
-1. **Clone the repository**:
-   ```
-   git clone <repository-url>
-   cd graph-visualization-app
-   ```
+# Запустить сервисы в фоне
+docker-compose up -d
 
-2. **Set up the database**:
-   - Configure the database connection in `backend/appsettings.json`.
-   - Run the SQL scripts in `db/init.sql` to initialize the database.
+# Просмотреть логи (в реальном времени)
+docker-compose logs -f
+```
 
-3. **Build and run the application**:
-   - Use Docker Compose to build and run the application:
-   ```
-   docker-compose up --build
-   ```
+Проверка доступности:
+- Фронтенд: http://localhost:3000
+- API: http://localhost:5000/api
 
-4. **Access the application**:
-   - The frontend will be available at `http://localhost:3000`.
-   - The backend API can be accessed at `http://localhost:5000/api`.
+Очистка локальных артефактов (рекомендации)
+- В репозитории не должно быть сгенерированных файлов (`obj/`, `bin/`, `frontend/build`, `node_modules`, `.vs`). Если такие файлы попали в git, их стоит убрать из индекса и добавить в `.gitignore`.
 
-## Contributing
+Пример безопасных команд (не удаляют локальные файлы, только убирают их из индекса):
 
-Contributions are welcome! Please open an issue or submit a pull request for any enhancements or bug fixes.
-
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
+```powershell
+git rm -r --cached .vs || Write-Host "no .vs tracked"
+git rm -r --cached **/obj || Write-Host "no obj tracked"
+git rm -r --cached **/bin || Write-Host "no bin tracked"
+git rm -r --cached frontend/build || Write-Host "no frontend/build tracked"
+git add .gitignore
+git commit -m "Remove generated local build artifacts and use Docker-only workflow"
+git push
+```

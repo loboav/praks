@@ -129,7 +129,13 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({ nodes, edges
       if (action === 'find-path') {
         const parentStr = onNodeAction && (onNodeAction as any).toString ? (onNodeAction as any).toString() : '';
         const parentHasFind = parentStr.includes('find-path');
-        const exportedPresent = !!(window as any).__debug_handleNodeAction;
+        let exportedPresent = false;
+        try {
+          exportedPresent = !!(window as any).__debug_handleNodeAction;
+        } catch (e) {
+          // Accessing some window properties can throw in exotic environments (extensions); treat as not present
+          exportedPresent = false;
+        }
         if (!parentHasFind && !exportedPresent) {
           // First click: store origin; second click: call backend
           if (!fallbackFindFirst) {
