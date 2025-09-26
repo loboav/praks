@@ -26,5 +26,13 @@ namespace GraphVisualizationApp.Controllers
             var created = await _service.CreateRelationTypeAsync(type);
             return CreatedAtAction(nameof(GetAll), new { id = created.Id }, created);
         }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var result = await _service.DeleteRelationTypeAsync(id);
+            if (!result) return NotFound();
+            return NoContent();
+        }
     }
 }

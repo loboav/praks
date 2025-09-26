@@ -217,6 +217,30 @@ namespace GraphVisualizationApp.Services
             await _db.SaveChangesAsync();
             return rel;
         }
+
+        public async Task<GraphRelation> UpdateRelationAsync(GraphRelation rel)
+        {
+            var existing = await _db.GraphRelations.Include(r => r.Properties).FirstOrDefaultAsync(r => r.Id == rel.Id);
+            if (existing == null) return null!;
+            existing.RelationTypeId = rel.RelationTypeId;
+            existing.Color = rel.Color;
+
+            _db.RelationProperties.RemoveRange(existing.Properties);
+            if (rel.Properties != null)
+            {
+                foreach (var prop in rel.Properties)
+                {
+                    _db.RelationProperties.Add(new RelationProperty
+                    {
+                        RelationId = existing.Id,
+                        Key = prop.Key,
+                        Value = prop.Value
+                    });
+                }
+            }
+            await _db.SaveChangesAsync();
+            return existing;
+        }
         public async Task<List<ObjectProperty>> GetObjectPropertiesAsync(int objectId) => await _db.ObjectProperties.Where(p => p.ObjectId == objectId).ToListAsync();
         public async Task<ObjectProperty> AddObjectPropertyAsync(ObjectProperty prop)
         {
@@ -362,6 +386,16 @@ namespace GraphVisualizationApp.Services
             var relProps = _db.RelationProperties.Where(p => p.RelationId == id).ToList();
             _db.RelationProperties.RemoveRange(relProps);
             _db.GraphRelations.Remove(rel);
+            await _db.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> DeleteRelationTypeAsync(int id)
+        {
+            var type = await _db.RelationTypes.FindAsync(id);
+            if (type == null) return false;
+            // optionally consider removing or reassigning relations of this type
+            _db.RelationTypes.Remove(type);
             await _db.SaveChangesAsync();
             return true;
         }

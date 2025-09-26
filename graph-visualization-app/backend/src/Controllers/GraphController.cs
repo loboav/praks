@@ -180,6 +180,17 @@ namespace GraphVisualizationApp.Controllers
             return Ok(GraphService.ToDto(created));
         }
 
+        [HttpPut("relations/{id}")]
+        public async Task<IActionResult> UpdateRelation(int id, [FromBody] GraphRelation rel)
+        {
+            if (rel == null || rel.Id != id)
+                return BadRequest();
+            var updated = await _service.UpdateRelationAsync(rel);
+            if (updated == null)
+                return NotFound();
+            return Ok(GraphService.ToDto(updated));
+        }
+
         [HttpDelete("objects/{id}")]
         public async Task<IActionResult> DeleteObject(int id)
         {
