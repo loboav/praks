@@ -1,0 +1,9 @@
+# Enforce LF line endings for shell scripts, Dockerfiles, yaml and common text files
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+docker-compose.yml text eol=lf
+*.md text=auto
+*.cs text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
