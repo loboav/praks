@@ -11,6 +11,4 @@ RUN dotnet publish src/GraphVisualizationApp/GraphVisualizationApp.csproj -c Rel
 FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
-COPY wait-for-db.sh /wait-for-db.sh
-RUN chmod +x /wait-for-db.sh
-ENTRYPOINT ["/bin/bash", "-c", "/wait-for-db.sh && dotnet GraphVisualizationApp.dll"]
+ENTRYPOINT ["/bin/bash", "-c", "dotnet GraphVisualizationApp.dll"]
