@@ -12,6 +12,9 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="7.0.11" />
     <PackageReference Include="Npgsql" Version="7.0.6" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="7.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="7.0.11" />
+    <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,8 +23,10 @@
     <Compile Include="..\Services\IGraphService.cs" />
     <Compile Include="..\Models\GraphModels.cs" />
     <Compile Include="..\Models\GraphDtos.cs" />
+    <Compile Include="..\Models\ValidationModels.cs" />
     <Compile Include="..\GraphDbContext.cs" />
-  <Compile Include="..\Algorithms\*.cs" />
+    <Compile Include="..\Algorithms\*.cs" />
+    <Compile Include="..\Middleware\*.cs" />
   </ItemGroup>
 
 </Project>
