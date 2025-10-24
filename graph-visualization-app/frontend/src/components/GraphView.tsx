@@ -8,7 +8,7 @@ import {
 import GraphCanvas from "./GraphCanvas";
 import ObjectCard from "./ObjectCard";
 import RelationCard from "./RelationCard";
-import SearchPanel from "./SearchPanel";
+
 import AddObjectModal from "./modals/AddObjectModal";
 import AddRelationModal from "./modals/AddRelationModal";
 import AddObjectTypeModal from "./modals/AddObjectTypeModal";
@@ -353,9 +353,6 @@ export default function GraphView() {
     setRelationTypes(relTypes);
   };
 
-  // Actions bar
-  const [searchOpen, setSearchOpen] = useState(false);
-
   // Фильтрация типов связей по типу исходного объекта
   const filteredRelationTypes =
     addRelation.source && addRelation.source.objectTypeId
@@ -690,18 +687,7 @@ export default function GraphView() {
             </svg>
             <span style={{ marginLeft: 8 }}>Добавить объект</span>
           </button>
-          <button onClick={() => setSearchOpen(true)} style={actionBtn}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <circle cx="11" cy="11" r="7" stroke="#fff" strokeWidth="2" />
-              <path
-                d="M20 20l-3-3"
-                stroke="#fff"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-            <span style={{ marginLeft: 8 }}>Поиск пути</span>
-          </button>
+
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button onClick={handleToolbarAlign} style={actionBtn}>
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
@@ -858,53 +844,6 @@ export default function GraphView() {
           onApplyFilter={handleApplyFilter}
           currentFilters={filters}
         />
-        {/* Модальное окно поиска пути */}
-        {searchOpen && (
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: "rgba(0,0,0,0.18)",
-              zIndex: 1000,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <div
-              style={{
-                background: "#fff",
-                padding: 28,
-                borderRadius: 12,
-                minWidth: 340,
-                boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
-                fontFamily: "Segoe UI",
-              }}
-            >
-              <SearchPanel findPath={findPath} path={path} />
-              <div style={{ marginTop: 16, textAlign: "right" }}>
-                <button
-                  onClick={() => setSearchOpen(false)}
-                  style={{
-                    background: "#eee",
-                    color: "#333",
-                    border: "none",
-                    borderRadius: 6,
-                    padding: "7px 18px",
-                    fontWeight: 500,
-                    fontSize: 16,
-                    cursor: "pointer",
-                  }}
-                >
-                  Закрыть
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
