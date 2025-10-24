@@ -13,6 +13,7 @@ import AddObjectModal from "./modals/AddObjectModal";
 import AddRelationModal from "./modals/AddRelationModal";
 import AddObjectTypeModal from "./modals/AddObjectTypeModal";
 import AddRelationTypeModal from "./modals/AddRelationTypeModal";
+import FilterModal, { FilterState } from "./modals/FilterModal";
 import Toolbar from "./Toolbar";
 import Sidebar from "./Sidebar";
 import { toast } from "react-toastify";
@@ -34,6 +35,14 @@ export default function GraphView() {
   }>({ source: null, target: null });
   const [addRelationOpen, setAddRelationOpen] = useState(false);
 
+  // Filter state
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({
+    selectedObjectTypes: [],
+    selectedRelationTypes: [],
+    showIsolatedNodes: true,
+  });
+
   // layout state
   const [layout, setLayout] = useState<any>(null);
   // актуальные позиции узлов (id, x, y) — больше не нужно отдельное состояние
@@ -54,6 +63,65 @@ export default function GraphView() {
       });
       return changed ? updated : prevNodes;
     });
+  };
+
+  // Initialize filters when object/relation types are loaded
+  useEffect(() => {
+    if (objectTypes.length > 0 && filters.selectedObjectTypes.length === 0) {
+      setFilters((prev) => ({
+        ...prev,
+        selectedObjectTypes: objectTypes.map((t) => t.id),
+      }));
+    }
+    if (
+      relationTypes.length > 0 &&
+      filters.selectedRelationTypes.length === 0
+    ) {
+      setFilters((prev) => ({
+        ...prev,
+        selectedRelationTypes: relationTypes.map((t) => t.id),
+      }));
+    }
+  }, [objectTypes, relationTypes]);
+
+  // Apply filters to nodes and edges
+  const filteredNodes = nodes.filter((node) => {
+    // Filter by object type
+    if (!filters.selectedObjectTypes.includes(node.objectTypeId)) {
+      return false;
+    }
+
+    // Filter isolated nodes if needed
+    if (!filters.showIsolatedNodes) {
+      const hasConnections = edges.some(
+        (edge) => edge.source === node.id || edge.target === node.id,
+      );
+      if (!hasConnections) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  const filteredEdges = edges.filter((edge) => {
+    // Filter by relation type
+    if (!filters.selectedRelationTypes.includes(edge.relationTypeId)) {
+      return false;
+    }
+
+    // Only show edges where both source and target nodes are visible
+    const sourceVisible = filteredNodes.some((n) => n.id === edge.source);
+    const targetVisible = filteredNodes.some((n) => n.id === edge.target);
+
+    return sourceVisible && targetVisible;
+  });
+
+  const handleApplyFilter = (newFilters: FilterState) => {
+    setFilters(newFilters);
+    toast.success(
+      `Фильтры применены! Узлов: ${filteredNodes.length}, Связей: ${filteredEdges.length}`,
+    );
   };
 
   // Загрузка layout при инициализации
@@ -240,7 +308,7 @@ export default function GraphView() {
       setNodes(aligned);
     }
   };
-  const handleToolbarFilter = () => toast.info("Фильтр (MVP)");
+  const handleToolbarFilter = () => setFilterOpen(true);
 
   // Модальное окно для типа объекта
   const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
@@ -296,12 +364,11 @@ export default function GraphView() {
         )
       : relationTypes;
 
-  // Просто используем nodes, у которых уже есть актуальные координаты
-  const nodesWithPositions = nodes.map((node) => ({
+  // Используем отфильтрованные nodes с актуальными координатами
+  const nodesWithPositions = filteredNodes.map((node) => ({
     ...node,
     x: typeof node.PositionX === "number" ? node.PositionX : 0,
     y: typeof node.PositionY === "number" ? node.PositionY : 0,
-    label: node.name || "",
   }));
   // Для отладки: можно включить логи при необходимости
   // console.log('nodesWithPositions', nodesWithPositions);
@@ -542,7 +609,7 @@ export default function GraphView() {
               <>
                 <GraphCanvas
                   nodes={nodesWithPositions}
-                  edges={edges}
+                  edges={filteredEdges}
                   relationTypes={relationTypes}
                   onSelectNode={handleSelectNode}
                   onSelectEdge={(edge) =>
@@ -573,13 +640,24 @@ export default function GraphView() {
             color: "#fff",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "space-between",
+            padding: "0 24px",
             gap: 32,
             fontSize: 18,
             fontWeight: 500,
             letterSpacing: 0.5,
           }}
         >
+          <div style={{ fontSize: 13, color: "#aaa" }}>
+            Узлов: {filteredNodes.length}/{nodes.length} | Связей:{" "}
+            {filteredEdges.length}/{edges.length}
+            {(filters.selectedObjectTypes.length < objectTypes.length ||
+              filters.selectedRelationTypes.length < relationTypes.length) && (
+              <span style={{ color: "#ff9800", marginLeft: 8 }}>
+                • Фильтры активны
+              </span>
+            )}
+          </div>
           <button onClick={handleSaveLayout} style={actionBtn}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
               <rect
@@ -658,7 +736,10 @@ export default function GraphView() {
               <option value="tree">Дерево</option>
             </select>
           </div>
-          <button onClick={handleToolbarFilter} style={actionBtn}>
+          <button
+            onClick={handleToolbarFilter}
+            style={{ ...actionBtn, position: "relative" }}
+          >
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
               <path
                 d="M4 6h16M6 12h12M8 18h8"
@@ -668,6 +749,34 @@ export default function GraphView() {
               />
             </svg>
             <span style={{ marginLeft: 8 }}>Фильтр</span>
+            {(filters.selectedObjectTypes.length < objectTypes.length ||
+              filters.selectedRelationTypes.length < relationTypes.length ||
+              !filters.showIsolatedNodes) && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: 4,
+                  right: 4,
+                  background: "#ff5722",
+                  color: "#fff",
+                  borderRadius: "50%",
+                  width: 20,
+                  height: 20,
+                  fontSize: 11,
+                  fontWeight: "bold",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+                }}
+              >
+                {objectTypes.length -
+                  filters.selectedObjectTypes.length +
+                  (relationTypes.length -
+                    filters.selectedRelationTypes.length) +
+                  (filters.showIsolatedNodes ? 0 : 1)}
+              </span>
+            )}
           </button>
         </div>
         <AddObjectModal
@@ -740,6 +849,14 @@ export default function GraphView() {
           onClose={() => setAddRelationTypeOpen(false)}
           onCreate={handleCreateRelationType}
           objectTypes={objectTypes}
+        />
+        <FilterModal
+          open={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          objectTypes={objectTypes}
+          relationTypes={relationTypes}
+          onApplyFilter={handleApplyFilter}
+          currentFilters={filters}
         />
         {/* Модальное окно поиска пути */}
         {searchOpen && (
