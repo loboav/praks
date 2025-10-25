@@ -27,6 +27,7 @@
     <Compile Include="..\GraphDbContext.cs" />
     <Compile Include="..\Algorithms\*.cs" />
     <Compile Include="..\Middleware\*.cs" />
+    <Compile Include="..\Data\*.cs" />
   </ItemGroup>
 
 </Project>

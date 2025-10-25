@@ -6,6 +6,7 @@ using Microsoft.OpenApi.Models;
 using GraphVisualizationApp.Services;
 using GraphVisualizationApp;
 using GraphVisualizationApp.Middleware;
+using GraphVisualizationApp.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -95,15 +96,21 @@ using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<GraphDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
         logger.LogInformation("Applying database migrations...");
         db.Database.Migrate();
         logger.LogInformation("Database migrations applied successfully");
+
+        // Seed database with initial data
+        logger.LogInformation("Starting database seeding...");
+        await DatabaseSeeder.SeedAsync(db, configuration);
+        logger.LogInformation("Database seeding completed");
     }
     catch (Exception ex)
     {
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while migrating the database");
+        logger.LogError(ex, "An error occurred while migrating or seeding the database");
         throw;
     }
 }

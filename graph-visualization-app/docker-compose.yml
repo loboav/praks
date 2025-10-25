@@ -8,6 +8,8 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
       - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      - Seeding__Mode=${SEEDING_MODE:-None}
+      - Seeding__AutoReseed=${SEEDING_AUTORESEED:-false}
     depends_on:
       - db
     restart: on-failure

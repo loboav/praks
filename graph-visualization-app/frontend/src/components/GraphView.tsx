@@ -65,7 +65,7 @@ export default function GraphView() {
     });
   };
 
-  // Initialize filters when object/relation types are loaded
+ 
   useEffect(() => {
     if (objectTypes.length > 0 && filters.selectedObjectTypes.length === 0) {
       setFilters((prev) => ({
@@ -84,15 +84,15 @@ export default function GraphView() {
     }
   }, [objectTypes, relationTypes]);
 
-  // Apply filters to nodes and edges (memoized)
+  
   const filteredNodes = useMemo(() => {
     return nodes.filter((node) => {
-      // Filter by object type
+      
       if (!filters.selectedObjectTypes.includes(node.objectTypeId)) {
         return false;
       }
 
-      // Filter isolated nodes if needed
+      
       if (!filters.showIsolatedNodes) {
         const hasConnections = edges.some(
           (edge) => edge.source === node.id || edge.target === node.id,
