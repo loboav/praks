@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   GraphObject,
   GraphRelation,
@@ -84,38 +84,42 @@ export default function GraphView() {
     }
   }, [objectTypes, relationTypes]);
 
-  // Apply filters to nodes and edges
-  const filteredNodes = nodes.filter((node) => {
-    // Filter by object type
-    if (!filters.selectedObjectTypes.includes(node.objectTypeId)) {
-      return false;
-    }
-
-    // Filter isolated nodes if needed
-    if (!filters.showIsolatedNodes) {
-      const hasConnections = edges.some(
-        (edge) => edge.source === node.id || edge.target === node.id,
-      );
-      if (!hasConnections) {
+  // Apply filters to nodes and edges (memoized)
+  const filteredNodes = useMemo(() => {
+    return nodes.filter((node) => {
+      // Filter by object type
+      if (!filters.selectedObjectTypes.includes(node.objectTypeId)) {
         return false;
       }
-    }
 
-    return true;
-  });
+      // Filter isolated nodes if needed
+      if (!filters.showIsolatedNodes) {
+        const hasConnections = edges.some(
+          (edge) => edge.source === node.id || edge.target === node.id,
+        );
+        if (!hasConnections) {
+          return false;
+        }
+      }
 
-  const filteredEdges = edges.filter((edge) => {
-    // Filter by relation type
-    if (!filters.selectedRelationTypes.includes(edge.relationTypeId)) {
-      return false;
-    }
+      return true;
+    });
+  }, [nodes, filters.selectedObjectTypes, filters.showIsolatedNodes, edges]);
 
-    // Only show edges where both source and target nodes are visible
-    const sourceVisible = filteredNodes.some((n) => n.id === edge.source);
-    const targetVisible = filteredNodes.some((n) => n.id === edge.target);
+  const filteredEdges = useMemo(() => {
+    return edges.filter((edge) => {
+      // Filter by relation type
+      if (!filters.selectedRelationTypes.includes(edge.relationTypeId)) {
+        return false;
+      }
 
-    return sourceVisible && targetVisible;
-  });
+      // Only show edges where both source and target nodes are visible
+      const sourceVisible = filteredNodes.some((n) => n.id === edge.source);
+      const targetVisible = filteredNodes.some((n) => n.id === edge.target);
+
+      return sourceVisible && targetVisible;
+    });
+  }, [edges, filters.selectedRelationTypes, filteredNodes]);
 
   const handleApplyFilter = (newFilters: FilterState) => {
     setFilters(newFilters);
@@ -233,7 +237,6 @@ export default function GraphView() {
         Value,
       })),
     };
-    console.log("POST /api/relations", payload);
     const res = await fetch("/api/relations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -361,12 +364,14 @@ export default function GraphView() {
         )
       : relationTypes;
 
-  // Используем отфильтрованные nodes с актуальными координатами
-  const nodesWithPositions = filteredNodes.map((node) => ({
-    ...node,
-    x: typeof node.PositionX === "number" ? node.PositionX : 0,
-    y: typeof node.PositionY === "number" ? node.PositionY : 0,
-  }));
+  // Используем отфильтрованные nodes с актуальными координатами (memoized)
+  const nodesWithPositions = useMemo(() => {
+    return filteredNodes.map((node) => ({
+      ...node,
+      x: typeof node.PositionX === "number" ? node.PositionX : 0,
+      y: typeof node.PositionY === "number" ? node.PositionY : 0,
+    }));
+  }, [filteredNodes]);
   // Для отладки: можно включить логи при необходимости
   // console.log('nodesWithPositions', nodesWithPositions);
   // console.log('edges', edges);

@@ -1,12 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import ReactFlow, {
   Controls,
   Background,
   useNodesState,
-  NodeChange
-} from 'reactflow';
-import 'reactflow/dist/style.css';
-import { GraphObject, GraphRelation, RelationType } from '../types/graph';
+  NodeChange,
+  Node,
+  Edge,
+} from "reactflow";
+import "reactflow/dist/style.css";
+import { GraphObject, GraphRelation, RelationType } from "../types/graph";
 
 interface GraphCanvasProps {
   nodes: GraphObject[];
@@ -18,7 +26,9 @@ interface GraphCanvasProps {
   onAlign?: () => void;
   onMove?: () => void;
   selectedNodes?: number[];
-  onNodesPositionChange?: (positions: { id: number, x: number, y: number }[]) => void;
+  onNodesPositionChange?: (
+    positions: { id: number; x: number; y: number }[],
+  ) => void;
 }
 
 interface HighlightProps {
@@ -26,266 +36,586 @@ interface HighlightProps {
   selectedEdges?: number[];
 }
 
-const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({ nodes, edges, relationTypes, onSelectNode, onSelectEdge, onNodeAction, selectedNodes: propsSelectedNodes, selectedEdges, onNodesPositionChange }) => {
+const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
+  nodes,
+  edges,
+  relationTypes,
+  onSelectNode,
+  onSelectEdge,
+  onNodeAction,
+  selectedNodes: propsSelectedNodes,
+  selectedEdges,
+  onNodesPositionChange,
+}) => {
   // Local highlighting for found path
   const [selectedNodesLocal, setSelectedNodesLocal] = useState<number[]>([]);
   const [selectedEdgesLocal, setSelectedEdgesLocal] = useState<number[]>([]);
   const [pathModalOpen, setPathModalOpen] = useState(false);
-  const [pathResult, setPathResult] = useState<{ nodeIds: number[]; edgeIds: number[]; totalWeight?: number; names?: string[] } | null>(null);
+  const [pathResult, setPathResult] = useState<{
+    nodeIds: number[];
+    edgeIds: number[];
+    totalWeight?: number;
+    names?: string[];
+  } | null>(null);
   const [findMessage, setFindMessage] = useState<string | null>(null);
-  const [pathModalPos, setPathModalPos] = useState<{ x: number; y: number } | null>(null);
-  const dragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const [pathModalPos, setPathModalPos] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  } | null>(null);
 
-  // Синхронизируем состояние с props.nodes
-  const combinedSelectedNodes = (propsSelectedNodes && propsSelectedNodes.length > 0) ? propsSelectedNodes : selectedNodesLocal;
+  // Debounce timer ref
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const initialRfNodes = nodes.map(node => ({
-    id: node.id.toString(),
-    data: { label: node.icon ? `${node.icon} ${node.name}` : node.name, orig: node },
-    position: {
-      x: node.PositionX ?? 400,
-      y: node.PositionY ?? 300
-    },
-    style: {
-      border: (combinedSelectedNodes && combinedSelectedNodes.includes(node.id)) ? '4px solid #1976d2' : `2px solid ${node.color || '#2196f3'}`,
-      borderRadius: 8,
-      padding: 8,
-      background: '#fff',
-      color: node.color || undefined,
-      boxShadow: (combinedSelectedNodes && combinedSelectedNodes.includes(node.id)) ? '0 0 0 6px rgba(25,118,210,0.12)' : undefined
-    },
-  }));
-  const [rfNodes, setRfNodes, onNodesChange] = require('reactflow').useNodesState(initialRfNodes);
-
-  useEffect(() => {
-    setRfNodes(initialRfNodes);
-  }, [nodes, propsSelectedNodes]);
-  const combinedSelectedEdges = (selectedEdges && selectedEdges.length > 0) ? selectedEdges : selectedEdgesLocal;
-
-  const rfEdges = edges.map(edge => {
-    const isHighlighted = combinedSelectedEdges && combinedSelectedEdges.includes(edge.id);
-    return {
-      id: edge.id.toString(),
-      source: edge.source.toString(),
-      target: edge.target.toString(),
-      label: relationTypes.find(rt => rt.id === edge.relationTypeId)?.name || '',
-      style: {
-        // highlighted path -> red and thick, non-animated
-        stroke: isHighlighted ? '#d32f2f' : (edge.color || '#2196f3'),
-        strokeWidth: isHighlighted ? 8 : 2,
-        // when path highlighted, dim other edges to reduce visual noise
-        opacity: isHighlighted ? 1 : (combinedSelectedEdges && combinedSelectedEdges.length > 0 ? 0.18 : 1),
-        // reduce dash / animation on highlighted path
-        strokeDasharray: isHighlighted ? undefined : '6 6'
-      },
-      // animate only non-highlighted (subtle moving) edges; highlighted path static
-      animated: !isHighlighted,
-    };
-  });
-
+  // Флаг для отслеживания программных изменений (align)
+  const isProgrammaticChangeRef = useRef(false);
 
   // Контекстное меню
-  const [menu, setMenu] = useState<{ x: number; y: number; node: GraphObject } | null>(null);
-  // Fallback state for find-path flow when parent handler doesn't implement it
-  const [fallbackFindFirst, setFallbackFindFirst] = useState<number | null>(null);
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    node: GraphObject;
+  } | null>(null);
 
-  // Обработка drag&drop (можно добавить сохранение в БД)
-  const handleNodesChange = (changes: NodeChange[]) => {
-    onNodesChange(changes);
-    // После любого перемещения сообщаем наверх актуальные позиции
-    if (typeof onNodesPositionChange === 'function') {
-      // rfNodes уже обновлены после onNodesChange
-      setTimeout(() => {
-        const positions = rfNodes.map((n: any) => ({ id: Number(n.id), x: n.position.x, y: n.position.y }));
-        onNodesPositionChange!(positions);
-      }, 0);
-    }
-  };
+  // Fallback state for find-path flow when parent handler doesn't implement it
+  const [fallbackFindFirst, setFallbackFindFirst] = useState<number | null>(
+    null,
+  );
+
+  // Мемоизация выбранных узлов
+  const combinedSelectedNodes = useMemo(() => {
+    return propsSelectedNodes && propsSelectedNodes.length > 0
+      ? propsSelectedNodes
+      : selectedNodesLocal;
+  }, [propsSelectedNodes, selectedNodesLocal]);
+
+  const combinedSelectedEdges = useMemo(() => {
+    return selectedEdges && selectedEdges.length > 0
+      ? selectedEdges
+      : selectedEdgesLocal;
+  }, [selectedEdges, selectedEdgesLocal]);
+
+  // Мемоизация преобразования узлов для ReactFlow
+  const initialRfNodes = useMemo<Node[]>(() => {
+    return nodes.map((node) => ({
+      id: node.id.toString(),
+      data: {
+        label: node.icon ? `${node.icon} ${node.name}` : node.name,
+        orig: node,
+      },
+      position: {
+        x: node.PositionX ?? 400,
+        y: node.PositionY ?? 300,
+      },
+      style: {
+        border:
+          combinedSelectedNodes && combinedSelectedNodes.includes(node.id)
+            ? "4px solid #1976d2"
+            : `2px solid ${node.color || "#2196f3"}`,
+        borderRadius: 8,
+        padding: 8,
+        background: "#fff",
+        color: node.color || undefined,
+        boxShadow:
+          combinedSelectedNodes && combinedSelectedNodes.includes(node.id)
+            ? "0 0 0 6px rgba(25,118,210,0.12)"
+            : undefined,
+      },
+    }));
+  }, [nodes, combinedSelectedNodes]);
+
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState(initialRfNodes);
+
+  // Синхронизация узлов только при изменении nodes или selection
+  // Но НЕ при перемещении (это важно для устранения мигания)
+  useEffect(() => {
+    setRfNodes((currentNodes) => {
+      // Проверяем, действительно ли изменились данные или позиции из props
+      const hasDataChanges =
+        nodes.length !== currentNodes.length ||
+        nodes.some((node) => {
+          const currentNode = currentNodes.find(
+            (n) => n.id === node.id.toString(),
+          );
+          if (!currentNode) return true;
+
+          const newLabel = node.icon ? `${node.icon} ${node.name}` : node.name;
+
+          // Проверяем изменение данных
+          const dataChanged =
+            currentNode.data.label !== newLabel ||
+            currentNode.data.orig.objectTypeId !== node.objectTypeId;
+
+          // Проверяем изменение позиций из props (например, при выравнивании)
+          const positionChanged =
+            (node.PositionX !== undefined &&
+              Math.abs(currentNode.position.x - node.PositionX) > 1) ||
+            (node.PositionY !== undefined &&
+              Math.abs(currentNode.position.y - node.PositionY) > 1);
+
+          return dataChanged || positionChanged;
+        });
+
+      if (hasDataChanges) {
+        // Отменяем debounce при программных изменениях
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+          debounceTimerRef.current = null;
+        }
+        isProgrammaticChangeRef.current = true;
+        return initialRfNodes;
+      }
+
+      // Обновляем только стили (для selection), сохраняя позиции
+      return currentNodes.map((currentNode) => {
+        const node = nodes.find((n) => n.id.toString() === currentNode.id);
+        if (!node) return currentNode;
+
+        const isSelected =
+          combinedSelectedNodes && combinedSelectedNodes.includes(node.id);
+        return {
+          ...currentNode,
+          style: {
+            border: isSelected
+              ? "4px solid #1976d2"
+              : `2px solid ${node.color || "#2196f3"}`,
+            borderRadius: 8,
+            padding: 8,
+            background: "#fff",
+            color: node.color || undefined,
+            boxShadow: isSelected
+              ? "0 0 0 6px rgba(25,118,210,0.12)"
+              : undefined,
+          },
+        };
+      });
+    });
+  }, [nodes, combinedSelectedNodes, initialRfNodes]);
+
+  // Мемоизация преобразования рёбер для ReactFlow
+  const rfEdges = useMemo<Edge[]>(() => {
+    return edges.map((edge) => {
+      const isHighlighted =
+        combinedSelectedEdges && combinedSelectedEdges.includes(edge.id);
+      return {
+        id: edge.id.toString(),
+        source: edge.source.toString(),
+        target: edge.target.toString(),
+        label:
+          relationTypes.find((rt) => rt.id === edge.relationTypeId)?.name || "",
+        style: {
+          stroke: isHighlighted ? "#d32f2f" : edge.color || "#2196f3",
+          strokeWidth: isHighlighted ? 8 : 2,
+          opacity: isHighlighted
+            ? 1
+            : combinedSelectedEdges && combinedSelectedEdges.length > 0
+              ? 0.18
+              : 1,
+          strokeDasharray: isHighlighted ? undefined : "6 6",
+        },
+        animated: !isHighlighted,
+      };
+    });
+  }, [edges, relationTypes, combinedSelectedEdges]);
+
+  // Debounced callback для обновления позиций
+  const debouncedPositionUpdate = useCallback(
+    (positions: { id: number; x: number; y: number }[]) => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        if (onNodesPositionChange) {
+          onNodesPositionChange(positions);
+        }
+      }, 300); // 300ms debounce
+    },
+    [onNodesPositionChange],
+  );
+
+  // Очистка debounce таймера при размонтировании
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Обработка изменений узлов с фильтрацией только position изменений
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      // Применяем все изменения к ReactFlow
+      onNodesChange(changes);
+
+      // Игнорируем изменения позиций если это программное изменение (align)
+      if (isProgrammaticChangeRef.current) {
+        isProgrammaticChangeRef.current = false;
+        return;
+      }
+
+      // Фильтруем только изменения позиций от пользователя
+      const positionChanges = changes.filter(
+        (change) => change.type === "position" && change.dragging === false,
+      );
+
+      if (positionChanges.length > 0 && onNodesPositionChange) {
+        // Получаем текущие позиции после изменений
+        setRfNodes((currentNodes) => {
+          const positions = currentNodes.map((n: Node) => ({
+            id: Number(n.id),
+            x: n.position.x,
+            y: n.position.y,
+          }));
+
+          // Вызываем debounced обновление
+          debouncedPositionUpdate(positions);
+
+          return currentNodes;
+        });
+      }
+    },
+    [onNodesChange, onNodesPositionChange, debouncedPositionUpdate, setRfNodes],
+  );
 
   // Контекстное меню по правому клику
-  const onNodeContextMenu = (event: React.MouseEvent, node: any) => {
-    event.preventDefault();
-    setMenu({ x: event.clientX, y: event.clientY, node: node.data.orig });
-  };
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: any) => {
+      event.preventDefault();
+      setMenu({ x: event.clientX, y: event.clientY, node: node.data.orig });
+    },
+    [],
+  );
+
+  // Обработка клика по узлу
+  const handleNodeClick = useCallback(
+    (_: any, node: any) => {
+      onSelectNode(node.data.orig);
+    },
+    [onSelectNode],
+  );
+
+  // Обработка клика по рёбру
+  const handleEdgeClick = useCallback(
+    (_: any, edge: any) => {
+      const foundEdge = edges.find((e) => e.id.toString() === edge.id);
+      if (foundEdge) {
+        onSelectEdge(foundEdge);
+      }
+    },
+    [edges, onSelectEdge],
+  );
 
   // Действия из меню
-  const handleMenuAction = (action: string) => {
-    if (!menu) { setMenu(null); return; }
-    // Additional debug: print any global markers and exported handler so we can compare at runtime
-    try {
-      console.log('GRAPHCANVAS_DBG_LOG_PRESENT_20250905');
-      console.log('GraphCanvas: window.__debug_handleNodeAction =', (window as any).__debug_handleNodeAction);
-      console.log('GraphCanvas: window.__DBG_MARKER_TOP_GRAPHVIEW =', (window as any).__DBG_MARKER_TOP_GRAPHVIEW);
-      if ((window as any).__debug_handleNodeAction && (window as any).__debug_handleNodeAction.toString) {
-        console.log('GraphCanvas: window.__debug_handleNodeAction.toString() (head)=', (window as any).__debug_handleNodeAction.toString().slice(0,200));
+  const handleMenuAction = useCallback(
+    (action: string) => {
+      if (!menu) {
+        setMenu(null);
+        return;
       }
-    } catch (err) { console.warn('GraphCanvas debug read window failed', err); }
 
-    console.log('GraphCanvas: handleMenuAction', action, menu.node);
-    console.log('GraphCanvas: typeof onNodeAction =', typeof onNodeAction);
+      // Fallback: if action is 'find-path' and parent handler doesn't support it, handle here
+      if (action === "find-path") {
+        const parentStr =
+          onNodeAction && (onNodeAction as any).toString
+            ? (onNodeAction as any).toString()
+            : "";
+        const parentHasFind = parentStr.includes("find-path");
 
-    // Fallback: if action is 'find-path' and parent handler doesn't support it, handle here
-    try {
-      if (action === 'find-path') {
-        const parentStr = onNodeAction && (onNodeAction as any).toString ? (onNodeAction as any).toString() : '';
-        const parentHasFind = parentStr.includes('find-path');
-        let exportedPresent = false;
-        try {
-          exportedPresent = !!(window as any).__debug_handleNodeAction;
-        } catch (e) {
-          // Accessing some window properties can throw in exotic environments (extensions); treat as not present
-          exportedPresent = false;
-        }
-        if (!parentHasFind && !exportedPresent) {
+        if (!parentHasFind) {
           // First click: store origin; second click: call backend
           if (!fallbackFindFirst) {
             setFallbackFindFirst(menu.node.id);
-            // show compact on-screen message instead of alert
-            setFindMessage('Первый узел для поиска пути выбран: ' + (menu.node.name || menu.node.id));
+            setFindMessage(
+              "Первый узел для поиска пути выбран: " +
+                (menu.node.name || menu.node.id),
+            );
             setTimeout(() => setFindMessage(null), 2200);
             setMenu(null);
             return;
           } else if (fallbackFindFirst && fallbackFindFirst !== menu.node.id) {
             const from = fallbackFindFirst;
             const to = menu.node.id;
-            const base = (window as any).__API_BASE || '';
-            const url = `${base}/api/dijkstra-path?fromId=${from}&toId=${to}`.replace(/([^:]?)\/\//g, '$1//');
+            const base = (window as any).__API_BASE || "";
+            const url =
+              `${base}/api/dijkstra-path?fromId=${from}&toId=${to}`.replace(
+                /([^:]?)\/\//g,
+                "$1//",
+              );
+
             const tryPrimary = async () => {
               try {
                 const r = await fetch(url);
                 if (r.status === 404 && !base) {
-                  // likely frontend served on :3000 and backend on :5000 — try fallback
                   return null;
                 }
-                if (!r.ok) { throw new Error('server error ' + r.status); }
+                if (!r.ok) {
+                  throw new Error("server error " + r.status);
+                }
                 return await r.json();
               } catch (e) {
                 return null;
               }
             };
+
             (async () => {
               let data = await tryPrimary();
               if (!data) {
-                // retry against localhost:5000 as fallback
                 try {
-                  const r2 = await fetch(`http://localhost:5000/api/dijkstra-path?fromId=${from}&toId=${to}`);
+                  const r2 = await fetch(
+                    `http://localhost:5000/api/dijkstra-path?fromId=${from}&toId=${to}`,
+                  );
                   if (r2.ok) data = await r2.json();
                 } catch (e) {}
               }
-              if (!data) { setFindMessage('Ошибка при поиске пути на сервере'); setTimeout(() => setFindMessage(null), 2500); setFallbackFindFirst(null); return; }
+
+              if (!data) {
+                setFindMessage("Ошибка при поиске пути на сервере");
+                setTimeout(() => setFindMessage(null), 2500);
+                setFallbackFindFirst(null);
+                return;
+              }
+
               if (data && data.nodeIds && data.nodeIds.length) {
-                // compute names for nodes
-                const names = (data.nodeIds as number[]).map((id: number) => nodes.find(n => n.id === id)?.name || String(id));
-                setPathResult({ nodeIds: data.nodeIds, edgeIds: data.edgeIds || [], totalWeight: data.totalWeight, names });
+                const names = (data.nodeIds as number[]).map(
+                  (id: number) =>
+                    nodes.find((n) => n.id === id)?.name || String(id),
+                );
+                setPathResult({
+                  nodeIds: data.nodeIds,
+                  edgeIds: data.edgeIds || [],
+                  totalWeight: data.totalWeight,
+                  names,
+                });
                 setSelectedNodesLocal(data.nodeIds);
                 setSelectedEdgesLocal(data.edgeIds || []);
                 setPathModalOpen(true);
               } else {
-                setFindMessage('Путь не найден');
+                setFindMessage("Путь не найден");
                 setTimeout(() => setFindMessage(null), 2200);
               }
               setFallbackFindFirst(null);
             })();
+
             setMenu(null);
             return;
           }
         }
       }
-    } catch (err) { console.warn('GraphCanvas fallback find-path check failed', err); }
 
-    if (onNodeAction && typeof onNodeAction === 'function') {
-      try {
-        try { console.log('GraphCanvas: onNodeAction.name =', (onNodeAction as any).name); } catch {};
-        try { console.log('GraphCanvas: onNodeAction.toString() (truncated) =', onNodeAction.toString ? onNodeAction.toString().slice(0,300) : '[no toString]'); } catch (e) { console.warn('GraphCanvas: could not toString onNodeAction', e); }
-        console.log('GraphCanvas: call stack before invoking onNodeAction', new Error().stack);
-        const res = onNodeAction(action, menu.node);
-        console.log('GraphCanvas: onNodeAction вызван, возвращено:', res);
-        console.log('GraphCanvas: call stack after invoking onNodeAction', new Error().stack);
-      } catch (err) {
-        console.error('GraphCanvas: ошибка при вызове onNodeAction', err);
+      if (onNodeAction && typeof onNodeAction === "function") {
+        try {
+          onNodeAction(action, menu.node);
+        } catch (err) {
+          console.error("GraphCanvas: ошибка при вызове onNodeAction", err);
+        }
       }
-    } else {
-      console.warn('GraphCanvas: onNodeAction не передан');
-    }
-    setMenu(null);
-  };
+
+      setMenu(null);
+    },
+    [menu, onNodeAction, fallbackFindFirst, nodes],
+  );
 
   // Закрыть меню при клике вне
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
-    window.addEventListener('click', close);
-    return () => window.removeEventListener('click', close);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
   }, [menu]);
 
+  // Обработчик закрытия модального окна пути
+  const handleClosePathModal = useCallback(() => {
+    setPathModalOpen(false);
+    setSelectedNodesLocal([]);
+    setSelectedEdgesLocal([]);
+    setPathResult(null);
+    setPathModalPos(null);
+  }, []);
+
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
         onNodesChange={handleNodesChange}
-        onNodeClick={(_, node) => onSelectNode(node.data.orig)}
+        onNodeClick={handleNodeClick}
         onNodeContextMenu={onNodeContextMenu}
-        onEdgeClick={(_, edge) => onSelectEdge(edges.find(e => e.id.toString() === edge.id)!)}
+        onEdgeClick={handleEdgeClick}
         fitView
       >
         <Background />
         <Controls />
       </ReactFlow>
-      {/* transient on-screen message */}
+
+      {/* Transient on-screen message */}
       {findMessage && (
-        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#323232', color: '#fff', padding: '10px 16px', borderRadius: 8, zIndex: 1200 }}>{findMessage}</div>
+        <div
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#323232",
+            color: "#fff",
+            padding: "10px 16px",
+            borderRadius: 8,
+            zIndex: 1200,
+          }}
+        >
+          {findMessage}
+        </div>
       )}
 
-      {/* path details modal */}
+      {/* Path details modal */}
       {pathModalOpen && pathResult && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.12)', zIndex: 2000 }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.12)",
+            zIndex: 2000,
+          }}
+        >
           <div
             onMouseDown={(e) => {
-              dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pathModalPos?.x ?? window.innerWidth / 2 - 180, origY: pathModalPos?.y ?? window.innerHeight / 2 - 120 };
+              dragRef.current = {
+                startX: e.clientX,
+                startY: e.clientY,
+                origX: pathModalPos?.x ?? window.innerWidth / 2 - 180,
+                origY: pathModalPos?.y ?? window.innerHeight / 2 - 120,
+              };
               e.stopPropagation();
             }}
             onMouseMove={(e) => {
               if (dragRef.current) {
                 const dx = e.clientX - dragRef.current.startX;
                 const dy = e.clientY - dragRef.current.startY;
-                setPathModalPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy });
+                setPathModalPos({
+                  x: dragRef.current.origX + dx,
+                  y: dragRef.current.origY + dy,
+                });
                 e.stopPropagation();
               }
             }}
-            onMouseUp={() => { dragRef.current = null; }}
-            style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}
+            onMouseUp={() => {
+              dragRef.current = null;
+            }}
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              right: 0,
+              bottom: 0,
+            }}
           >
-            <div style={{ position: 'absolute', left: pathModalPos?.x ?? (window.innerWidth / 2 - 180), top: pathModalPos?.y ?? (window.innerHeight / 2 - 120), background: '#fff', padding: 20, borderRadius: 10, minWidth: 360, maxWidth: '90%', boxShadow: '0 12px 40px rgba(0,0,0,0.28)', cursor: 'move' }}>
+            <div
+              style={{
+                position: "absolute",
+                left: pathModalPos?.x ?? window.innerWidth / 2 - 180,
+                top: pathModalPos?.y ?? window.innerHeight / 2 - 120,
+                background: "#fff",
+                padding: 20,
+                borderRadius: 10,
+                minWidth: 360,
+                maxWidth: "90%",
+                boxShadow: "0 12px 40px rgba(0,0,0,0.28)",
+                cursor: "move",
+              }}
+            >
               <h3 style={{ marginTop: 0, marginBottom: 6 }}>Найденный путь</h3>
-              <p style={{ margin: '6px 0 12px 0', color: '#666' }}>Вес: {pathResult.totalWeight ?? 'N/A'}</p>
+              <p style={{ margin: "6px 0 12px 0", color: "#666" }}>
+                Вес: {pathResult.totalWeight ?? "N/A"}
+              </p>
               <ol style={{ paddingLeft: 18 }}>
-                {pathResult.names && pathResult.names.map((n, idx) => <li key={idx} style={{ marginBottom: 6 }}>{n} <small style={{ color: '#999' }}>#{pathResult.nodeIds[idx]}</small></li>)}
+                {pathResult.names &&
+                  pathResult.names.map((n, idx) => (
+                    <li key={idx} style={{ marginBottom: 6 }}>
+                      {n}{" "}
+                      <small style={{ color: "#999" }}>
+                        #{pathResult.nodeIds[idx]}
+                      </small>
+                    </li>
+                  ))}
               </ol>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-                <button onClick={() => { setPathModalOpen(false); setSelectedNodesLocal([]); setSelectedEdgesLocal([]); setPathResult(null); setPathModalPos(null); }} style={{ background: '#e0e0e0', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}>Закрыть</button>
-                <button onClick={() => { setPathModalOpen(false); setSelectedNodesLocal([]); setSelectedEdgesLocal([]); setPathResult(null); setPathModalPos(null); }} style={{ background: '#1976d2', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}>ОК</button>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 8,
+                  marginTop: 12,
+                }}
+              >
+                <button
+                  onClick={handleClosePathModal}
+                  style={{
+                    background: "#e0e0e0",
+                    border: "none",
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  Закрыть
+                </button>
+                <button
+                  onClick={handleClosePathModal}
+                  style={{
+                    background: "#1976d2",
+                    color: "#fff",
+                    border: "none",
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  ОК
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Context menu */}
       {menu && (
-        <div style={{
-          position: 'fixed',
-          top: menu.y,
-          left: menu.x,
-          background: '#fff',
-          border: '1px solid #ddd',
-          borderRadius: 8,
-          boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-          zIndex: 1001,
-          minWidth: 160
-        }}>
-          <button style={menuBtn} onClick={() => handleMenuAction('create-relation')}>Создать связь</button>
-          <button style={menuBtn} onClick={() => handleMenuAction('edit')}>Редактировать</button>
-          <button style={menuBtn} onClick={() => handleMenuAction('delete')}>Удалить</button>
-          <button style={menuBtn} onClick={() => { console.log('GraphCanvas: Нажатие Поиск пути', menu?.node); handleMenuAction('find-path'); }}>Поиск пути</button>
+        <div
+          style={{
+            position: "fixed",
+            top: menu.y,
+            left: menu.x,
+            background: "#fff",
+            border: "1px solid #ddd",
+            borderRadius: 8,
+            boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+            zIndex: 1001,
+            minWidth: 160,
+          }}
+        >
+          <button
+            style={menuBtn}
+            onClick={() => handleMenuAction("create-relation")}
+          >
+            Создать связь
+          </button>
+          <button style={menuBtn} onClick={() => handleMenuAction("edit")}>
+            Редактировать
+          </button>
+          <button style={menuBtn} onClick={() => handleMenuAction("delete")}>
+            Удалить
+          </button>
+          <button style={menuBtn} onClick={() => handleMenuAction("find-path")}>
+            Поиск пути
+          </button>
         </div>
       )}
     </div>
@@ -293,16 +623,16 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({ nodes, edges
 };
 
 const menuBtn: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  padding: '10px 18px',
-  background: 'none',
-  border: 'none',
-  textAlign: 'left',
+  display: "block",
+  width: "100%",
+  padding: "10px 18px",
+  background: "none",
+  border: "none",
+  textAlign: "left",
   fontSize: 16,
-  cursor: 'pointer',
-  color: '#23272f',
-  borderBottom: '1px solid #eee',
+  cursor: "pointer",
+  color: "#23272f",
+  borderBottom: "1px solid #eee",
 };
 
 export default GraphCanvas;
