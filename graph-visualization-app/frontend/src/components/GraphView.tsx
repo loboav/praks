@@ -1,278 +1,121 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
-import {
-  GraphObject,
-  GraphRelation,
-  ObjectType,
-  RelationType,
-} from "../types/graph";
+import React, { useEffect, useState, useMemo } from "react";
+import { GraphObject, GraphRelation } from "../types/graph";
 import GraphCanvas from "./GraphCanvas";
 import ObjectCard from "./ObjectCard";
 import RelationCard from "./RelationCard";
-
 import AddObjectModal from "./modals/AddObjectModal";
 import AddRelationModal from "./modals/AddRelationModal";
 import AddObjectTypeModal from "./modals/AddObjectTypeModal";
 import AddRelationTypeModal from "./modals/AddRelationTypeModal";
-import FilterModal, { FilterState } from "./modals/FilterModal";
-import Toolbar from "./Toolbar";
+import FilterModal from "./modals/FilterModal";
 import Sidebar from "./Sidebar";
-import LayoutSelector, { LayoutType } from "./LayoutSelector";
+import LayoutSelector from "./LayoutSelector";
 import BulkActionsPanel from "./BulkActionsPanel";
 import BulkChangeTypeModal from "./modals/BulkChangeTypeModal";
 import HistoryPanel from "./HistoryPanel";
 import { toast } from "react-toastify";
 import { useMultiSelection } from "../hooks/useMultiSelection";
 import { useHistory } from "../hooks/useHistory";
-import {
-  circularLayout,
-  gridLayout,
-  hierarchicalLayout,
-  radialLayout
-} from "../utils/layoutAlgorithms";
-
-const api = (path: string, opts?: any) =>
-  fetch("/api" + path, opts).then((r) => r.json());
+import { useLayoutManager } from "../hooks/useLayoutManager";
+import { usePathFinding } from "../hooks/usePathFinding";
+import { useGraphData } from "../hooks/useGraphData";
+import { useGraphFilters } from "../hooks/useGraphFilters";
+import { useBulkOperations } from "../hooks/useBulkOperations";
 
 export default function GraphView() {
-  const [nodes, setNodes] = useState<GraphObject[]>([]);
-  const [edges, setEdges] = useState<GraphRelation[]>([]);
-  const [objectTypes, setObjectTypes] = useState<ObjectType[]>([]);
-  const [relationTypes, setRelationTypes] = useState<RelationType[]>([]);
+  // UI State
   const [selected, setSelected] = useState<any>(null);
-  const [path, setPath] = useState<number[]>([]);
   const [addObjectOpen, setAddObjectOpen] = useState(false);
   const [addRelation, setAddRelation] = useState<{
     source: GraphObject | null;
     target: GraphObject | null;
   }>({ source: null, target: null });
   const [addRelationOpen, setAddRelationOpen] = useState(false);
-
   const [filterOpen, setFilterOpen] = useState(false);
-  const [filters, setFilters] = useState<FilterState>({
-    selectedObjectTypes: [],
-    selectedRelationTypes: [],
-    showIsolatedNodes: true,
-  });
-
-  const [layout, setLayout] = useState<any>(null);
-  const [currentLayoutType, setCurrentLayoutType] = useState<LayoutType>('manual');
-  const [isApplyingLayout, setIsApplyingLayout] = useState(false);
   const [bulkChangeTypeOpen, setBulkChangeTypeOpen] = useState(false);
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
+  const [editNode, setEditNode] = useState<GraphObject | null>(null);
+  const [editEdge, setEditEdge] = useState<GraphRelation | null>(null);
+  const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
+  const [addRelationTypeOpen, setAddRelationTypeOpen] = useState(false);
+
+  // Custom Hooks
+  const { selectedIds, toggleSelection, selectAll, clearSelection } = useMultiSelection();
+  const { history, currentIndex, addAction, undo, redo, canUndo, canRedo } = useHistory({ maxSize: 20 });
+  const { path, findPath } = usePathFinding();
 
   const {
-    selectedIds,
-    toggleSelection,
-    selectAll,
-    clearSelection,
-  } = useMultiSelection();
+    nodes,
+    edges,
+    objectTypes,
+    relationTypes,
+    setNodes,
+    setEdges,
+    loadInitialData,
+    addObject,
+    updateObject,
+    deleteObject,
+    addRelation: addRelationData,
+    updateRelation,
+    deleteRelation,
+    updateNodesPositions,
+    addObjectType,
+    deleteObjectType,
+    addRelationType,
+    deleteRelationType,
+    mergeNodesWithPositions,
+  } = useGraphData({ onAddHistoryAction: addAction });
 
   const {
-    history,
-    currentIndex,
-    addAction,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-  } = useHistory({ maxSize: 20 });
+    currentLayoutType,
+    setCurrentLayoutType,
+    isApplyingLayout,
+    applyLayout,
+    saveLayout,
+    loadLayout,
+  } = useLayoutManager({
+    nodes,
+    edges,
+    onNodesUpdate: setNodes,
+    onAddHistoryAction: addAction,
+  });
 
-  const mergeNodesWithPositions = (newNodes: GraphObject[], existingNodes: GraphObject[]) => {
-    return newNodes.map(newNode => {
-      const existing = existingNodes.find(n => n.id === newNode.id);
-      if (existing && (existing.PositionX !== undefined || existing.PositionY !== undefined)) {
-        return {
-          ...newNode,
-          PositionX: existing.PositionX,
-          PositionY: existing.PositionY
-        };
-      }
-      if (newNode.PositionX === undefined || newNode.PositionY === undefined) {
-        return {
-          ...newNode,
-          PositionX: Math.random() * 800 + 100,
-          PositionY: Math.random() * 500 + 100
-        };
-      }
-      return newNode;
-    });
-  };
+  const { filters, filteredNodes, filteredEdges, applyFilters, hasActiveFilters } = useGraphFilters({
+    nodes,
+    edges,
+    objectTypes,
+    relationTypes,
+  });
 
-  const handleNodesPositionChange = (
-    positions: { id: number; x: number; y: number }[],
-  ) => {
-    setNodes((prevNodes) => {
-      let changed = false;
-      const updated = prevNodes.map((n) => {
-        const pos = positions.find((p) => p.id === n.id);
-        if (pos && (n.PositionX !== pos.x || n.PositionY !== pos.y)) {
-          changed = true;
-          return { ...n, PositionX: pos.x, PositionY: pos.y };
-        }
-        return n;
-      });
-      return changed ? updated : prevNodes;
-    });
-  };
+  const { bulkDelete, bulkChangeType } = useBulkOperations({
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    mergeNodesWithPositions,
+    onAddHistoryAction: addAction,
+  });
 
+  // Load initial data
   useEffect(() => {
-    if (objectTypes.length > 0 && filters.selectedObjectTypes.length === 0) {
-      setFilters((prev) => ({
-        ...prev,
-        selectedObjectTypes: objectTypes.map((t) => t.id),
-      }));
-    }
-    if (
-      relationTypes.length > 0 &&
-      filters.selectedRelationTypes.length === 0
-    ) {
-      setFilters((prev) => ({
-        ...prev,
-        selectedRelationTypes: relationTypes.map((t) => t.id),
-      }));
-    }
-  }, [objectTypes, relationTypes]);
+    loadInitialData(loadLayout);
+  }, [loadInitialData, loadLayout]);
 
-  
-  const filteredNodes = useMemo(() => {
-    return nodes.filter((node) => {
-      
-      if (!filters.selectedObjectTypes.includes(node.objectTypeId)) {
-        return false;
-      }
-
-      
-      if (!filters.showIsolatedNodes) {
-        const hasConnections = edges.some(
-          (edge) => edge.source === node.id || edge.target === node.id,
-        );
-        if (!hasConnections) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [nodes, filters.selectedObjectTypes, filters.showIsolatedNodes, edges]);
-
-  const filteredEdges = useMemo(() => {
-    return edges.filter((edge) => {
-      if (!filters.selectedRelationTypes.includes(edge.relationTypeId)) {
-        return false;
-      }
-
-      
-      const sourceVisible = filteredNodes.some((n) => n.id === edge.source);
-      const targetVisible = filteredNodes.some((n) => n.id === edge.target);
-
-      return sourceVisible && targetVisible;
-    });
-  }, [edges, filters.selectedRelationTypes, filteredNodes]);
-
-  const handleApplyFilter = (newFilters: FilterState) => {
-    setFilters(newFilters);
-    toast.success(
-      `Фильтры применены! Узлов: ${filteredNodes.length}, Связей: ${filteredEdges.length}`,
-    );
-  };
-
-  useEffect(() => {
-    api("/objecttype").then(setObjectTypes);
-    api("/relationtype").then(setRelationTypes);
-    api("/objects").then((objs) => {
-      fetch("/api/layout")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((l) => {
-          if (l && l.layoutJson) {
-            try {
-              const layoutObj = JSON.parse(l.layoutJson);
-              if (layoutObj && Array.isArray(layoutObj.nodes)) {
-                const objsWithPos = objs.map((o: any) => {
-                  const pos = layoutObj.nodes.find((n: any) => n.id === o.id);
-                  return pos ? { ...o, PositionX: pos.x, PositionY: pos.y } : o;
-                });
-                setNodes(objsWithPos);
-                setLayout(layoutObj);
-                return;
-              }
-            } catch {}
-          }
-          setNodes(objs);
-        });
-    });
-    api("/relations").then(setEdges);
-  }, []);
-
-  const handleAddObject = async (data: {
-    name: string;
-    objectTypeId: number;
-    properties: Record<string, string>;
-  }) => {
-    const propertiesArr = Object.entries(data.properties).map(
-      ([key, value]) => ({
-        Key: key,
-        Value: value,
-      }),
-    );
-    const payload = {
-      Name: data.name,
-      ObjectTypeId: data.objectTypeId,
-      Properties: propertiesArr,
-    };
-    const res = await fetch("/api/objects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      toast.error("Ошибка создания объекта: " + text);
-      return;
-    }
-    const createdObj = await res.json();
-    const updated = await api("/objects");
-    setNodes(prev => mergeNodesWithPositions(updated, prev));
-    
-    addAction({
-      type: 'create',
-      description: `Создан объект "${data.name}"`,
-      undo: async () => {
-        await fetch(`/api/objects/${createdObj.id}`, { method: 'DELETE' });
-        setNodes(prev => prev.filter(n => n.id !== createdObj.id));
-      },
-      redo: async () => {
-        await fetch('/api/objects', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const updated = await api('/objects');
-        setNodes(prev => mergeNodesWithPositions(updated, prev));
-      },
-    });
-  };
-
-  const findPath = async (from: number, to: number) => {
-    const res = await api(`/find-path?sourceId=${from}&targetId=${to}`);
-    setPath(res);
-  };
-
+  // Event Handlers
   const handleNodeAction = (action: string, node: GraphObject) => {
     if (action === "create-relation") {
-      if (
-        addRelation.source &&
-        !addRelation.target &&
-        node.id !== addRelation.source.id
-      ) {
+      if (addRelation.source && !addRelation.target && node.id !== addRelation.source.id) {
         setAddRelation((r) => ({ ...r, target: node }));
         setAddRelationOpen(true);
       } else {
         setAddRelation({ source: node, target: null });
       }
     } else if (action === "edit") {
-      handleEditNode(node);
+      setEditNode(node);
     } else if (action === "delete") {
-      handleDeleteNode(node);
+      if (window.confirm("Удалить объект?")) {
+        deleteObject(node);
+      }
     }
   };
 
@@ -280,196 +123,47 @@ export default function GraphView() {
     setSelected({ type: "node", data: node });
   };
 
-  const handleAddRelation = async (data: {
+  const handleAddRelationSubmit = async (data: {
     source: number;
     target: number;
     relationTypeId: number;
     properties: Record<string, string>;
   }) => {
-    const payload = {
-      Source: data.source,
-      Target: data.target,
-      RelationTypeId: data.relationTypeId,
-      Properties: Object.entries(data.properties).map(([Key, Value]) => ({
-        Key,
-        Value,
-      })),
-    };
-    const res = await fetch("/api/relations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      toast.error("Ошибка создания связи: " + text);
-      return;
+    await addRelationData(data);
+    setAddRelation({ source: null, target: null });
+    setAddRelationOpen(false);
+  };
+
+  const handleEditEdge = (edge: GraphRelation) => {
+    setEditEdge(edge);
+  };
+
+  const handleDeleteEdge = async (edge: GraphRelation) => {
+    if (window.confirm("Удалить связь?")) {
+      await deleteRelation(edge);
     }
-    const createdRelation = await res.json();
-    const updated = await api("/relations");
-    setEdges(updated);
-    
-    const sourceNode = nodes.find(n => n.id === data.source);
-    const targetNode = nodes.find(n => n.id === data.target);
-    
-    addAction({
-      type: 'create',
-      description: `Создана связь ${sourceNode?.name || data.source} → ${targetNode?.name || data.target}`,
-      undo: async () => {
-        await fetch(`/api/relations/${createdRelation.id}`, { method: 'DELETE' });
-        const updated = await api('/relations');
-        setEdges(updated);
-      },
-      redo: async () => {
-        await fetch('/api/relations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const updated = await api('/relations');
-        setEdges(updated);
-      },
-    });
   };
 
-  const handleSaveLayout = async () => {
-    const layoutObj = {
-      nodes: nodes.map((n) => ({
-        id: n.id,
-        x: n.PositionX ?? 0,
-        y: n.PositionY ?? 0,
-      }))
-    };
-    await fetch("/api/layout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ layoutJson: JSON.stringify(layoutObj) }),
-    });
-    toast.success("Сетка успешно сохранена!");
-  };
-
-  const handleToolbarSelect = () => toast.info("Режим выделения (MVP)");
-  const handleToolbarMove = () => toast.info("Режим перемещения (MVP)");
-
-  const applyLayout = () => {
-    if (nodes.length === 0) {
-      toast.warning('Нет узлов для расположения');
-      return;
+  const handleBulkDelete = async () => {
+    if (window.confirm(`Удалить ${selectedIds.length} объект(ов)?`)) {
+      await bulkDelete(selectedIds);
+      clearSelection();
     }
-
-    const oldPositions = nodes.map(n => ({
-      id: n.id,
-      x: n.PositionX ?? 0,
-      y: n.PositionY ?? 0,
-    }));
-
-    setIsApplyingLayout(true);
-
-    setTimeout(() => {
-      let layoutResult;
-
-      switch (currentLayoutType) {
-        case 'hierarchical':
-          toast.info('Применяется иерархический layout...');
-          layoutResult = hierarchicalLayout(nodes, edges);
-          break;
-        case 'radial':
-          toast.info('Применяется радиальный layout...');
-          layoutResult = radialLayout(nodes, edges);
-          break;
-        case 'circular':
-          toast.info('Применяется круговой layout...');
-          layoutResult = circularLayout(nodes);
-          break;
-        case 'grid':
-          toast.info('Применяется сеточный layout...');
-          layoutResult = gridLayout(nodes);
-          break;
-        default:
-          setIsApplyingLayout(false);
-          return;
-      }
-
-      const updatedNodes = nodes.map(node => {
-        const newPos = layoutResult.nodes.find(n => n.id === node.id);
-        if (newPos) {
-          return { ...node, PositionX: newPos.x, PositionY: newPos.y };
-        }
-        return node;
-      });
-
-      setNodes(updatedNodes);
-      setIsApplyingLayout(false);
-      
-      addAction({
-        type: 'layout',
-        description: `Применён layout "${currentLayoutType}"`,
-        undo: async () => {
-          const restoredNodes = nodes.map(node => {
-            const oldPos = oldPositions.find(p => p.id === node.id);
-            if (oldPos) {
-              return { ...node, PositionX: oldPos.x, PositionY: oldPos.y };
-            }
-            return node;
-          });
-          setNodes(restoredNodes);
-        },
-        redo: async () => {
-          setNodes(updatedNodes);
-        },
-      });
-    }, 100);
   };
 
-  const handleToolbarFilter = () => setFilterOpen(true);
-
-  const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
-  const handleAddObjectType = () => setAddObjectTypeOpen(true);
-  const handleCreateObjectType = async (data: {
-    name: string;
-    description?: string;
-  }) => {
-    const payload: any = { Name: data.name, Objects: [], RelationTypes: [] };
-    if (data.description && data.description.trim() !== "") {
-      payload.Description = data.description;
-    }
-    const res = await fetch("/api/objecttype", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      toast.error("Ошибка создания типа объекта: " + text);
-      return;
-    }
-    toast.success("Тип объекта создан");
-    const types = await api("/objecttype");
-    setObjectTypes(types);
+  const handleBulkChangeType = async (newTypeId: number) => {
+    await bulkChangeType(selectedIds, newTypeId);
+    clearSelection();
   };
 
-  const [addRelationTypeOpen, setAddRelationTypeOpen] = useState(false);
-  const handleAddRelationType = () => setAddRelationTypeOpen(true);
-  const handleCreateRelationType = async (data: {
-    name: string;
-    description?: string;
-    objectTypeId: number;
-  }) => {
-    await fetch("/api/relationtype", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    const relTypes = await fetch("/api/relationtype").then((r) => r.json());
-    setRelationTypes(relTypes);
+  const handleSelectAllNodes = () => {
+    selectAll(nodes.map(n => n.id));
+    toast.info(`Выбрано ${nodes.length} объект(ов)`);
   };
 
-  const filteredRelationTypes =
-    addRelation.source && addRelation.source.objectTypeId
-      ? relationTypes.filter(
-          (rt) => rt.objectTypeId === addRelation.source!.objectTypeId,
-        )
-      : relationTypes;
+  const filteredRelationTypes = addRelation.source && addRelation.source.objectTypeId
+    ? relationTypes.filter((rt) => rt.objectTypeId === addRelation.source!.objectTypeId)
+    : relationTypes;
 
   const nodesWithPositions = useMemo(() => {
     return filteredNodes.map((node) => ({
@@ -479,480 +173,13 @@ export default function GraphView() {
     }));
   }, [filteredNodes]);
 
-  
-  const [editNode, setEditNode] = useState<GraphObject | null>(null);
-  const [editEdge, setEditEdge] = useState<GraphRelation | null>(null);
-
-  const handleEditNode = (node: GraphObject) => {
-    setEditNode(node);
-  };
-  const handleDeleteNode = async (node: GraphObject) => {
-    if (window.confirm("Удалить объект?")) {
-      const deletedNode = { ...node };
-      let restoredNodeId: number | null = null;
-      const restoredEdgeIds: Map<number, number> = new Map();
-      
-      // Сохраняем все связи, связанные с этим узлом
-      const relatedEdges = edges.filter(e => e.source === node.id || e.target === node.id);
-      
-      await fetch(`/api/objects/${node.id}`, { method: "DELETE" });
-      setNodes(prev => prev.filter((n) => n.id !== node.id));
-      
-      addAction({
-        type: 'delete',
-        description: `Удалён объект "${deletedNode.name}"`,
-        undo: async () => {
-          // Восстанавливаем объект
-          const propertiesArr = Array.isArray(deletedNode.properties)
-            ? deletedNode.properties.map((p: any) => ({
-                Key: p.key || p.Key,
-                Value: p.value || p.Value,
-              }))
-            : [];
-          
-          const res = await fetch('/api/objects', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              Name: deletedNode.name,
-              ObjectTypeId: deletedNode.objectTypeId,
-              Properties: propertiesArr,
-              PositionX: deletedNode.PositionX,
-              PositionY: deletedNode.PositionY,
-            }),
-          });
-          const created = await res.json();
-          restoredNodeId = created.id;
-          const updated = await api('/objects');
-          setNodes(prev => mergeNodesWithPositions(updated, prev));
-          
-          // Восстанавливаем все связи
-          restoredEdgeIds.clear();
-          for (const edge of relatedEdges) {
-            const edgePropertiesArr = Array.isArray(edge.properties)
-              ? edge.properties.map((p: any) => ({
-                  Key: p.key || p.Key,
-                  Value: p.value || p.Value,
-                }))
-              : [];
-            
-            const edgeRes = await fetch('/api/relations', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                Source: edge.source === deletedNode.id ? restoredNodeId : edge.source,
-                Target: edge.target === deletedNode.id ? restoredNodeId : edge.target,
-                RelationTypeId: edge.relationTypeId,
-                Properties: edgePropertiesArr,
-              }),
-            });
-            const createdEdge = await edgeRes.json();
-            restoredEdgeIds.set(edge.id, createdEdge.id);
-          }
-          const updatedEdges = await api('/relations');
-          setEdges(updatedEdges);
-        },
-        redo: async () => {
-          const idToDelete = restoredNodeId || deletedNode.id;
-          await fetch(`/api/objects/${idToDelete}`, { method: 'DELETE' });
-          setNodes(prev => prev.filter((n) => n.id !== idToDelete));
-          
-          // Удаляем восстановленные связи
-          if (restoredEdgeIds.size > 0) {
-            await Promise.all(
-              Array.from(restoredEdgeIds.values()).map(edgeId => 
-                fetch(`/api/relations/${edgeId}`, { method: 'DELETE' })
-              )
-            );
-            const updatedEdges = await api('/relations');
-            setEdges(updatedEdges);
-          }
-        },
-      });
-    }
-  };
-  const handleEditEdge = (edge: GraphRelation) => {
-    setEditEdge(edge);
-  };
-  const handleDeleteEdge = async (edge: GraphRelation) => {
-    if (window.confirm("Удалить связь?")) {
-      const deletedEdge = { ...edge };
-      let restoredEdgeId: number | null = null;
-      
-      await fetch(`/api/relations/${edge.id}`, { method: "DELETE" });
-      setEdges(edges.filter((e) => e.id !== edge.id));
-      
-      const sourceNode = nodes.find(n => n.id === edge.source);
-      const targetNode = nodes.find(n => n.id === edge.target);
-      
-      addAction({
-        type: 'delete',
-        description: `Удалена связь ${sourceNode?.name || edge.source} → ${targetNode?.name || edge.target}`,
-        undo: async () => {
-          const propertiesArr = Array.isArray(deletedEdge.properties)
-            ? deletedEdge.properties.map((p: any) => ({
-                Key: p.key || p.Key,
-                Value: p.value || p.Value,
-              }))
-            : [];
-          
-          const res = await fetch('/api/relations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              Source: deletedEdge.source,
-              Target: deletedEdge.target,
-              RelationTypeId: deletedEdge.relationTypeId,
-              Properties: propertiesArr,
-            }),
-          });
-          const created = await res.json();
-          restoredEdgeId = created.id;
-          const updated = await api('/relations');
-          setEdges(updated);
-        },
-        redo: async () => {
-          const idToDelete = restoredEdgeId || deletedEdge.id;
-          await fetch(`/api/relations/${idToDelete}`, { method: 'DELETE' });
-          setEdges(prev => prev.filter(e => e.id !== idToDelete));
-        },
-      });
-    }
-  };
-
-  const handleSaveEditNode = async (data: {
-    id: number;
-    name: string;
-    objectTypeId: number;
-    properties: Record<string, string>;
-    color?: string;
-    icon?: string;
-  }) => {
-    const oldNode = nodes.find(n => n.id === data.id);
-    if (!oldNode) return;
-    
-    const propertiesArr = Object.entries(data.properties).map(
-      ([key, value]) => ({ Key: key, Value: value }),
-    );
-    const payload: any = {
-      Id: data.id,
-      Name: data.name,
-      ObjectTypeId: data.objectTypeId,
-      Properties: propertiesArr,
-    };
-    if (data.color !== undefined) payload.Color = data.color;
-    if (data.icon !== undefined) payload.Icon = data.icon;
-    const res = await fetch(`/api/objects/${data.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      toast.error("Ошибка редактирования объекта: " + text);
-      return;
-    }
-    const updated = await api("/objects");
-    setNodes(prev => mergeNodesWithPositions(updated, prev));
-    setEditNode(null);
-    
-    const oldPropertiesArr = Array.isArray(oldNode.properties)
-      ? oldNode.properties.map((p: any) => ({
-          Key: p.key || p.Key,
-          Value: p.value || p.Value,
-        }))
-      : [];
-    
-    const oldPayload: any = {
-      Id: oldNode.id,
-      Name: oldNode.name,
-      ObjectTypeId: oldNode.objectTypeId,
-      Properties: oldPropertiesArr,
-    };
-    
-    addAction({
-      type: 'update',
-      description: `Изменён объект "${data.name}"`,
-      undo: async () => {
-        await fetch(`/api/objects/${data.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(oldPayload),
-        });
-        const updated = await api('/objects');
-        setNodes(prev => mergeNodesWithPositions(updated, prev));
-      },
-      redo: async () => {
-        await fetch(`/api/objects/${data.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const updated = await api('/objects');
-        setNodes(prev => mergeNodesWithPositions(updated, prev));
-      },
-    });
-  };
-
-  const handleSaveEditEdge = async (data: {
-    id: number;
-    relationTypeId: number;
-    properties: Record<string, string>;
-  }) => {
-    const propertiesArr = Object.entries(data.properties).map(
-      ([key, value]) => ({ Key: key, Value: value }),
-    );
-    const payload = {
-      Id: data.id,
-      RelationTypeId: data.relationTypeId,
-      Properties: propertiesArr,
-    };
-    const res = await fetch(`/api/relations/${data.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      toast.error("Ошибка редактирования связи: " + text);
-      return;
-    }
-    toast.success("Связь обновлена");
-    const updated = await api("/relations");
-    setEdges(updated);
-    setEditEdge(null);
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedIds.length === 0) return;
-    
-    if (window.confirm(`Удалить ${selectedIds.length} объект(ов)?`)) {
-      try {
-        const deletedNodes = nodes.filter(n => selectedIds.includes(n.id));
-        const restoredNodeIds: Map<number, number> = new Map();
-        const restoredEdgeIds: number[] = [];
-        
-        // Сохраняем все связи, связанные с удаляемыми узлами
-        const relatedEdges = edges.filter(e => 
-          selectedIds.includes(e.source) || selectedIds.includes(e.target)
-        );
-        
-        await Promise.all(
-          selectedIds.map(id => fetch(`/api/objects/${id}`, { method: "DELETE" }))
-        );
-        setNodes(prev => prev.filter(n => !selectedIds.includes(n.id)));
-        clearSelection();
-        
-        addAction({
-          type: 'bulk_delete',
-          description: `Удалено ${deletedNodes.length} объект(ов)`,
-          undo: async () => {
-            restoredNodeIds.clear();
-            restoredEdgeIds.length = 0;
-            
-            // Восстанавливаем объекты
-            for (const node of deletedNodes) {
-              const propertiesArr = Array.isArray(node.properties)
-                ? node.properties.map((p: any) => ({
-                    Key: p.key || p.Key,
-                    Value: p.value || p.Value,
-                  }))
-                : [];
-              
-              const res = await fetch('/api/objects', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  Name: node.name,
-                  ObjectTypeId: node.objectTypeId,
-                  Properties: propertiesArr,
-                  PositionX: node.PositionX,
-                  PositionY: node.PositionY,
-                }),
-              });
-              const created = await res.json();
-              restoredNodeIds.set(node.id, created.id);
-            }
-            const updated = await api('/objects');
-            setNodes(prev => mergeNodesWithPositions(updated, prev));
-            
-            // Восстанавливаем связи
-            for (const edge of relatedEdges) {
-              const edgePropertiesArr = Array.isArray(edge.properties)
-                ? edge.properties.map((p: any) => ({
-                    Key: p.key || p.Key,
-                    Value: p.value || p.Value,
-                  }))
-                : [];
-              
-              const newSource = restoredNodeIds.get(edge.source) || edge.source;
-              const newTarget = restoredNodeIds.get(edge.target) || edge.target;
-              
-              const edgeRes = await fetch('/api/relations', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  Source: newSource,
-                  Target: newTarget,
-                  RelationTypeId: edge.relationTypeId,
-                  Properties: edgePropertiesArr,
-                }),
-              });
-              const createdEdge = await edgeRes.json();
-              restoredEdgeIds.push(createdEdge.id);
-            }
-            const updatedEdges = await api('/relations');
-            setEdges(updatedEdges);
-          },
-          redo: async () => {
-            const idsToDelete = restoredNodeIds.size > 0 
-              ? Array.from(restoredNodeIds.values()) 
-              : deletedNodes.map(n => n.id);
-            
-            await Promise.all(
-              idsToDelete.map(id => fetch(`/api/objects/${id}`, { method: 'DELETE' }))
-            );
-            setNodes(prev => prev.filter(n => !idsToDelete.includes(n.id)));
-            
-            // Удаляем восстановленные связи
-            if (restoredEdgeIds.length > 0) {
-              await Promise.all(
-                restoredEdgeIds.map(edgeId => 
-                  fetch(`/api/relations/${edgeId}`, { method: 'DELETE' })
-                )
-              );
-              const updatedEdges = await api('/relations');
-              setEdges(updatedEdges);
-            }
-          },
-        });
-      } catch (error) {
-        toast.error("Ошибка при удалении объектов");
-      }
-    }
-  };
-
-  const handleBulkChangeType = async (newTypeId: number) => {
-    if (selectedIds.length === 0) return;
-
-    try {
-      const oldNodes = nodes.filter(n => selectedIds.includes(n.id)).map(n => ({
-        id: n.id,
-        name: n.name,
-        objectTypeId: n.objectTypeId,
-        properties: Array.isArray(n.properties)
-          ? n.properties.map((p: any) => ({
-              Key: p.key || p.Key,
-              Value: p.value || p.Value,
-            }))
-          : [],
-      }));
-
-      const updatePromises = selectedIds.map(async (id) => {
-        const node = nodes.find(n => n.id === id);
-        if (!node) return;
-
-        const propertiesArr = Array.isArray(node.properties)
-          ? node.properties.map((p: any) => ({
-              Key: p.key || p.Key,
-              Value: p.value || p.Value,
-            }))
-          : [];
-
-        return fetch(`/api/objects/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            Id: id,
-            Name: node.name,
-            ObjectTypeId: newTypeId,
-            Properties: propertiesArr,
-          }),
-        });
-      });
-
-      await Promise.all(updatePromises);
-      const updated = await api("/objects");
-      setNodes(prev => mergeNodesWithPositions(updated, prev));
-      clearSelection();
-      
-      addAction({
-        type: 'bulk_update',
-        description: `Изменён тип для ${oldNodes.length} объект(ов)`,
-        undo: async () => {
-          for (const oldNode of oldNodes) {
-            await fetch(`/api/objects/${oldNode.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                Id: oldNode.id,
-                Name: oldNode.name,
-                ObjectTypeId: oldNode.objectTypeId,
-                Properties: oldNode.properties,
-              }),
-            });
-          }
-          const updated = await api('/objects');
-          setNodes(prev => mergeNodesWithPositions(updated, prev));
-        },
-        redo: async () => {
-          for (const oldNode of oldNodes) {
-            const node = nodes.find(n => n.id === oldNode.id);
-            if (!node) continue;
-            
-            const propertiesArr = Array.isArray(node.properties)
-              ? node.properties.map((p: any) => ({
-                  Key: p.key || p.Key,
-                  Value: p.value || p.Value,
-                }))
-              : [];
-            
-            await fetch(`/api/objects/${oldNode.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                Id: oldNode.id,
-                Name: node.name,
-                ObjectTypeId: newTypeId,
-                Properties: propertiesArr,
-              }),
-            });
-          }
-          const updated = await api('/objects');
-          setNodes(prev => mergeNodesWithPositions(updated, prev));
-        },
-      });
-    } catch (error) {
-      toast.error("Ошибка при изменении типа объектов");
-    }
-  };
-
-  const handleSelectAllNodes = () => {
-    selectAll(nodes.map(n => n.id));
-    toast.info(`Выбрано ${nodes.length} объект(ов)`);
-  };
-
-  const handleDeleteObjectType = async (id: number) => {
-    if (window.confirm("Удалить тип объекта?")) {
-      await fetch(`/api/objecttype/${id}`, { method: "DELETE" });
-      setObjectTypes(objectTypes.filter((t) => t.id !== id));
-    }
-  };
-  
-  const handleDeleteRelationType = async (id: number) => {
-    if (window.confirm("Удалить тип связи?")) {
-      await fetch(`/api/relationtype/${id}`, { method: "DELETE" });
-      setRelationTypes(relationTypes.filter((t) => t.id !== id));
-    }
-  };
-
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
 
-      // Ctrl+A (Ctrl+Ф для русской раскладки)
       if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'ф')) {
         e.preventDefault();
         handleSelectAllNodes();
@@ -967,168 +194,58 @@ export default function GraphView() {
         clearSelection();
       }
 
-      // Ctrl+Z (Ctrl+Я для русской раскладки)
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'я')) {
         e.preventDefault();
         undo();
       }
 
-      // Ctrl+Y (Ctrl+Н для русской раскладки)
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'н')) {
         e.preventDefault();
         redo();
       }
 
-      // Ctrl+H (Ctrl+Р для русской раскладки)
       if ((e.ctrlKey || e.metaKey) && (e.key === 'h' || e.key === 'р')) {
         e.preventDefault();
         setHistoryPanelOpen(prev => !prev);
-      }
-
-      // Ctrl+S (Ctrl+Ы для русской раскладки) - для будущего сохранения
-      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'ы')) {
-        e.preventDefault();
-        // Можно добавить быстрое сохранение
-      }
-
-      // Ctrl+C (Ctrl+С для русской раскладки) - для будущего копирования
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'с')) {
-        // Копирование - для будущего
-      }
-
-      // Ctrl+V (Ctrl+М для русской раскладки) - для будущей вставки
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'м')) {
-        // Вставка - для будущего
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIds, nodes, undo, redo]);
-
+  }, [selectedIds, nodes, undo, redo, clearSelection]);
 
   return (
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        background: "#f4f6fa",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          height: "100vh",
-          width: "100vw",
-          background: "#f4f6fa",
-          overflow: "hidden",
-        }}
-      >
+    <div style={{ width: "100vw", height: "100vh", background: "#f4f6fa", overflow: "hidden" }}>
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "#f4f6fa", overflow: "hidden" }}>
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
           <Sidebar
             objectTypes={objectTypes}
             relationTypes={relationTypes}
-            onAddObjectType={handleAddObjectType}
-            onAddRelationType={handleAddRelationType}
-            onDeleteObjectType={handleDeleteObjectType}
-            onDeleteRelationType={handleDeleteRelationType}
+            onAddObjectType={() => setAddObjectTypeOpen(true)}
+            onAddRelationType={() => setAddRelationTypeOpen(true)}
+            onDeleteObjectType={(id) => window.confirm("Удалить тип объекта?") && deleteObjectType(id)}
+            onDeleteRelationType={(id) => window.confirm("Удалить тип связи?") && deleteRelationType(id)}
           />
-          <div
-            style={{ flex: 1, position: "relative", minWidth: 0, minHeight: 0 }}
-          >
+          <div style={{ flex: 1, position: "relative", minWidth: 0, minHeight: 0 }}>
             {nodes.length === 0 ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "100%",
-                  gap: 20,
-                  fontFamily: "Segoe UI, sans-serif",
-                  color: "#5f6368",
-                }}
-              >
-                <svg
-                  width="120"
-                  height="120"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  style={{ opacity: 0.3 }}
-                >
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 20, fontFamily: "Segoe UI, sans-serif", color: "#5f6368" }}>
+                <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.3 }}>
                   <circle cx="12" cy="5" r="3" />
                   <circle cx="5" cy="19" r="3" />
                   <circle cx="19" cy="19" r="3" />
                   <line x1="12" y1="8" x2="5" y2="16" />
                   <line x1="12" y1="8" x2="19" y2="16" />
                 </svg>
-                <h2 style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>
-                  Граф пустой
-                </h2>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 16,
-                    textAlign: "center",
-                    maxWidth: 400,
-                  }}
-                >
-                  Начните с создания типов объектов в боковой панели, затем
-                  добавьте объекты на граф
+                <h2 style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>Граф пустой</h2>
+                <p style={{ margin: 0, fontSize: 16, textAlign: "center", maxWidth: 400 }}>
+                  Начните с создания типов объектов в боковой панели, затем добавьте объекты на граф
                 </p>
                 <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
-                  <button
-                    onClick={() => setAddObjectTypeOpen(true)}
-                    style={{
-                      background: "#2196f3",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 8,
-                      padding: "12px 24px",
-                      fontSize: 16,
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      boxShadow: "0 2px 8px rgba(33,150,243,0.3)",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.transform = "translateY(-2px)";
-                      e.currentTarget.style.boxShadow =
-                        "0 4px 12px rgba(33,150,243,0.4)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow =
-                        "0 2px 8px rgba(33,150,243,0.3)";
-                    }}
-                  >
+                  <button onClick={() => setAddObjectTypeOpen(true)} style={{ background: "#2196f3", color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", boxShadow: "0 2px 8px rgba(33,150,243,0.3)", transition: "all 0.2s" }}>
                     Создать первый тип объекта
                   </button>
                   {objectTypes.length > 0 && (
-                    <button
-                      onClick={() => setAddObjectOpen(true)}
-                      style={{
-                        background: "#fff",
-                        color: "#2196f3",
-                        border: "2px solid #2196f3",
-                        borderRadius: 8,
-                        padding: "12px 24px",
-                        fontSize: 16,
-                        fontWeight: 500,
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.background = "#f0f8ff";
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.background = "#fff";
-                      }}
-                    >
+                    <button onClick={() => setAddObjectOpen(true)} style={{ background: "#fff", color: "#2196f3", border: "2px solid #2196f3", borderRadius: 8, padding: "12px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", transition: "all 0.2s" }}>
                       Добавить объект
                     </button>
                   )}
@@ -1149,16 +266,12 @@ export default function GraphView() {
                       clearSelection();
                     }
                   }}
-                  onSelectEdge={(edge) =>
-                    setSelected({ type: "edge", data: edge })
-                  }
+                  onSelectEdge={(edge) => setSelected({ type: "edge", data: edge })}
                   onNodeAction={handleNodeAction}
-                  onNodesPositionChange={handleNodesPositionChange}
+                  onNodesPositionChange={updateNodesPositions}
                   selectedNodes={selectedIds}
                 />
-                {selected?.type === "node" && (
-                  <ObjectCard object={selected.data} />
-                )}
+                {selected?.type === "node" && <ObjectCard object={selected.data} />}
                 {selected?.type === "edge" && (
                   <RelationCard
                     relation={selected.data}
@@ -1170,229 +283,110 @@ export default function GraphView() {
             )}
           </div>
         </div>
-        {/* Actions bar снизу с иконками */}
-        <div
-          style={{
-            height: 60,
-            background: "#23272f",
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0 24px",
-            gap: 32,
-            fontSize: 18,
-            fontWeight: 500,
-            letterSpacing: 0.5,
-          }}
-        >
+
+        {/* Bottom Actions Bar */}
+        <div style={{ height: 60, background: "#23272f", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", gap: 32, fontSize: 18, fontWeight: 500, letterSpacing: 0.5 }}>
           <div style={{ fontSize: 13, color: "#aaa" }}>
-            Узлов: {filteredNodes.length}/{nodes.length} | Связей:{" "}
-            {filteredEdges.length}/{edges.length}
-            {(filters.selectedObjectTypes.length < objectTypes.length ||
-              filters.selectedRelationTypes.length < relationTypes.length) && (
-              <span style={{ color: "#ff9800", marginLeft: 8 }}>
-                • Фильтры активны
-              </span>
-            )}
+            Узлов: {filteredNodes.length}/{nodes.length} | Связей: {filteredEdges.length}/{edges.length}
+            {hasActiveFilters && <span style={{ color: "#ff9800", marginLeft: 8 }}>• Фильтры активны</span>}
           </div>
-          <button onClick={handleSaveLayout} style={actionBtn}>
+          <button onClick={saveLayout} style={actionBtn}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <rect
-                x="4"
-                y="4"
-                width="16"
-                height="16"
-                rx="2"
-                stroke="#fff"
-                strokeWidth="2"
-              />
-              <path
-                d="M8 12h8"
-                stroke="#fff"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
+              <rect x="4" y="4" width="16" height="16" rx="2" stroke="#fff" strokeWidth="2" />
+              <path d="M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
             </svg>
             <span style={{ marginLeft: 8 }}>Сохранить</span>
           </button>
           <button onClick={() => setAddObjectOpen(true)} style={actionBtn}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" stroke="#fff" strokeWidth="2" />
-              <path
-                d="M12 8v8M8 12h8"
-                stroke="#fff"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
+              <path d="M12 8v8M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
             </svg>
             <span style={{ marginLeft: 8 }}>Добавить объект</span>
           </button>
-
           <LayoutSelector
             currentLayout={currentLayoutType}
             onLayoutChange={setCurrentLayoutType}
             onApply={applyLayout}
             isApplying={isApplyingLayout}
           />
-          <button
-            onClick={() => setHistoryPanelOpen(!historyPanelOpen)}
-            style={{ ...actionBtn, position: "relative" }}
-            title="История (Ctrl+H)"
-          >
+          <button onClick={() => setHistoryPanelOpen(!historyPanelOpen)} style={{ ...actionBtn, position: "relative" }} title="История (Ctrl+H)">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                stroke="#fff"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+              <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span style={{ marginLeft: 8 }}>История</span>
             {history.length > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: 4,
-                  right: 4,
-                  background: "#4CAF50",
-                  color: "#fff",
-                  borderRadius: "50%",
-                  width: 20,
-                  height: 20,
-                  fontSize: 11,
-                  fontWeight: "bold",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
-                }}
-              >
+              <span style={{ position: "absolute", top: 4, right: 4, background: "#4CAF50", color: "#fff", borderRadius: "50%", width: 20, height: 20, fontSize: 11, fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>
                 {history.length}
               </span>
             )}
           </button>
-          <button
-            onClick={handleToolbarFilter}
-            style={{ ...actionBtn, position: "relative" }}
-          >
+          <button onClick={() => setFilterOpen(true)} style={{ ...actionBtn, position: "relative" }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M4 6h16M6 12h12M8 18h8"
-                stroke="#fff"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
+              <path d="M4 6h16M6 12h12M8 18h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
             </svg>
             <span style={{ marginLeft: 8 }}>Фильтр</span>
-            {(filters.selectedObjectTypes.length < objectTypes.length ||
-              filters.selectedRelationTypes.length < relationTypes.length ||
-              !filters.showIsolatedNodes) && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: 4,
-                  right: 4,
-                  background: "#ff5722",
-                  color: "#fff",
-                  borderRadius: "50%",
-                  width: 20,
-                  height: 20,
-                  fontSize: 11,
-                  fontWeight: "bold",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
-                }}
-              >
-                {objectTypes.length -
-                  filters.selectedObjectTypes.length +
-                  (relationTypes.length -
-                    filters.selectedRelationTypes.length) +
-                  (filters.showIsolatedNodes ? 0 : 1)}
+            {hasActiveFilters && (
+              <span style={{ position: "absolute", top: 4, right: 4, background: "#ff5722", color: "#fff", borderRadius: "50%", width: 20, height: 20, fontSize: 11, fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>
+                {objectTypes.length - filters.selectedObjectTypes.length + (relationTypes.length - filters.selectedRelationTypes.length) + (filters.showIsolatedNodes ? 0 : 1)}
               </span>
             )}
           </button>
         </div>
+
+        {/* Modals */}
         <AddObjectModal
           open={addObjectOpen || !!editNode}
-          onClose={() => {
-            setAddObjectOpen(false);
-            setEditNode(null);
-          }}
-          onCreate={handleAddObject}
-          onEdit={handleSaveEditNode}
+          onClose={() => { setAddObjectOpen(false); setEditNode(null); }}
+          onCreate={addObject}
+          onEdit={updateObject}
           objectTypes={objectTypes}
-          editData={
-            editNode
-              ? {
-                  id: editNode.id,
-                  name: editNode.name,
-                  objectTypeId: editNode.objectTypeId,
-                  properties: Array.isArray(editNode.properties)
-                    ? editNode.properties.reduce((acc: any, p: any) => {
-                        acc[p.key || p.Key] = p.value || p.Value;
-                        return acc;
-                      }, {})
-                    : typeof editNode.properties === "object"
-                      ? editNode.properties
-                      : {},
-                }
-              : undefined
-          }
+          editData={editNode ? {
+            id: editNode.id,
+            name: editNode.name,
+            objectTypeId: editNode.objectTypeId,
+            properties: Array.isArray(editNode.properties)
+              ? editNode.properties.reduce((acc: any, p: any) => { acc[p.key || p.Key] = p.value || p.Value; return acc; }, {})
+              : typeof editNode.properties === "object" ? editNode.properties : {},
+          } : undefined}
         />
+
         <AddRelationModal
           open={addRelationOpen || !!editEdge}
-          onClose={() => {
-            setAddRelation({ source: null, target: null });
-            setAddRelationOpen(false);
-            setEditEdge(null);
-          }}
-          onCreate={(data) => {
-            handleAddRelation(data);
-            setAddRelation({ source: null, target: null });
-            setAddRelationOpen(false);
-          }}
-          onEdit={handleSaveEditEdge}
+          onClose={() => { setAddRelation({ source: null, target: null }); setAddRelationOpen(false); setEditEdge(null); }}
+          onCreate={handleAddRelationSubmit}
+          onEdit={updateRelation}
           relationTypes={filteredRelationTypes}
           sourceId={addRelation.source?.id || (editEdge ? editEdge.source : 0)}
           targetId={addRelation.target?.id || (editEdge ? editEdge.target : 0)}
-          editData={
-            editEdge
-              ? {
-                  id: editEdge.id,
-                  relationTypeId: editEdge.relationTypeId,
-                  properties: Array.isArray(editEdge.properties)
-                    ? editEdge.properties.reduce((acc: any, p: any) => {
-                        acc[p.key || p.Key] = p.value || p.Value;
-                        return acc;
-                      }, {})
-                    : typeof editEdge.properties === "object"
-                      ? editEdge.properties
-                      : {},
-                }
-              : undefined
-          }
+          editData={editEdge ? {
+            id: editEdge.id,
+            relationTypeId: editEdge.relationTypeId,
+            properties: Array.isArray(editEdge.properties)
+              ? editEdge.properties.reduce((acc: any, p: any) => { acc[p.key || p.Key] = p.value || p.Value; return acc; }, {})
+              : typeof editEdge.properties === "object" ? editEdge.properties : {},
+          } : undefined}
         />
+
         <AddObjectTypeModal
           open={addObjectTypeOpen}
           onClose={() => setAddObjectTypeOpen(false)}
-          onCreate={handleCreateObjectType}
+          onCreate={addObjectType}
         />
+
         <AddRelationTypeModal
           open={addRelationTypeOpen}
           onClose={() => setAddRelationTypeOpen(false)}
-          onCreate={handleCreateRelationType}
+          onCreate={addRelationType}
           objectTypes={objectTypes}
         />
+
         <FilterModal
           open={filterOpen}
           onClose={() => setFilterOpen(false)}
           objectTypes={objectTypes}
           relationTypes={relationTypes}
-          onApplyFilter={handleApplyFilter}
+          onApplyFilter={applyFilters}
           currentFilters={filters}
         />
 
