@@ -19,8 +19,10 @@ import Sidebar from "./Sidebar";
 import LayoutSelector, { LayoutType } from "./LayoutSelector";
 import BulkActionsPanel from "./BulkActionsPanel";
 import BulkChangeTypeModal from "./modals/BulkChangeTypeModal";
+import HistoryPanel from "./HistoryPanel";
 import { toast } from "react-toastify";
 import { useMultiSelection } from "../hooks/useMultiSelection";
+import { useHistory } from "../hooks/useHistory";
 import {
   circularLayout,
   gridLayout,
@@ -56,6 +58,7 @@ export default function GraphView() {
   const [currentLayoutType, setCurrentLayoutType] = useState<LayoutType>('manual');
   const [isApplyingLayout, setIsApplyingLayout] = useState(false);
   const [bulkChangeTypeOpen, setBulkChangeTypeOpen] = useState(false);
+  const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
 
   const {
     selectedIds,
@@ -63,6 +66,16 @@ export default function GraphView() {
     selectAll,
     clearSelection,
   } = useMultiSelection();
+
+  const {
+    history,
+    currentIndex,
+    addAction,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useHistory({ maxSize: 20 });
 
   const mergeNodesWithPositions = (newNodes: GraphObject[], existingNodes: GraphObject[]) => {
     return newNodes.map(newNode => {
@@ -216,9 +229,27 @@ export default function GraphView() {
       toast.error("Ошибка создания объекта: " + text);
       return;
     }
-    toast.success("Объект успешно создан");
+    const createdObj = await res.json();
     const updated = await api("/objects");
     setNodes(prev => mergeNodesWithPositions(updated, prev));
+    
+    addAction({
+      type: 'create',
+      description: `Создан объект "${data.name}"`,
+      undo: async () => {
+        await fetch(`/api/objects/${createdObj.id}`, { method: 'DELETE' });
+        setNodes(prev => prev.filter(n => n.id !== createdObj.id));
+      },
+      redo: async () => {
+        await fetch('/api/objects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const updated = await api('/objects');
+        setNodes(prev => mergeNodesWithPositions(updated, prev));
+      },
+    });
   };
 
   const findPath = async (from: number, to: number) => {
@@ -274,9 +305,31 @@ export default function GraphView() {
       toast.error("Ошибка создания связи: " + text);
       return;
     }
-    toast.success("Связь успешно создана");
+    const createdRelation = await res.json();
     const updated = await api("/relations");
     setEdges(updated);
+    
+    const sourceNode = nodes.find(n => n.id === data.source);
+    const targetNode = nodes.find(n => n.id === data.target);
+    
+    addAction({
+      type: 'create',
+      description: `Создана связь ${sourceNode?.name || data.source} → ${targetNode?.name || data.target}`,
+      undo: async () => {
+        await fetch(`/api/relations/${createdRelation.id}`, { method: 'DELETE' });
+        const updated = await api('/relations');
+        setEdges(updated);
+      },
+      redo: async () => {
+        await fetch('/api/relations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const updated = await api('/relations');
+        setEdges(updated);
+      },
+    });
   };
 
   const handleSaveLayout = async () => {
@@ -303,6 +356,12 @@ export default function GraphView() {
       toast.warning('Нет узлов для расположения');
       return;
     }
+
+    const oldPositions = nodes.map(n => ({
+      id: n.id,
+      x: n.PositionX ?? 0,
+      y: n.PositionY ?? 0,
+    }));
 
     setIsApplyingLayout(true);
 
@@ -341,7 +400,24 @@ export default function GraphView() {
 
       setNodes(updatedNodes);
       setIsApplyingLayout(false);
-      toast.success(`Layout "${currentLayoutType}" применён!`);
+      
+      addAction({
+        type: 'layout',
+        description: `Применён layout "${currentLayoutType}"`,
+        undo: async () => {
+          const restoredNodes = nodes.map(node => {
+            const oldPos = oldPositions.find(p => p.id === node.id);
+            if (oldPos) {
+              return { ...node, PositionX: oldPos.x, PositionY: oldPos.y };
+            }
+            return node;
+          });
+          setNodes(restoredNodes);
+        },
+        redo: async () => {
+          setNodes(updatedNodes);
+        },
+      });
     }, 100);
   };
 
@@ -412,9 +488,87 @@ export default function GraphView() {
   };
   const handleDeleteNode = async (node: GraphObject) => {
     if (window.confirm("Удалить объект?")) {
+      const deletedNode = { ...node };
+      let restoredNodeId: number | null = null;
+      const restoredEdgeIds: Map<number, number> = new Map();
+      
+      // Сохраняем все связи, связанные с этим узлом
+      const relatedEdges = edges.filter(e => e.source === node.id || e.target === node.id);
+      
       await fetch(`/api/objects/${node.id}`, { method: "DELETE" });
       setNodes(prev => prev.filter((n) => n.id !== node.id));
-      toast.success(`Объект "${node.name}" удалён`);
+      
+      addAction({
+        type: 'delete',
+        description: `Удалён объект "${deletedNode.name}"`,
+        undo: async () => {
+          // Восстанавливаем объект
+          const propertiesArr = Array.isArray(deletedNode.properties)
+            ? deletedNode.properties.map((p: any) => ({
+                Key: p.key || p.Key,
+                Value: p.value || p.Value,
+              }))
+            : [];
+          
+          const res = await fetch('/api/objects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              Name: deletedNode.name,
+              ObjectTypeId: deletedNode.objectTypeId,
+              Properties: propertiesArr,
+              PositionX: deletedNode.PositionX,
+              PositionY: deletedNode.PositionY,
+            }),
+          });
+          const created = await res.json();
+          restoredNodeId = created.id;
+          const updated = await api('/objects');
+          setNodes(prev => mergeNodesWithPositions(updated, prev));
+          
+          // Восстанавливаем все связи
+          restoredEdgeIds.clear();
+          for (const edge of relatedEdges) {
+            const edgePropertiesArr = Array.isArray(edge.properties)
+              ? edge.properties.map((p: any) => ({
+                  Key: p.key || p.Key,
+                  Value: p.value || p.Value,
+                }))
+              : [];
+            
+            const edgeRes = await fetch('/api/relations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                Source: edge.source === deletedNode.id ? restoredNodeId : edge.source,
+                Target: edge.target === deletedNode.id ? restoredNodeId : edge.target,
+                RelationTypeId: edge.relationTypeId,
+                Properties: edgePropertiesArr,
+              }),
+            });
+            const createdEdge = await edgeRes.json();
+            restoredEdgeIds.set(edge.id, createdEdge.id);
+          }
+          const updatedEdges = await api('/relations');
+          setEdges(updatedEdges);
+        },
+        redo: async () => {
+          const idToDelete = restoredNodeId || deletedNode.id;
+          await fetch(`/api/objects/${idToDelete}`, { method: 'DELETE' });
+          setNodes(prev => prev.filter((n) => n.id !== idToDelete));
+          
+          // Удаляем восстановленные связи
+          if (restoredEdgeIds.size > 0) {
+            await Promise.all(
+              Array.from(restoredEdgeIds.values()).map(edgeId => 
+                fetch(`/api/relations/${edgeId}`, { method: 'DELETE' })
+              )
+            );
+            const updatedEdges = await api('/relations');
+            setEdges(updatedEdges);
+          }
+        },
+      });
     }
   };
   const handleEditEdge = (edge: GraphRelation) => {
@@ -422,8 +576,47 @@ export default function GraphView() {
   };
   const handleDeleteEdge = async (edge: GraphRelation) => {
     if (window.confirm("Удалить связь?")) {
+      const deletedEdge = { ...edge };
+      let restoredEdgeId: number | null = null;
+      
       await fetch(`/api/relations/${edge.id}`, { method: "DELETE" });
       setEdges(edges.filter((e) => e.id !== edge.id));
+      
+      const sourceNode = nodes.find(n => n.id === edge.source);
+      const targetNode = nodes.find(n => n.id === edge.target);
+      
+      addAction({
+        type: 'delete',
+        description: `Удалена связь ${sourceNode?.name || edge.source} → ${targetNode?.name || edge.target}`,
+        undo: async () => {
+          const propertiesArr = Array.isArray(deletedEdge.properties)
+            ? deletedEdge.properties.map((p: any) => ({
+                Key: p.key || p.Key,
+                Value: p.value || p.Value,
+              }))
+            : [];
+          
+          const res = await fetch('/api/relations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              Source: deletedEdge.source,
+              Target: deletedEdge.target,
+              RelationTypeId: deletedEdge.relationTypeId,
+              Properties: propertiesArr,
+            }),
+          });
+          const created = await res.json();
+          restoredEdgeId = created.id;
+          const updated = await api('/relations');
+          setEdges(updated);
+        },
+        redo: async () => {
+          const idToDelete = restoredEdgeId || deletedEdge.id;
+          await fetch(`/api/relations/${idToDelete}`, { method: 'DELETE' });
+          setEdges(prev => prev.filter(e => e.id !== idToDelete));
+        },
+      });
     }
   };
 
@@ -435,6 +628,9 @@ export default function GraphView() {
     color?: string;
     icon?: string;
   }) => {
+    const oldNode = nodes.find(n => n.id === data.id);
+    if (!oldNode) return;
+    
     const propertiesArr = Object.entries(data.properties).map(
       ([key, value]) => ({ Key: key, Value: value }),
     );
@@ -456,10 +652,46 @@ export default function GraphView() {
       toast.error("Ошибка редактирования объекта: " + text);
       return;
     }
-    toast.success("Объект обновлен");
     const updated = await api("/objects");
     setNodes(prev => mergeNodesWithPositions(updated, prev));
     setEditNode(null);
+    
+    const oldPropertiesArr = Array.isArray(oldNode.properties)
+      ? oldNode.properties.map((p: any) => ({
+          Key: p.key || p.Key,
+          Value: p.value || p.Value,
+        }))
+      : [];
+    
+    const oldPayload: any = {
+      Id: oldNode.id,
+      Name: oldNode.name,
+      ObjectTypeId: oldNode.objectTypeId,
+      Properties: oldPropertiesArr,
+    };
+    
+    addAction({
+      type: 'update',
+      description: `Изменён объект "${data.name}"`,
+      undo: async () => {
+        await fetch(`/api/objects/${data.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(oldPayload),
+        });
+        const updated = await api('/objects');
+        setNodes(prev => mergeNodesWithPositions(updated, prev));
+      },
+      redo: async () => {
+        await fetch(`/api/objects/${data.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const updated = await api('/objects');
+        setNodes(prev => mergeNodesWithPositions(updated, prev));
+      },
+    });
   };
 
   const handleSaveEditEdge = async (data: {
@@ -496,12 +728,104 @@ export default function GraphView() {
     
     if (window.confirm(`Удалить ${selectedIds.length} объект(ов)?`)) {
       try {
+        const deletedNodes = nodes.filter(n => selectedIds.includes(n.id));
+        const restoredNodeIds: Map<number, number> = new Map();
+        const restoredEdgeIds: number[] = [];
+        
+        // Сохраняем все связи, связанные с удаляемыми узлами
+        const relatedEdges = edges.filter(e => 
+          selectedIds.includes(e.source) || selectedIds.includes(e.target)
+        );
+        
         await Promise.all(
           selectedIds.map(id => fetch(`/api/objects/${id}`, { method: "DELETE" }))
         );
         setNodes(prev => prev.filter(n => !selectedIds.includes(n.id)));
         clearSelection();
-        toast.success(`Удалено ${selectedIds.length} объект(ов)`);
+        
+        addAction({
+          type: 'bulk_delete',
+          description: `Удалено ${deletedNodes.length} объект(ов)`,
+          undo: async () => {
+            restoredNodeIds.clear();
+            restoredEdgeIds.length = 0;
+            
+            // Восстанавливаем объекты
+            for (const node of deletedNodes) {
+              const propertiesArr = Array.isArray(node.properties)
+                ? node.properties.map((p: any) => ({
+                    Key: p.key || p.Key,
+                    Value: p.value || p.Value,
+                  }))
+                : [];
+              
+              const res = await fetch('/api/objects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  Name: node.name,
+                  ObjectTypeId: node.objectTypeId,
+                  Properties: propertiesArr,
+                  PositionX: node.PositionX,
+                  PositionY: node.PositionY,
+                }),
+              });
+              const created = await res.json();
+              restoredNodeIds.set(node.id, created.id);
+            }
+            const updated = await api('/objects');
+            setNodes(prev => mergeNodesWithPositions(updated, prev));
+            
+            // Восстанавливаем связи
+            for (const edge of relatedEdges) {
+              const edgePropertiesArr = Array.isArray(edge.properties)
+                ? edge.properties.map((p: any) => ({
+                    Key: p.key || p.Key,
+                    Value: p.value || p.Value,
+                  }))
+                : [];
+              
+              const newSource = restoredNodeIds.get(edge.source) || edge.source;
+              const newTarget = restoredNodeIds.get(edge.target) || edge.target;
+              
+              const edgeRes = await fetch('/api/relations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  Source: newSource,
+                  Target: newTarget,
+                  RelationTypeId: edge.relationTypeId,
+                  Properties: edgePropertiesArr,
+                }),
+              });
+              const createdEdge = await edgeRes.json();
+              restoredEdgeIds.push(createdEdge.id);
+            }
+            const updatedEdges = await api('/relations');
+            setEdges(updatedEdges);
+          },
+          redo: async () => {
+            const idsToDelete = restoredNodeIds.size > 0 
+              ? Array.from(restoredNodeIds.values()) 
+              : deletedNodes.map(n => n.id);
+            
+            await Promise.all(
+              idsToDelete.map(id => fetch(`/api/objects/${id}`, { method: 'DELETE' }))
+            );
+            setNodes(prev => prev.filter(n => !idsToDelete.includes(n.id)));
+            
+            // Удаляем восстановленные связи
+            if (restoredEdgeIds.length > 0) {
+              await Promise.all(
+                restoredEdgeIds.map(edgeId => 
+                  fetch(`/api/relations/${edgeId}`, { method: 'DELETE' })
+                )
+              );
+              const updatedEdges = await api('/relations');
+              setEdges(updatedEdges);
+            }
+          },
+        });
       } catch (error) {
         toast.error("Ошибка при удалении объектов");
       }
@@ -512,6 +836,18 @@ export default function GraphView() {
     if (selectedIds.length === 0) return;
 
     try {
+      const oldNodes = nodes.filter(n => selectedIds.includes(n.id)).map(n => ({
+        id: n.id,
+        name: n.name,
+        objectTypeId: n.objectTypeId,
+        properties: Array.isArray(n.properties)
+          ? n.properties.map((p: any) => ({
+              Key: p.key || p.Key,
+              Value: p.value || p.Value,
+            }))
+          : [],
+      }));
+
       const updatePromises = selectedIds.map(async (id) => {
         const node = nodes.find(n => n.id === id);
         if (!node) return;
@@ -539,7 +875,53 @@ export default function GraphView() {
       const updated = await api("/objects");
       setNodes(prev => mergeNodesWithPositions(updated, prev));
       clearSelection();
-      toast.success(`Изменён тип для ${selectedIds.length} объект(ов)`);
+      
+      addAction({
+        type: 'bulk_update',
+        description: `Изменён тип для ${oldNodes.length} объект(ов)`,
+        undo: async () => {
+          for (const oldNode of oldNodes) {
+            await fetch(`/api/objects/${oldNode.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                Id: oldNode.id,
+                Name: oldNode.name,
+                ObjectTypeId: oldNode.objectTypeId,
+                Properties: oldNode.properties,
+              }),
+            });
+          }
+          const updated = await api('/objects');
+          setNodes(prev => mergeNodesWithPositions(updated, prev));
+        },
+        redo: async () => {
+          for (const oldNode of oldNodes) {
+            const node = nodes.find(n => n.id === oldNode.id);
+            if (!node) continue;
+            
+            const propertiesArr = Array.isArray(node.properties)
+              ? node.properties.map((p: any) => ({
+                  Key: p.key || p.Key,
+                  Value: p.value || p.Value,
+                }))
+              : [];
+            
+            await fetch(`/api/objects/${oldNode.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                Id: oldNode.id,
+                Name: node.name,
+                ObjectTypeId: newTypeId,
+                Properties: propertiesArr,
+              }),
+            });
+          }
+          const updated = await api('/objects');
+          setNodes(prev => mergeNodesWithPositions(updated, prev));
+        },
+      });
     } catch (error) {
       toast.error("Ошибка при изменении типа объектов");
     }
@@ -570,7 +952,8 @@ export default function GraphView() {
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      // Ctrl+A (Ctrl+Ф для русской раскладки)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'ф')) {
         e.preventDefault();
         handleSelectAllNodes();
       }
@@ -584,11 +967,44 @@ export default function GraphView() {
         clearSelection();
       }
 
+      // Ctrl+Z (Ctrl+Я для русской раскладки)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'я')) {
+        e.preventDefault();
+        undo();
+      }
+
+      // Ctrl+Y (Ctrl+Н для русской раскладки)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'н')) {
+        e.preventDefault();
+        redo();
+      }
+
+      // Ctrl+H (Ctrl+Р для русской раскладки)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'h' || e.key === 'р')) {
+        e.preventDefault();
+        setHistoryPanelOpen(prev => !prev);
+      }
+
+      // Ctrl+S (Ctrl+Ы для русской раскладки) - для будущего сохранения
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'ы')) {
+        e.preventDefault();
+        // Можно добавить быстрое сохранение
+      }
+
+      // Ctrl+C (Ctrl+С для русской раскладки) - для будущего копирования
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'с')) {
+        // Копирование - для будущего
+      }
+
+      // Ctrl+V (Ctrl+М для русской раскладки) - для будущей вставки
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'м')) {
+        // Вставка - для будущего
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIds, nodes]);
+  }, [selectedIds, nodes, undo, redo]);
 
 
   return (
@@ -820,6 +1236,44 @@ export default function GraphView() {
             isApplying={isApplyingLayout}
           />
           <button
+            onClick={() => setHistoryPanelOpen(!historyPanelOpen)}
+            style={{ ...actionBtn, position: "relative" }}
+            title="История (Ctrl+H)"
+          >
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                stroke="#fff"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span style={{ marginLeft: 8 }}>История</span>
+            {history.length > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: 4,
+                  right: 4,
+                  background: "#4CAF50",
+                  color: "#fff",
+                  borderRadius: "50%",
+                  width: 20,
+                  height: 20,
+                  fontSize: 11,
+                  fontWeight: "bold",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+                }}
+              >
+                {history.length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={handleToolbarFilter}
             style={{ ...actionBtn, position: "relative" }}
           >
@@ -956,6 +1410,18 @@ export default function GraphView() {
           objectTypes={objectTypes}
           selectedCount={selectedIds.length}
         />
+
+        {historyPanelOpen && (
+          <HistoryPanel
+            history={history}
+            currentIndex={currentIndex}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onClose={() => setHistoryPanelOpen(false)}
+          />
+        )}
       </div>
     </div>
   );
