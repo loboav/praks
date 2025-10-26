@@ -16,7 +16,14 @@ import AddRelationTypeModal from "./modals/AddRelationTypeModal";
 import FilterModal, { FilterState } from "./modals/FilterModal";
 import Toolbar from "./Toolbar";
 import Sidebar from "./Sidebar";
+import LayoutSelector, { LayoutType } from "./LayoutSelector";
 import { toast } from "react-toastify";
+import {
+  circularLayout,
+  gridLayout,
+  hierarchicalLayout,
+  radialLayout
+} from "../utils/layoutAlgorithms";
 
 const api = (path: string, opts?: any) =>
   fetch("/api" + path, opts).then((r) => r.json());
@@ -43,6 +50,8 @@ export default function GraphView() {
   });
 
   const [layout, setLayout] = useState<any>(null);
+  const [currentLayoutType, setCurrentLayoutType] = useState<LayoutType>('manual');
+  const [isApplyingLayout, setIsApplyingLayout] = useState(false);
 
   const mergeNodesWithPositions = (newNodes: GraphObject[], existingNodes: GraphObject[]) => {
     return newNodes.map(newNode => {
@@ -277,40 +286,54 @@ export default function GraphView() {
 
   const handleToolbarSelect = () => toast.info("Режим выделения (MVP)");
   const handleToolbarMove = () => toast.info("Режим перемещения (MVP)");
-  const [alignType, setAlignType] = useState<"circle" | "tree">("circle");
-  const handleToolbarAlign = () => {
-    if (nodes.length === 0) return;
-    if (alignType === "circle") {
-      const centerX = 500,
-        centerY = 350,
-        radius = 250;
-      const angleStep = (2 * Math.PI) / nodes.length;
-      const aligned = nodes.map((node, i) => ({
-        ...node,
-        PositionX: centerX + radius * Math.cos(i * angleStep),
-        PositionY: centerY + radius * Math.sin(i * angleStep),
-      }));
-      setNodes(aligned);
-    } else if (alignType === "tree") {
-      const levelHeight = 120;
-      const rootX = 500;
-      const nodesPerLevel = Math.ceil(Math.sqrt(nodes.length));
-      let aligned: any[] = [];
-      let idx = 0;
-      for (let level = 0; idx < nodes.length; level++) {
-        const count = Math.min(nodesPerLevel, nodes.length - idx);
-        const startX = rootX - ((count - 1) * 120) / 2;
-        for (let i = 0; i < count; i++, idx++) {
-          aligned.push({
-            ...nodes[idx],
-            PositionX: startX + i * 120,
-            PositionY: 100 + level * levelHeight,
-          });
-        }
-      }
-      setNodes(aligned);
+
+  const applyLayout = () => {
+    if (nodes.length === 0) {
+      toast.warning('Нет узлов для расположения');
+      return;
     }
+
+    setIsApplyingLayout(true);
+
+    setTimeout(() => {
+      let layoutResult;
+
+      switch (currentLayoutType) {
+        case 'hierarchical':
+          toast.info('Применяется иерархический layout...');
+          layoutResult = hierarchicalLayout(nodes, edges);
+          break;
+        case 'radial':
+          toast.info('Применяется радиальный layout...');
+          layoutResult = radialLayout(nodes, edges);
+          break;
+        case 'circular':
+          toast.info('Применяется круговой layout...');
+          layoutResult = circularLayout(nodes);
+          break;
+        case 'grid':
+          toast.info('Применяется сеточный layout...');
+          layoutResult = gridLayout(nodes);
+          break;
+        default:
+          setIsApplyingLayout(false);
+          return;
+      }
+
+      const updatedNodes = nodes.map(node => {
+        const newPos = layoutResult.nodes.find(n => n.id === node.id);
+        if (newPos) {
+          return { ...node, PositionX: newPos.x, PositionY: newPos.y };
+        }
+        return node;
+      });
+
+      setNodes(updatedNodes);
+      setIsApplyingLayout(false);
+      toast.success(`Layout "${currentLayoutType}" применён!`);
+    }, 100);
   };
+
   const handleToolbarFilter = () => setFilterOpen(true);
 
   const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
@@ -684,40 +707,12 @@ export default function GraphView() {
             <span style={{ marginLeft: 8 }}>Добавить объект</span>
           </button>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button onClick={handleToolbarAlign} style={actionBtn}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="#fff" strokeWidth="2" />
-                <path
-                  d="M12 2v20M2 12h20"
-                  stroke="#fff"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span style={{ marginLeft: 8 }}>Выравнивание</span>
-            </button>
-            <select
-              value={alignType}
-              onChange={(e) =>
-                setAlignType(e.target.value as "circle" | "tree")
-              }
-              style={{
-                marginLeft: 4,
-                borderRadius: 6,
-                border: "none",
-                padding: "6px 10px",
-                fontSize: 16,
-                fontWeight: 500,
-                background: "#fff",
-                color: "#23272f",
-                cursor: "pointer",
-              }}
-            >
-              <option value="circle">Круг</option>
-              <option value="tree">Дерево</option>
-            </select>
-          </div>
+          <LayoutSelector
+            currentLayout={currentLayoutType}
+            onLayoutChange={setCurrentLayoutType}
+            onApply={applyLayout}
+            isApplying={isApplyingLayout}
+          />
           <button
             onClick={handleToolbarFilter}
             style={{ ...actionBtn, position: "relative" }}
