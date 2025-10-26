@@ -35,7 +35,6 @@ export default function GraphView() {
   }>({ source: null, target: null });
   const [addRelationOpen, setAddRelationOpen] = useState(false);
 
-  // Filter state
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
     selectedObjectTypes: [],
@@ -43,11 +42,29 @@ export default function GraphView() {
     showIsolatedNodes: true,
   });
 
-  // layout state
   const [layout, setLayout] = useState<any>(null);
-  // актуальные позиции узлов (id, x, y) — больше не нужно отдельное состояние
 
-  // При изменении позиций узлов обновляем nodes
+  const mergeNodesWithPositions = (newNodes: GraphObject[], existingNodes: GraphObject[]) => {
+    return newNodes.map(newNode => {
+      const existing = existingNodes.find(n => n.id === newNode.id);
+      if (existing && (existing.PositionX !== undefined || existing.PositionY !== undefined)) {
+        return {
+          ...newNode,
+          PositionX: existing.PositionX,
+          PositionY: existing.PositionY
+        };
+      }
+      if (newNode.PositionX === undefined || newNode.PositionY === undefined) {
+        return {
+          ...newNode,
+          PositionX: Math.random() * 800 + 100,
+          PositionY: Math.random() * 500 + 100
+        };
+      }
+      return newNode;
+    });
+  };
+
   const handleNodesPositionChange = (
     positions: { id: number; x: number; y: number }[],
   ) => {
@@ -65,7 +82,6 @@ export default function GraphView() {
     });
   };
 
- 
   useEffect(() => {
     if (objectTypes.length > 0 && filters.selectedObjectTypes.length === 0) {
       setFilters((prev) => ({
@@ -108,12 +124,11 @@ export default function GraphView() {
 
   const filteredEdges = useMemo(() => {
     return edges.filter((edge) => {
-      // Filter by relation type
       if (!filters.selectedRelationTypes.includes(edge.relationTypeId)) {
         return false;
       }
 
-      // Only show edges where both source and target nodes are visible
+      
       const sourceVisible = filteredNodes.some((n) => n.id === edge.source);
       const targetVisible = filteredNodes.some((n) => n.id === edge.target);
 
@@ -128,12 +143,10 @@ export default function GraphView() {
     );
   };
 
-  // Загрузка layout при инициализации
   useEffect(() => {
     api("/objecttype").then(setObjectTypes);
     api("/relationtype").then(setRelationTypes);
     api("/objects").then((objs) => {
-      // После загрузки объектов, загрузить layout и применить позиции
       fetch("/api/layout")
         .then((r) => (r.ok ? r.json() : null))
         .then((l) => {
@@ -141,7 +154,6 @@ export default function GraphView() {
             try {
               const layoutObj = JSON.parse(l.layoutJson);
               if (layoutObj && Array.isArray(layoutObj.nodes)) {
-                // Применить позиции к объектам
                 const objsWithPos = objs.map((o: any) => {
                   const pos = layoutObj.nodes.find((n: any) => n.id === o.id);
                   return pos ? { ...o, PositionX: pos.x, PositionY: pos.y } : o;
@@ -186,7 +198,7 @@ export default function GraphView() {
     }
     toast.success("Объект успешно создан");
     const updated = await api("/objects");
-    setNodes(updated);
+    setNodes(prev => mergeNodesWithPositions(updated, prev));
   };
 
   const findPath = async (from: number, to: number) => {
@@ -196,7 +208,6 @@ export default function GraphView() {
 
   const handleNodeAction = (action: string, node: GraphObject) => {
     if (action === "create-relation") {
-      // Если уже выбран source, а клик по другому объекту — это target
       if (
         addRelation.source &&
         !addRelation.target &&
@@ -205,9 +216,7 @@ export default function GraphView() {
         setAddRelation((r) => ({ ...r, target: node }));
         setAddRelationOpen(true);
       } else {
-        // Первый клик — выбираем source
         setAddRelation({ source: node, target: null });
-        // Не открываем модалку сразу, ждём второго объекта
       }
     } else if (action === "edit") {
       handleEditNode(node);
@@ -218,7 +227,6 @@ export default function GraphView() {
 
   const handleSelectNode = (node: GraphObject) => {
     setSelected({ type: "node", data: node });
-    // Не открываем модалку для связи здесь, только через onNodeAction
   };
 
   const handleAddRelation = async (data: {
@@ -227,7 +235,6 @@ export default function GraphView() {
     relationTypeId: number;
     properties: Record<string, string>;
   }) => {
-    // Формируем payload в стиле .NET backend (исправлено: Source/Target вместо SourceId/TargetId)
     const payload = {
       Source: data.source,
       Target: data.target,
@@ -252,16 +259,13 @@ export default function GraphView() {
     setEdges(updated);
   };
 
-  // Сохранение layout
   const handleSaveLayout = async () => {
-    // layout = { nodes: [{id, x, y}], ... }
     const layoutObj = {
       nodes: nodes.map((n) => ({
         id: n.id,
         x: n.PositionX ?? 0,
         y: n.PositionY ?? 0,
-      })),
-      // zoom, pan можно добавить позже
+      }))
     };
     await fetch("/api/layout", {
       method: "POST",
@@ -271,10 +275,8 @@ export default function GraphView() {
     toast.success("Сетка успешно сохранена!");
   };
 
-  // Toolbar режимы
   const handleToolbarSelect = () => toast.info("Режим выделения (MVP)");
   const handleToolbarMove = () => toast.info("Режим перемещения (MVP)");
-  // Выравнивание: по кругу или деревом
   const [alignType, setAlignType] = useState<"circle" | "tree">("circle");
   const handleToolbarAlign = () => {
     if (nodes.length === 0) return;
@@ -290,10 +292,8 @@ export default function GraphView() {
       }));
       setNodes(aligned);
     } else if (alignType === "tree") {
-      // Простая реализация дерева: размещаем по уровням сверху вниз
       const levelHeight = 120;
       const rootX = 500;
-      // Для простоты: считаем все объекты "корнями" и размещаем их в ряд
       const nodesPerLevel = Math.ceil(Math.sqrt(nodes.length));
       let aligned: any[] = [];
       let idx = 0;
@@ -313,7 +313,6 @@ export default function GraphView() {
   };
   const handleToolbarFilter = () => setFilterOpen(true);
 
-  // Модальное окно для типа объекта
   const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
   const handleAddObjectType = () => setAddObjectTypeOpen(true);
   const handleCreateObjectType = async (data: {
@@ -339,7 +338,6 @@ export default function GraphView() {
     setObjectTypes(types);
   };
 
-  // Модальное окно для типа связи
   const [addRelationTypeOpen, setAddRelationTypeOpen] = useState(false);
   const handleAddRelationType = () => setAddRelationTypeOpen(true);
   const handleCreateRelationType = async (data: {
@@ -356,7 +354,6 @@ export default function GraphView() {
     setRelationTypes(relTypes);
   };
 
-  // Фильтрация типов связей по типу исходного объекта
   const filteredRelationTypes =
     addRelation.source && addRelation.source.objectTypeId
       ? relationTypes.filter(
@@ -364,7 +361,6 @@ export default function GraphView() {
         )
       : relationTypes;
 
-  // Используем отфильтрованные nodes с актуальными координатами (memoized)
   const nodesWithPositions = useMemo(() => {
     return filteredNodes.map((node) => ({
       ...node,
@@ -372,11 +368,8 @@ export default function GraphView() {
       y: typeof node.PositionY === "number" ? node.PositionY : 0,
     }));
   }, [filteredNodes]);
-  // Для отладки: можно включить логи при необходимости
-  // console.log('nodesWithPositions', nodesWithPositions);
-  // console.log('edges', edges);
 
-  // Редактирование и удаление объектов и связей
+  
   const [editNode, setEditNode] = useState<GraphObject | null>(null);
   const [editEdge, setEditEdge] = useState<GraphRelation | null>(null);
 
@@ -386,7 +379,8 @@ export default function GraphView() {
   const handleDeleteNode = async (node: GraphObject) => {
     if (window.confirm("Удалить объект?")) {
       await fetch(`/api/objects/${node.id}`, { method: "DELETE" });
-      setNodes(nodes.filter((n) => n.id !== node.id));
+      setNodes(prev => prev.filter((n) => n.id !== node.id));
+      toast.success(`Объект "${node.name}" удалён`);
     }
   };
   const handleEditEdge = (edge: GraphRelation) => {
@@ -399,7 +393,6 @@ export default function GraphView() {
     }
   };
 
-  // Сохранение изменений объекта
   const handleSaveEditNode = async (data: {
     id: number;
     name: string;
@@ -431,11 +424,10 @@ export default function GraphView() {
     }
     toast.success("Объект обновлен");
     const updated = await api("/objects");
-    setNodes(updated);
+    setNodes(prev => mergeNodesWithPositions(updated, prev));
     setEditNode(null);
   };
 
-  // Сохранение изменений связи
   const handleSaveEditEdge = async (data: {
     id: number;
     relationTypeId: number;
@@ -465,14 +457,13 @@ export default function GraphView() {
     setEditEdge(null);
   };
 
-  // Удаление типа объекта
   const handleDeleteObjectType = async (id: number) => {
     if (window.confirm("Удалить тип объекта?")) {
       await fetch(`/api/objecttype/${id}`, { method: "DELETE" });
       setObjectTypes(objectTypes.filter((t) => t.id !== id));
     }
   };
-  // Удаление типа связи
+  
   const handleDeleteRelationType = async (id: number) => {
     if (window.confirm("Удалить тип связи?")) {
       await fetch(`/api/relationtype/${id}`, { method: "DELETE" });
