@@ -26,6 +26,7 @@ interface GraphCanvasProps {
   onAlign?: () => void;
   onMove?: () => void;
   selectedNodes?: number[];
+  panOnDrag?: boolean;
   onNodesPositionChange?: (
     positions: { id: number; x: number; y: number }[],
   ) => void;
@@ -45,6 +46,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   onNodeAction,
   selectedNodes: propsSelectedNodes,
   selectedEdges,
+  panOnDrag = true,
   onNodesPositionChange,
 }) => {
   // Local highlighting for found path
@@ -448,6 +450,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         onNodeClick={handleNodeClick}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeClick={handleEdgeClick}
+        panOnDrag={panOnDrag}
         fitView
       >
         <Background />

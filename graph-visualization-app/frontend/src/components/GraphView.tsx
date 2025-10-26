@@ -17,7 +17,10 @@ import FilterModal, { FilterState } from "./modals/FilterModal";
 import Toolbar from "./Toolbar";
 import Sidebar from "./Sidebar";
 import LayoutSelector, { LayoutType } from "./LayoutSelector";
+import BulkActionsPanel from "./BulkActionsPanel";
+import BulkChangeTypeModal from "./modals/BulkChangeTypeModal";
 import { toast } from "react-toastify";
+import { useMultiSelection } from "../hooks/useMultiSelection";
 import {
   circularLayout,
   gridLayout,
@@ -52,6 +55,14 @@ export default function GraphView() {
   const [layout, setLayout] = useState<any>(null);
   const [currentLayoutType, setCurrentLayoutType] = useState<LayoutType>('manual');
   const [isApplyingLayout, setIsApplyingLayout] = useState(false);
+  const [bulkChangeTypeOpen, setBulkChangeTypeOpen] = useState(false);
+
+  const {
+    selectedIds,
+    toggleSelection,
+    selectAll,
+    clearSelection,
+  } = useMultiSelection();
 
   const mergeNodesWithPositions = (newNodes: GraphObject[], existingNodes: GraphObject[]) => {
     return newNodes.map(newNode => {
@@ -480,6 +491,65 @@ export default function GraphView() {
     setEditEdge(null);
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    
+    if (window.confirm(`Удалить ${selectedIds.length} объект(ов)?`)) {
+      try {
+        await Promise.all(
+          selectedIds.map(id => fetch(`/api/objects/${id}`, { method: "DELETE" }))
+        );
+        setNodes(prev => prev.filter(n => !selectedIds.includes(n.id)));
+        clearSelection();
+        toast.success(`Удалено ${selectedIds.length} объект(ов)`);
+      } catch (error) {
+        toast.error("Ошибка при удалении объектов");
+      }
+    }
+  };
+
+  const handleBulkChangeType = async (newTypeId: number) => {
+    if (selectedIds.length === 0) return;
+
+    try {
+      const updatePromises = selectedIds.map(async (id) => {
+        const node = nodes.find(n => n.id === id);
+        if (!node) return;
+
+        const propertiesArr = Array.isArray(node.properties)
+          ? node.properties.map((p: any) => ({
+              Key: p.key || p.Key,
+              Value: p.value || p.Value,
+            }))
+          : [];
+
+        return fetch(`/api/objects/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            Id: id,
+            Name: node.name,
+            ObjectTypeId: newTypeId,
+            Properties: propertiesArr,
+          }),
+        });
+      });
+
+      await Promise.all(updatePromises);
+      const updated = await api("/objects");
+      setNodes(prev => mergeNodesWithPositions(updated, prev));
+      clearSelection();
+      toast.success(`Изменён тип для ${selectedIds.length} объект(ов)`);
+    } catch (error) {
+      toast.error("Ошибка при изменении типа объектов");
+    }
+  };
+
+  const handleSelectAllNodes = () => {
+    selectAll(nodes.map(n => n.id));
+    toast.info(`Выбрано ${nodes.length} объект(ов)`);
+  };
+
   const handleDeleteObjectType = async (id: number) => {
     if (window.confirm("Удалить тип объекта?")) {
       await fetch(`/api/objecttype/${id}`, { method: "DELETE" });
@@ -493,6 +563,33 @@ export default function GraphView() {
       setRelationTypes(relationTypes.filter((t) => t.id !== id));
     }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        handleSelectAllNodes();
+      }
+
+      if (e.key === 'Delete' && selectedIds.length > 0) {
+        e.preventDefault();
+        handleBulkDelete();
+      }
+
+      if (e.key === 'Escape') {
+        clearSelection();
+      }
+
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIds, nodes]);
+
 
   return (
     <div
@@ -627,12 +724,21 @@ export default function GraphView() {
                   nodes={nodesWithPositions}
                   edges={filteredEdges}
                   relationTypes={relationTypes}
-                  onSelectNode={handleSelectNode}
+                  onSelectNode={(node) => {
+                    const isShiftPressed = (window.event as KeyboardEvent)?.shiftKey;
+                    if (isShiftPressed) {
+                      toggleSelection(node.id, true);
+                    } else {
+                      handleSelectNode(node);
+                      clearSelection();
+                    }
+                  }}
                   onSelectEdge={(edge) =>
                     setSelected({ type: "edge", data: edge })
                   }
                   onNodeAction={handleNodeAction}
                   onNodesPositionChange={handleNodesPositionChange}
+                  selectedNodes={selectedIds}
                 />
                 {selected?.type === "node" && (
                   <ObjectCard object={selected.data} />
@@ -834,6 +940,21 @@ export default function GraphView() {
           relationTypes={relationTypes}
           onApplyFilter={handleApplyFilter}
           currentFilters={filters}
+        />
+
+        <BulkActionsPanel
+          selectedCount={selectedIds.length}
+          onDelete={handleBulkDelete}
+          onChangeType={() => setBulkChangeTypeOpen(true)}
+          onClearSelection={clearSelection}
+        />
+
+        <BulkChangeTypeModal
+          open={bulkChangeTypeOpen}
+          onClose={() => setBulkChangeTypeOpen(false)}
+          onConfirm={handleBulkChangeType}
+          objectTypes={objectTypes}
+          selectedCount={selectedIds.length}
         />
       </div>
     </div>
