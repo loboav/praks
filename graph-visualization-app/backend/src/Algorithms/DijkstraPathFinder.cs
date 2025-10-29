@@ -33,10 +33,12 @@ namespace GraphVisualizationApp.Algorithms
                 if (u == toId || dist[u] == int.MaxValue)
                     break;
 
-                // Обрабатываем только исходящие рёбра для ориентированного графа
-                foreach (var edge in edges.Where(e => e.Source == u))
+                // Обрабатываем рёбра в обоих направлениях (граф как неориентированный для поиска пути)
+                foreach (var edge in edges.Where(e => e.Source == u || e.Target == u))
                 {
-                    int v = edge.Target;
+                    // Определяем соседнюю вершину
+                    int v = (edge.Source == u) ? edge.Target : edge.Source;
+                    
                     int weight = 1;
                     if (edge.Properties != null)
                     {
