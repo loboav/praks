@@ -1,6 +1,7 @@
 using GraphVisualizationApp.Models;
 using GraphVisualizationApp.Algorithms;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,13 +11,25 @@ namespace GraphVisualizationApp.Services
     public class GraphService : IGraphService
     {
         private readonly GraphDbContext _db;
-        public GraphService(GraphDbContext db) { _db = db; }
+        private readonly IMemoryCache _cache;
+        private const string CACHE_KEY_OBJECTS = "graph_objects";
+        private const string CACHE_KEY_RELATIONS = "graph_relations";
+        private const string CACHE_KEY_OBJECT_TYPES = "object_types";
+        private const string CACHE_KEY_RELATION_TYPES = "relation_types";
+        private static readonly TimeSpan CacheExpiration = TimeSpan.FromMinutes(5);
 
-        // Поиск кратчайшего пути по Дейкстре
+        public GraphService(GraphDbContext db, IMemoryCache cache) 
+        { 
+            _db = db;
+            _cache = cache;
+        }
+
+        // Поиск кратчайшего пути по Дейкстре (оптимизировано с использованием кэша)
     public async Task<GraphVisualizationApp.Algorithms.DijkstraPathFinder.PathResult> FindShortestPathDijkstraAsync(int fromId, int toId)
         {
-            var nodes = await _db.GraphObjects.Include(o => o.Properties).ToListAsync();
-            var edges = await _db.GraphRelations.Include(r => r.Properties).ToListAsync();
+            // Используем кэшированные данные вместо прямых запросов к БД
+            var nodes = await GetObjectsAsync();
+            var edges = await GetRelationsAsync();
             // Преобразуем свойства связей в Dictionary<string, string>
             var edgeList = edges.Select(e => {
                 var rel = new GraphRelation
@@ -121,7 +134,9 @@ namespace GraphVisualizationApp.Services
                     }
                 }
             }
-            return await _db.SaveChangesAsync();
+            var result = await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_OBJECTS);
+            return result;
         }
 
 
@@ -152,7 +167,9 @@ namespace GraphVisualizationApp.Services
                     }
                 }
             }
-            return await _db.SaveChangesAsync();
+            var result = await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_RELATIONS);
+            return result;
         }
 
         public async Task<GraphObject> UpdateObjectAsync(GraphObject obj)
@@ -178,43 +195,95 @@ namespace GraphVisualizationApp.Services
                 }
             }
             await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_OBJECTS);
             return existing;
         }
 
-        public async Task<List<ObjectType>> GetObjectTypesAsync() => await _db.ObjectTypes.ToListAsync();
+        public async Task<List<ObjectType>> GetObjectTypesAsync()
+        {
+            return await _cache.GetOrCreateAsync(CACHE_KEY_OBJECT_TYPES, async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = CacheExpiration;
+                return await _db.ObjectTypes.AsNoTracking().ToListAsync();
+            }) ?? new List<ObjectType>();
+        }
+
         public async Task<ObjectType> CreateObjectTypeAsync(ObjectType type)
         {
             _db.ObjectTypes.Add(type);
             await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_OBJECT_TYPES);
             return type;
         }
+
         public async Task<bool> DeleteObjectTypeAsync(int id)
         {
             var type = await _db.ObjectTypes.FindAsync(id);
             if (type == null) return false;
             _db.ObjectTypes.Remove(type);
             await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_OBJECT_TYPES);
             return true;
         }
-        public async Task<List<RelationType>> GetRelationTypesAsync() => await _db.RelationTypes.ToListAsync();
+
+        public async Task<List<RelationType>> GetRelationTypesAsync()
+        {
+            return await _cache.GetOrCreateAsync(CACHE_KEY_RELATION_TYPES, async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = CacheExpiration;
+                return await _db.RelationTypes.AsNoTracking().ToListAsync();
+            }) ?? new List<RelationType>();
+        }
+
         public async Task<RelationType> CreateRelationTypeAsync(RelationType type)
         {
             _db.RelationTypes.Add(type);
             await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_RELATION_TYPES);
             return type;
         }
-        public async Task<List<GraphObject>> GetObjectsAsync() => await _db.GraphObjects.Include(o => o.Properties).ToListAsync();
+
+        // Исправлена N+1 проблема: используем AsSplitQuery() для оптимизации Include
+        public async Task<List<GraphObject>> GetObjectsAsync()
+        {
+            return await _cache.GetOrCreateAsync(CACHE_KEY_OBJECTS, async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = CacheExpiration;
+                return await _db.GraphObjects
+                    .Include(o => o.Properties)
+                    .AsSplitQuery()
+                    .AsNoTracking()
+                    .ToListAsync();
+            }) ?? new List<GraphObject>();
+        }
+
         public async Task<GraphObject> CreateObjectAsync(GraphObject obj)
         {
             _db.GraphObjects.Add(obj);
             await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_OBJECTS);
             return obj;
         }
-        public async Task<List<GraphRelation>> GetRelationsAsync() => await _db.GraphRelations.Include(r => r.Properties).ToListAsync();
+
+        // Исправлена N+1 проблема: используем AsSplitQuery() для оптимизации Include
+        public async Task<List<GraphRelation>> GetRelationsAsync()
+        {
+            return await _cache.GetOrCreateAsync(CACHE_KEY_RELATIONS, async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = CacheExpiration;
+                return await _db.GraphRelations
+                    .Include(r => r.Properties)
+                    .AsSplitQuery()
+                    .AsNoTracking()
+                    .ToListAsync();
+            }) ?? new List<GraphRelation>();
+        }
+
         public async Task<GraphRelation> CreateRelationAsync(GraphRelation rel)
         {
             _db.GraphRelations.Add(rel);
             await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_RELATIONS);
             return rel;
         }
 
@@ -239,6 +308,7 @@ namespace GraphVisualizationApp.Services
                 }
             }
             await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_RELATIONS);
             return existing;
         }
         public async Task<List<ObjectProperty>> GetObjectPropertiesAsync(int objectId) => await _db.ObjectProperties.Where(p => p.ObjectId == objectId).ToListAsync();
@@ -375,6 +445,8 @@ namespace GraphVisualizationApp.Services
             _db.GraphRelations.RemoveRange(rels);
             _db.GraphObjects.Remove(obj);
             await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_OBJECTS);
+            _cache.Remove(CACHE_KEY_RELATIONS);
             return true;
         }
 
@@ -387,6 +459,7 @@ namespace GraphVisualizationApp.Services
             _db.RelationProperties.RemoveRange(relProps);
             _db.GraphRelations.Remove(rel);
             await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_RELATIONS);
             return true;
         }
 
@@ -397,6 +470,7 @@ namespace GraphVisualizationApp.Services
             // optionally consider removing or reassigning relations of this type
             _db.RelationTypes.Remove(type);
             await _db.SaveChangesAsync();
+            _cache.Remove(CACHE_KEY_RELATION_TYPES);
             return true;
         }
     }
