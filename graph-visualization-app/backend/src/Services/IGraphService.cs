@@ -45,5 +45,10 @@ namespace GraphVisualizationApp.Services
     // Layout
     Task<GraphLayout?> GetLayoutAsync(int? graphId = null, string? userId = null);
     Task<GraphLayout> SaveLayoutAsync(GraphLayout layout);
+
+    // Search
+    Task<SearchResults> SearchAsync(string query, SearchOptions? options = null);
+    Task<List<ObjectSearchResult>> SearchObjectsAsync(string query, SearchOptions? options = null);
+    Task<List<RelationSearchResult>> SearchRelationsAsync(string query, SearchOptions? options = null);
     }
 }

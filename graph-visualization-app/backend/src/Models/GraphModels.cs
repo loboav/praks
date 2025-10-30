@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace GraphVisualizationApp.Models
 {
     public class ObjectType
@@ -9,7 +11,11 @@ namespace GraphVisualizationApp.Models
         public string? Icon { get; set; }
         public string? Shape { get; set; }
         public string? ImageUrl { get; set; }
+        
+        [JsonIgnore]
         public ICollection<RelationType> RelationTypes { get; set; } = new List<RelationType>();
+        
+        [JsonIgnore]
         public ICollection<GraphObject> Objects { get; set; } = new List<GraphObject>();
     }
 
@@ -28,8 +34,13 @@ namespace GraphVisualizationApp.Models
         public string? Name { get; set; }
         public string? Description { get; set; }
         public int ObjectTypeId { get; set; }
+        
+        [JsonIgnore]
         public ObjectType? ObjectType { get; set; }
+        
         public string? Color { get; set; }
+        
+        [JsonIgnore]
         public ICollection<GraphRelation> Relations { get; set; } = new List<GraphRelation>();
     }
 
@@ -38,12 +49,20 @@ namespace GraphVisualizationApp.Models
         public int Id { get; set; }
         public string? Name { get; set; }
         public int ObjectTypeId { get; set; }
+        
+        [JsonIgnore]
         public ObjectType? ObjectType { get; set; }
+        
         public double? PositionX { get; set; }
         public double? PositionY { get; set; }
         public ICollection<ObjectProperty> Properties { get; set; } = new List<ObjectProperty>();
+        
+        [JsonIgnore]
         public ICollection<GraphRelation> OutgoingRelations { get; set; } = new List<GraphRelation>();
+        
+        [JsonIgnore]
         public ICollection<GraphRelation> IncomingRelations { get; set; } = new List<GraphRelation>();
+        
         public string? Color { get; set; }
         public string? Icon { get; set; }
     }
@@ -52,7 +71,10 @@ namespace GraphVisualizationApp.Models
     {
         public int Id { get; set; }
         public int ObjectId { get; set; }
+        
+        [JsonIgnore]
         public GraphObject? Object { get; set; }
+        
         public string? Key { get; set; }
         public string? Value { get; set; }
     }
@@ -61,11 +83,20 @@ namespace GraphVisualizationApp.Models
     {
         public int Id { get; set; }
         public int Source { get; set; }
+        
+        [JsonIgnore]
         public GraphObject? SourceObject { get; set; }
+        
         public int Target { get; set; }
+        
+        [JsonIgnore]
         public GraphObject? TargetObject { get; set; }
+        
         public int RelationTypeId { get; set; }
+        
+        [JsonIgnore]
         public RelationType? RelationType { get; set; }
+        
         public ICollection<RelationProperty> Properties { get; set; } = new List<RelationProperty>();
         public string? Color { get; set; }
     }
@@ -74,7 +105,10 @@ namespace GraphVisualizationApp.Models
     {
         public int Id { get; set; }
         public int RelationId { get; set; }
+        
+        [JsonIgnore]
         public GraphRelation? Relation { get; set; }
+        
         public string? Key { get; set; }
         public string? Value { get; set; }
     }

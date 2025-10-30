@@ -15,6 +15,7 @@ import BulkActionsPanel from "./BulkActionsPanel";
 import BulkChangeTypeModal from "./modals/BulkChangeTypeModal";
 import HistoryPanel from "./HistoryPanel";
 import SettingsButton from "./SettingsButton";
+import SearchPanel from "./SearchPanel";
 import { toast } from "react-toastify";
 import { useMultiSelection } from "../hooks/useMultiSelection";
 import { useHistory } from "../hooks/useHistory";
@@ -37,6 +38,7 @@ export default function GraphView() {
   const [bulkChangeTypeOpen, setBulkChangeTypeOpen] = useState(false);
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const [editNode, setEditNode] = useState<GraphObject | null>(null);
   const [editEdge, setEditEdge] = useState<GraphRelation | null>(null);
   const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
@@ -194,7 +196,11 @@ export default function GraphView() {
       }
 
       if (e.key === 'Escape') {
-        clearSelection();
+        if (searchPanelOpen) {
+          setSearchPanelOpen(false);
+        } else {
+          clearSelection();
+        }
       }
 
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'я')) {
@@ -211,11 +217,16 @@ export default function GraphView() {
         e.preventDefault();
         setHistoryPanelOpen(prev => !prev);
       }
+
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'а')) {
+        e.preventDefault();
+        setSearchPanelOpen(prev => !prev);
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIds, nodes, undo, redo, clearSelection]);
+  }, [selectedIds, nodes, undo, redo, clearSelection, searchPanelOpen]);
 
   return (
     <div style={{ width: "100vw", height: "100vh", background: "#f4f6fa", overflow: "hidden" }}>
@@ -338,6 +349,13 @@ export default function GraphView() {
               </span>
             )}
           </button>
+          <button onClick={() => setSearchPanelOpen(!searchPanelOpen)} style={{ ...actionBtn, background: searchPanelOpen ? "rgba(33, 150, 243, 0.2)" : "none" }} title="Поиск (Ctrl+F)">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+              <circle cx="11" cy="11" r="8" stroke="#fff" strokeWidth="2" />
+              <path d="M21 21l-4.35-4.35" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <span style={{ marginLeft: 8 }}>Поиск</span>
+          </button>
         </div>
 
         {/* Modals */}
@@ -427,6 +445,42 @@ export default function GraphView() {
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
         />
+
+        {/* Search Panel */}
+        {searchPanelOpen && (
+          <div style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            width: "400px",
+            height: "100vh",
+            zIndex: 1000,
+            boxShadow: "-4px 0 12px rgba(0,0,0,0.15)",
+            animation: "slideInRight 0.3s ease-out"
+          }}>
+            <SearchPanel
+              onClose={() => setSearchPanelOpen(false)}
+              onObjectSelect={(objectId) => {
+                const node = nodes.find(n => n.id === objectId);
+                if (node) {
+                  handleSelectNode(node);
+                  clearSelection();
+                }
+              }}
+              onRelationSelect={(relationId) => {
+                const relation = edges.find(e => e.id === relationId);
+                if (relation) {
+                  setSelected({ type: "edge", data: relation });
+                }
+              }}
+              onHighlightResults={(objectIds, relationIds) => {
+                // Подсветка найденных элементов
+                clearSelection();
+                objectIds.forEach(id => toggleSelection(id, true));
+              }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
