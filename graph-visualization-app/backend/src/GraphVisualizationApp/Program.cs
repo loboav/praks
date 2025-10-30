@@ -65,6 +65,7 @@ builder.Services.AddDbContext<GraphDbContext>(options =>
 
 // Register application services
 builder.Services.AddScoped<IGraphService, GraphService>();
+builder.Services.AddScoped<IExportService, ExportService>();
 
 // Add health checks
 builder.Services.AddHealthChecks()

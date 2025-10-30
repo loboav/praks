@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
@@ -15,12 +16,15 @@
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="8.0.0" />
     <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\Controllers\**\*.cs" />
     <Compile Include="..\Services\GraphService.cs" />
     <Compile Include="..\Services\IGraphService.cs" />
+    <Compile Include="..\Services\ExportService.cs" />
+    <Compile Include="..\Services\IExportService.cs" />
     <Compile Include="..\Models\GraphModels.cs" />
     <Compile Include="..\Models\GraphDtos.cs" />
     <Compile Include="..\Models\ValidationModels.cs" />

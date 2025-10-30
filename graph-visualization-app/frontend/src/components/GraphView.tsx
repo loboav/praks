@@ -8,11 +8,13 @@ import AddRelationModal from "./modals/AddRelationModal";
 import AddObjectTypeModal from "./modals/AddObjectTypeModal";
 import AddRelationTypeModal from "./modals/AddRelationTypeModal";
 import FilterModal from "./modals/FilterModal";
+import SettingsModal from "./modals/SettingsModal";
 import Sidebar from "./Sidebar";
 import LayoutSelector from "./LayoutSelector";
 import BulkActionsPanel from "./BulkActionsPanel";
 import BulkChangeTypeModal from "./modals/BulkChangeTypeModal";
 import HistoryPanel from "./HistoryPanel";
+import SettingsButton from "./SettingsButton";
 import { toast } from "react-toastify";
 import { useMultiSelection } from "../hooks/useMultiSelection";
 import { useHistory } from "../hooks/useHistory";
@@ -34,6 +36,7 @@ export default function GraphView() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [bulkChangeTypeOpen, setBulkChangeTypeOpen] = useState(false);
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [editNode, setEditNode] = useState<GraphObject | null>(null);
   const [editEdge, setEditEdge] = useState<GraphRelation | null>(null);
   const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
@@ -227,6 +230,9 @@ export default function GraphView() {
             onDeleteRelationType={(id) => window.confirm("Удалить тип связи?") && deleteRelationType(id)}
           />
           <div style={{ flex: 1, position: "relative", minWidth: 0, minHeight: 0 }}>
+            {/* Settings Button */}
+            <SettingsButton onClick={() => setSettingsOpen(true)} />
+            
             {nodes.length === 0 ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 20, fontFamily: "Segoe UI, sans-serif", color: "#5f6368" }}>
                 <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.3 }}>
@@ -416,6 +422,11 @@ export default function GraphView() {
             onClose={() => setHistoryPanelOpen(false)}
           />
         )}
+
+        <SettingsModal
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+        />
       </div>
     </div>
   );
