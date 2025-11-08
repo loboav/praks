@@ -7,11 +7,19 @@ using GraphVisualizationApp.Services;
 using GraphVisualizationApp;
 using GraphVisualizationApp.Middleware;
 using GraphVisualizationApp.Data;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
 builder.Services.AddControllers();
+
+// Add FluentValidation
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddFluentValidationClientsideAdapters();
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
 builder.Services.AddEndpointsApiExplorer();
 
 // Configure Swagger with detailed documentation
@@ -83,6 +91,9 @@ builder.Services.AddResponseCompression(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
+
+// Add validation exception handling middleware (должен быть перед ExceptionHandlingMiddleware)
+app.UseValidationExceptionHandler();
 
 // Add global exception handling middleware
 app.UseMiddleware<ExceptionHandlingMiddleware>();
