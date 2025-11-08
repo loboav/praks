@@ -221,9 +221,15 @@ namespace GraphVisualizationApp.Services
         {
             var type = await _db.ObjectTypes.FindAsync(id);
             if (type == null) return false;
+            
+            // Удаляем все типы связей, связанные с этим типом объекта
+            var relationTypes = _db.RelationTypes.Where(rt => rt.ObjectTypeId == id).ToList();
+            _db.RelationTypes.RemoveRange(relationTypes);
+            
             _db.ObjectTypes.Remove(type);
             await _db.SaveChangesAsync();
             _cache.Remove(CACHE_KEY_OBJECT_TYPES);
+            _cache.Remove(CACHE_KEY_RELATION_TYPES);
             return true;
         }
 
@@ -468,10 +474,20 @@ namespace GraphVisualizationApp.Services
         {
             var type = await _db.RelationTypes.FindAsync(id);
             if (type == null) return false;
-            // optionally consider removing or reassigning relations of this type
+            
+            // Удаляем все связи этого типа вместе с их свойствами
+            var relations = _db.GraphRelations.Where(r => r.RelationTypeId == id).ToList();
+            foreach (var rel in relations)
+            {
+                var relProps = _db.RelationProperties.Where(p => p.RelationId == rel.Id).ToList();
+                _db.RelationProperties.RemoveRange(relProps);
+            }
+            _db.GraphRelations.RemoveRange(relations);
+            
             _db.RelationTypes.Remove(type);
             await _db.SaveChangesAsync();
             _cache.Remove(CACHE_KEY_RELATION_TYPES);
+            _cache.Remove(CACHE_KEY_RELATIONS);
             return true;
         }
 

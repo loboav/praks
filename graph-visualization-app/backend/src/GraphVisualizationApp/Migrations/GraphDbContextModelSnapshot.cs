@@ -17,7 +17,7 @@ namespace GraphVisualizationApp.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "7.0.11")
+                .HasAnnotation("ProductVersion", "8.0.0")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -210,9 +210,14 @@ namespace GraphVisualizationApp.Migrations
                     b.Property<int>("ObjectTypeId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("ObjectTypeId1")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ObjectTypeId");
+
+                    b.HasIndex("ObjectTypeId1");
 
                     b.ToTable("RelationTypes");
                 });
@@ -280,10 +285,14 @@ namespace GraphVisualizationApp.Migrations
             modelBuilder.Entity("GraphVisualizationApp.Models.RelationType", b =>
                 {
                     b.HasOne("GraphVisualizationApp.Models.ObjectType", "ObjectType")
-                        .WithMany("RelationTypes")
+                        .WithMany()
                         .HasForeignKey("ObjectTypeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("GraphVisualizationApp.Models.ObjectType", null)
+                        .WithMany("RelationTypes")
+                        .HasForeignKey("ObjectTypeId1");
 
                     b.Navigation("ObjectType");
                 });
