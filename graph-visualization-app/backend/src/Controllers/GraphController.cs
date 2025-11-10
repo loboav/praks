@@ -148,8 +148,22 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpPost("objects")]
-        public async Task<IActionResult> CreateObject([FromBody] GraphObject obj)
+        public async Task<IActionResult> CreateObject([FromBody] CreateObjectDto dto)
         {
+            // Преобразуем DTO в GraphObject
+            var obj = new GraphObject
+            {
+                Name = dto.Name,
+                ObjectTypeId = dto.ObjectTypeId,
+                Color = dto.Color,
+                Icon = dto.Icon,
+                Properties = dto.Properties?.Select(p => new ObjectProperty
+                {
+                    Key = p.Key,
+                    Value = p.Value
+                }).ToList() ?? new List<ObjectProperty>()
+            };
+            
             var created = await _service.CreateObjectAsync(obj);
             return Ok(GraphService.ToDto(created));
         }

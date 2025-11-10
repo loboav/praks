@@ -70,15 +70,25 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
     name: string;
     objectTypeId: number;
     properties: Record<string, string>;
+    color?: string;
+    icon?: string;
   }) => {
     const propertiesArr = Object.entries(data.properties).map(
       ([key, value]) => ({ Key: key, Value: value })
     );
-    const payload = {
+    const payload: any = {
       Name: data.name,
       ObjectTypeId: data.objectTypeId,
       Properties: propertiesArr,
     };
+    
+    // Добавляем color и icon только если они переданы и не пустые
+    if (data.color && data.color.trim() !== '') {
+      payload.Color = data.color;
+    }
+    if (data.icon && data.icon.trim() !== '') {
+      payload.Icon = data.icon;
+    }
     
     const res = await fetch("/api/objects", {
       method: "POST",

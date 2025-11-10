@@ -18,7 +18,7 @@ const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate
       ? Object.entries(editData.properties).map(([key, value]) => ({ key, value }))
       : []
   );
-  const [color, setColor] = useState<string>(editData?.color || '');
+  const [color, setColor] = useState<string>(editData?.color || '#000000');
   const [icon, setIcon] = useState<string>(editData?.icon || '');
 
   const iconList = [
@@ -45,7 +45,7 @@ const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate
       setObjectTypeId(objectTypes[0].id);
       setName('');
       setProperties([]);
-      setColor('');
+      setColor('#000000');
       setIcon('');
     }
     if (open && isEdit && editData) {
@@ -56,7 +56,7 @@ const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate
           ? Object.entries(editData.properties).map(([key, value]) => ({ key, value }))
           : []
       );
-      setColor(editData.color || '');
+      setColor(editData.color || '#000000');
       setIcon(editData.icon || '');
     }
   }, [open, objectTypes, isEdit, editData]);
@@ -66,7 +66,17 @@ const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const propsObj = Object.fromEntries(properties.map(p => [p.key, p.value]));
-    const extra = { ...(color ? { color } : {}), ...(icon ? { icon } : {}) };
+    // Только добавляем color и icon если они не пустые
+    const extra: any = {};
+    // Проверяем, что color не пустая строка и не дефолтный черный
+    if (color && color.trim() !== '' && color !== '#000000') {
+      extra.color = color;
+    }
+    // Проверяем, что icon не пустая строка
+    if (icon && icon.trim() !== '') {
+      extra.icon = icon;
+    }
+    
     if (isEdit && onEdit && editData) {
       onEdit({
         id: editData.id,
@@ -86,7 +96,7 @@ const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate
     setName('');
     setObjectTypeId(objectTypes[0]?.id || 0);
     setProperties([]);
-    setColor('');
+    setColor('#000000');
     setIcon('');
     onClose();
   };
@@ -110,12 +120,17 @@ const AddObjectModal: React.FC<AddObjectModalProps> = ({ open, onClose, onCreate
           </div>
           <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
             <div>
-              <label style={{ fontSize: 14 }}>Цвет объекта:</label><br />
-              <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: 40, height: 32, border: 'none', background: 'none' }} />
+              <label style={{ fontSize: 14 }}>Цвет объекта (опционально):</label><br />
+              <input 
+                type="color" 
+                value={color || '#000000'} 
+                onChange={e => setColor(e.target.value)} 
+                style={{ width: 40, height: 32, border: 'none', background: 'none' }} 
+              />
             </div>
             <div>
-              <label style={{ fontSize: 14 }}>Иконка:</label><br />
-              <select value={icon} onChange={e => setIcon(e.target.value)} style={{ fontSize: 20, height: 32 }}>
+              <label style={{ fontSize: 14 }}>Иконка (опционально):</label><br />
+              <select value={icon || ''} onChange={e => setIcon(e.target.value)} style={{ fontSize: 20, height: 32 }}>
                 {iconList.map(i => <option key={i} value={i}>{i || '—'}</option>)}
               </select>
             </div>
