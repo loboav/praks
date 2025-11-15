@@ -27,10 +27,13 @@
     <Compile Include="..\Services\IGraphService.cs" />
     <Compile Include="..\Services\ExportService.cs" />
     <Compile Include="..\Services\IExportService.cs" />
+    <Compile Include="..\Services\AnalyticsService.cs" />
+    <Compile Include="..\Services\IAnalyticsService.cs" />
     <Compile Include="..\Models\GraphModels.cs" />
     <Compile Include="..\Models\GraphDtos.cs" />
     <Compile Include="..\Models\ValidationModels.cs" />
     <Compile Include="..\Models\SearchModels.cs" />
+    <Compile Include="..\Models\AnalyticsDtos.cs" />
     <Compile Include="..\GraphDbContext.cs" />
     <Compile Include="..\Algorithms\*.cs" />
     <Compile Include="..\Middleware\*.cs" />

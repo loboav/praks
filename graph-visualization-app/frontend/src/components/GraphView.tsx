@@ -16,6 +16,7 @@ import BulkChangeTypeModal from "./modals/BulkChangeTypeModal";
 import HistoryPanel from "./HistoryPanel";
 import SettingsButton from "./SettingsButton";
 import SearchPanel from "./SearchPanel";
+import AnalyticsDashboard from "./AnalyticsDashboard";
 import { toast } from "react-toastify";
 import { useMultiSelection } from "../hooks/useMultiSelection";
 import { useHistory } from "../hooks/useHistory";
@@ -39,6 +40,7 @@ export default function GraphView() {
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [editNode, setEditNode] = useState<GraphObject | null>(null);
   const [editEdge, setEditEdge] = useState<GraphRelation | null>(null);
   const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
@@ -356,6 +358,12 @@ export default function GraphView() {
             </svg>
             <span style={{ marginLeft: 8 }}>Поиск</span>
           </button>
+          <button onClick={() => setAnalyticsOpen(!analyticsOpen)} style={{ ...actionBtn, background: analyticsOpen ? "rgba(76, 175, 80, 0.2)" : "none" }} title="Аналитика">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V10m6 9V5m6 14v-7" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <span style={{ marginLeft: 8 }}>Аналитика</span>
+          </button>
         </div>
 
         {/* Modals */}
@@ -479,6 +487,25 @@ export default function GraphView() {
                 objectIds.forEach(id => toggleSelection(id, true));
               }}
             />
+          </div>
+        )}
+
+        {analyticsOpen && (
+          <div style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            width: "420px",
+            height: "100vh",
+            zIndex: 1000,
+            boxShadow: "-4px 0 12px rgba(0,0,0,0.15)",
+            background: "#fff",
+            animation: "slideInRight 0.3s ease-out"
+          }}>
+            <div style={{ position: 'absolute', top: 8, right: 8 }}>
+              <button onClick={() => setAnalyticsOpen(false)} style={{ background: 'transparent', border: 'none', fontSize: 22, cursor: 'pointer' }}>✕</button>
+            </div>
+            <AnalyticsDashboard nodes={nodes} />
           </div>
         )}
       </div>
