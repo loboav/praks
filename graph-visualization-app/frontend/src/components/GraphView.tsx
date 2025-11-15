@@ -18,6 +18,7 @@ import SettingsButton from "./SettingsButton";
 import SearchPanel from "./SearchPanel";
 import AnalyticsDashboard from "./AnalyticsDashboard";
 import { toast } from "react-toastify";
+import { useAuth } from "../contexts/AuthContext";
 import { useMultiSelection } from "../hooks/useMultiSelection";
 import { useHistory } from "../hooks/useHistory";
 import { useLayoutManager } from "../hooks/useLayoutManager";
@@ -27,6 +28,10 @@ import { useGraphFilters } from "../hooks/useGraphFilters";
 import { useBulkOperations } from "../hooks/useBulkOperations";
 
 export default function GraphView() {
+  const { user, isAuthenticated } = useAuth();
+  const canEdit = isAuthenticated && (user?.role === 'Editor' || user?.role === 'Admin');
+  const isAdmin = isAuthenticated && user?.role === 'Admin';
+
   // UI State
   const [selected, setSelected] = useState<any>(null);
   const [addObjectOpen, setAddObjectOpen] = useState(false);
@@ -263,7 +268,7 @@ export default function GraphView() {
                   <button onClick={() => setAddObjectTypeOpen(true)} style={{ background: "#2196f3", color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", boxShadow: "0 2px 8px rgba(33,150,243,0.3)", transition: "all 0.2s" }}>
                     Создать первый тип объекта
                   </button>
-                  {objectTypes.length > 0 && (
+                  {objectTypes.length > 0 && canEdit && (
                     <button onClick={() => setAddObjectOpen(true)} style={{ background: "#fff", color: "#2196f3", border: "2px solid #2196f3", borderRadius: 8, padding: "12px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", transition: "all 0.2s" }}>
                       Добавить объект
                     </button>
@@ -309,20 +314,24 @@ export default function GraphView() {
             Узлов: {filteredNodes.length}/{nodes.length} | Связей: {filteredEdges.length}/{edges.length}
             {hasActiveFilters && <span style={{ color: "#ff9800", marginLeft: 8 }}>• Фильтры активны</span>}
           </div>
-          <button onClick={saveLayout} style={actionBtn}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <rect x="4" y="4" width="16" height="16" rx="2" stroke="#fff" strokeWidth="2" />
-              <path d="M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span style={{ marginLeft: 8 }}>Сохранить</span>
-          </button>
-          <button onClick={() => setAddObjectOpen(true)} style={actionBtn}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="#fff" strokeWidth="2" />
-              <path d="M12 8v8M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span style={{ marginLeft: 8 }}>Добавить объект</span>
-          </button>
+          {canEdit && (
+            <button onClick={saveLayout} style={actionBtn}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                <rect x="4" y="4" width="16" height="16" rx="2" stroke="#fff" strokeWidth="2" />
+                <path d="M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <span style={{ marginLeft: 8 }}>Сохранить</span>
+            </button>
+          )}
+          {canEdit && (
+            <button onClick={() => setAddObjectOpen(true)} style={actionBtn}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="#fff" strokeWidth="2" />
+                <path d="M12 8v8M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <span style={{ marginLeft: 8 }}>Добавить объект</span>
+            </button>
+          )}
           <LayoutSelector
             currentLayout={currentLayoutType}
             onLayoutChange={setCurrentLayoutType}

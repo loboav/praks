@@ -13,8 +13,8 @@ namespace GraphVisualizationApp
         public DbSet<ObjectProperty> ObjectProperties { get; set; }
         public DbSet<GraphRelation> GraphRelations { get; set; }
         public DbSet<RelationProperty> RelationProperties { get; set; }
-
-    public DbSet<GraphLayout> GraphLayouts { get; set; }
+        public DbSet<GraphLayout> GraphLayouts { get; set; }
+        public DbSet<User> Users { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

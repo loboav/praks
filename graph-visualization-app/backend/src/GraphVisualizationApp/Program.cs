@@ -1,7 +1,10 @@
+using System.Text;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using GraphVisualizationApp.Services;
 using GraphVisualizationApp;
@@ -75,6 +78,7 @@ builder.Services.AddDbContext<GraphDbContext>(options =>
 builder.Services.AddScoped<IGraphService, GraphService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Add health checks
 builder.Services.AddHealthChecks()
@@ -82,6 +86,32 @@ builder.Services.AddHealthChecks()
 
 // Add memory cache for performance
 builder.Services.AddMemoryCache();
+
+// Configure JWT Authentication
+var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]!;
+var jwtIssuer = builder.Configuration["Jwt:Issuer"]!;
+var jwtAudience = builder.Configuration["Jwt:Audience"]!;
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey))
+    };
+});
+
+builder.Services.AddAuthorization();
 
 // Configure response compression
 builder.Services.AddResponseCompression(options =>
@@ -144,13 +174,15 @@ if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 // Enable CORS before authentication and authorization
 app.UseCors("AllowFrontend");
 
+// Add authentication & authorization middleware
+app.UseAuthentication();
+app.UseAuthorization();
+
 // Redirect root to Swagger UI
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
 // Health check endpoint
 app.MapHealthChecks("/health");
-
-app.UseAuthorization();
 
 app.MapControllers();
 

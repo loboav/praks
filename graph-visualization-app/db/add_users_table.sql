@@ -1,5 +1,5 @@
--- Инициализация базы данных Graph Visualization App
--- Включает создание таблицы пользователей
+-- Миграция: Добавление таблицы пользователей и системы ролей
+-- Дата: 2025-11-15
 
 -- Создание таблицы пользователей
 CREATE TABLE IF NOT EXISTS users (
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 
 -- Вставка дефолтного администратора
--- Логин: admin, Пароль: admin123
+-- Пароль: admin123
 -- Hash сгенерирован через BCrypt с work factor 11
 INSERT INTO users (username, password_hash, role) 
 VALUES ('admin', '$2a$11$XGqVZKqJ8mZ8p0rFJGz5d.9nLJbK7xN5Wy5FZ7R8wY3HqK6nQ8.zC', 'Admin')

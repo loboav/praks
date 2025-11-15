@@ -2,6 +2,7 @@
 using GraphVisualizationApp.Models;
 using GraphVisualizationApp.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,6 +11,7 @@ namespace GraphVisualizationApp.Controllers
 {
     [ApiController]
     [Route("api")]
+    [Authorize]
     public class GraphController : ControllerBase
     {
         private readonly IGraphService _service;
@@ -52,6 +54,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpPost("objects/batch-update")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> BatchUpdateObjects([FromBody] BatchUpdateRequest req)
         {
             if (req == null || req.Ids == null || req.Ids.Count == 0 || req.Fields == null)
@@ -61,6 +64,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpPost("relations/batch-update")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> BatchUpdateRelations([FromBody] BatchUpdateRequest req)
         {
             if (req == null || req.Ids == null || req.Ids.Count == 0 || req.Fields == null)
@@ -70,6 +74,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpGet("graph")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetGraph()
         {
             var graph = await _service.GetGraphAsync();
@@ -110,6 +115,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpGet("object-types")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetObjectTypes()
         {
             var types = await _service.GetObjectTypesAsync();
@@ -118,13 +124,24 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpPost("object-types")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateObjectType([FromBody] ObjectType type)
         {
             var created = await _service.CreateObjectTypeAsync(type);
             return Ok(GraphService.ToDto(created));
         }
 
+        [HttpDelete("object-types/{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteObjectType(int id)
+        {
+            var ok = await _service.DeleteObjectTypeAsync(id);
+            if (!ok) return NotFound();
+            return NoContent();
+        }
+
         [HttpGet("relation-types")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetRelationTypes()
         {
             var types = await _service.GetRelationTypesAsync();
@@ -133,13 +150,24 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpPost("relation-types")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateRelationType([FromBody] RelationType type)
         {
             var created = await _service.CreateRelationTypeAsync(type);
             return Ok(GraphService.ToDto(created));
         }
 
+        [HttpDelete("relation-types/{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteRelationType(int id)
+        {
+            var ok = await _service.DeleteRelationTypeAsync(id);
+            if (!ok) return NotFound();
+            return NoContent();
+        }
+
         [HttpGet("objects")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetObjects()
         {
             var objects = await _service.GetObjectsAsync();
@@ -148,6 +176,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpPost("objects")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> CreateObject([FromBody] CreateObjectDto dto)
         {
             // Преобразуем DTO в GraphObject
@@ -169,6 +198,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpPut("objects/{id}")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> UpdateObject(int id, [FromBody] GraphObject obj)
         {
             if (obj == null || obj.Id != id)
@@ -180,6 +210,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpGet("relations")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetRelations()
         {
             var rels = await _service.GetRelationsAsync();
@@ -188,6 +219,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpPost("relations")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> CreateRelation([FromBody] GraphRelation rel)
         {
             var created = await _service.CreateRelationAsync(rel);
@@ -195,6 +227,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpPut("relations/{id}")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> UpdateRelation(int id, [FromBody] GraphRelation rel)
         {
             if (rel == null || rel.Id != id)
@@ -206,6 +239,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpDelete("objects/{id}")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> DeleteObject(int id)
         {
             var ok = await _service.DeleteObjectAsync(id);
@@ -214,6 +248,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpDelete("relations/{id}")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> DeleteRelation(int id)
         {
             var ok = await _service.DeleteRelationAsync(id);

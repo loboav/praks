@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { exportGraph } from '../../utils/exportUtils';
 import { toast } from 'react-toastify';
+import { useAuth } from '../../contexts/AuthContext';
+import UserManagement from '../UserManagement';
 
 interface SettingsModalProps {
   open: boolean;
@@ -9,8 +12,21 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
   const [isExporting, setIsExporting] = useState(false);
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
 
   if (!open) return null;
+
+  const handleLogin = () => {
+    onClose();
+    navigate('/login');
+  };
+
+  const handleLogout = () => {
+    logout();
+    onClose();
+    toast.info('Вы вышли из системы');
+  };
 
   const handleExport = async (format: 'json' | 'graphml' | 'csv') => {
     setIsExporting(true);
@@ -81,6 +97,67 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               ×
             </button>
           </div>
+
+          {/* Auth Section */}
+          {!isAuthenticated ? (
+            <section style={{ marginBottom: 32, paddingBottom: 24, borderBottom: '1px solid #e0e0e0' }}>
+              <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                <p style={{ color: '#666', marginBottom: 16 }}>
+                  Вы в режиме гостя. Войдите, чтобы редактировать граф.
+                </p>
+                <button
+                  onClick={handleLogin}
+                  style={{
+                    padding: '12px 32px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                    transition: 'transform 0.2s'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  🔑 Войти в аккаунт
+                </button>
+              </div>
+            </section>
+          ) : (
+            <section style={{ marginBottom: 32, borderBottom: '1px solid #e0e0e0', paddingBottom: 24 }}>
+              <UserManagement />
+              <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid #e0e0e0', textAlign: 'center' }}>
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    padding: '8px 24px',
+                    background: '#f5f5f5',
+                    color: '#666',
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    fontSize: 14,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = '#fee';
+                    e.currentTarget.style.borderColor = '#faa';
+                    e.currentTarget.style.color = '#c33';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = '#f5f5f5';
+                    e.currentTarget.style.borderColor = '#ddd';
+                    e.currentTarget.style.color = '#666';
+                  }}
+                >
+                  Выйти из аккаунта
+                </button>
+              </div>
+            </section>
+          )}
 
           {/* Export Section */}
           <section style={{ marginBottom: 32 }}>

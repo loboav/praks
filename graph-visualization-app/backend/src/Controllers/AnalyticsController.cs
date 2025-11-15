@@ -3,11 +3,13 @@ using System.Threading.Tasks;
 using GraphVisualizationApp.Models;
 using GraphVisualizationApp.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace GraphVisualizationApp.Controllers
 {
     [ApiController]
     [Route("api/analytics")]
+    [AllowAnonymous]
     public class AnalyticsController : ControllerBase
     {
         private readonly IAnalyticsService _service;

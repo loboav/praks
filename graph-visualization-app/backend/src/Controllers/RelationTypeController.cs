@@ -1,6 +1,7 @@
 using GraphVisualizationApp.Models;
 using GraphVisualizationApp.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -8,6 +9,7 @@ namespace GraphVisualizationApp.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "Admin")]
     public class RelationTypeController : ControllerBase
     {
         private readonly IGraphService _service;

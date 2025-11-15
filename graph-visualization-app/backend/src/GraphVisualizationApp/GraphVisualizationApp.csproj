@@ -19,6 +19,9 @@
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
     <PackageReference Include="FluentValidation" Version="11.9.0" />
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,11 +32,16 @@
     <Compile Include="..\Services\IExportService.cs" />
     <Compile Include="..\Services\AnalyticsService.cs" />
     <Compile Include="..\Services\IAnalyticsService.cs" />
+    <Compile Include="..\Services\AuthService.cs" />
+    <Compile Include="..\Services\IAuthService.cs" />
     <Compile Include="..\Models\GraphModels.cs" />
     <Compile Include="..\Models\GraphDtos.cs" />
     <Compile Include="..\Models\ValidationModels.cs" />
     <Compile Include="..\Models\SearchModels.cs" />
     <Compile Include="..\Models\AnalyticsDtos.cs" />
+    <Compile Include="..\Models\User.cs" />
+    <Compile Include="..\Models\UserRole.cs" />
+    <Compile Include="..\Models\AuthDtos.cs" />
     <Compile Include="..\GraphDbContext.cs" />
     <Compile Include="..\Algorithms\*.cs" />
     <Compile Include="..\Middleware\*.cs" />

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { GraphObject, GraphRelation } from '../types/graph';
 import { toast } from 'react-toastify';
+import { apiClient } from '../utils/apiClient';
 import {
   circularLayout,
   gridLayout,
@@ -114,18 +115,18 @@ export const useLayoutManager = ({
       }))
     };
     
-    await fetch("/api/layout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ layoutJson: JSON.stringify(layoutObj) }),
-    });
+    const res = await apiClient.post("/api/layout", { layoutJson: JSON.stringify(layoutObj) });
     
-    toast.success("Сетка успешно сохранена!");
+    if (res.ok) {
+      toast.success("Сетка успешно сохранена!");
+    } else {
+      toast.error("Ошибка сохранения layout");
+    }
   }, [nodes]);
 
   const loadLayout = useCallback(async () => {
     try {
-      const response = await fetch("/api/layout");
+      const response = await apiClient.get("/api/layout");
       if (!response.ok) return null;
       
       const layoutData = await response.json();

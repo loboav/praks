@@ -1,9 +1,12 @@
 import { useState, useCallback } from 'react';
 import { GraphObject, GraphRelation, ObjectType, RelationType } from '../types/graph';
 import { toast } from 'react-toastify';
+import { apiClient } from '../utils/apiClient';
 
-const api = (path: string, opts?: any) =>
-  fetch("/api" + path, opts).then((r) => r.json());
+const api = async (path: string, opts?: any) => {
+  const response = await apiClient.get("/api" + path, opts);
+  return response.json();
+};
 
 interface UseGraphDataProps {
   onAddHistoryAction?: (action: any) => void;
@@ -38,8 +41,8 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
 
   const loadInitialData = useCallback(async (layoutLoader?: () => Promise<any>) => {
     const [objTypes, relTypes] = await Promise.all([
-      api("/objecttype"),
-      api("/relationtype"),
+      api("/object-types"),
+      api("/relation-types"),
     ]);
     
     setObjectTypes(objTypes);
@@ -90,11 +93,7 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
       payload.Icon = data.icon;
     }
     
-    const res = await fetch("/api/objects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const res = await apiClient.post("/api/objects", payload);
     
     if (!res.ok) {
       const text = await res.text();
@@ -111,15 +110,11 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
         type: 'create',
         description: `Создан объект "${data.name}"`,
         undo: async () => {
-          await fetch(`/api/objects/${createdObj.id}`, { method: 'DELETE' });
+          await apiClient.delete(`/api/objects/${createdObj.id}`);
           setNodes(prev => prev.filter(n => n.id !== createdObj.id));
         },
         redo: async () => {
-          await fetch('/api/objects', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
+          await apiClient.post('/api/objects', payload);
           const updated = await api('/objects');
           setNodes(prev => mergeNodesWithPositions(updated, prev));
         },
@@ -150,11 +145,7 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
     if (data.color !== undefined) payload.Color = data.color;
     if (data.icon !== undefined) payload.Icon = data.icon;
     
-    const res = await fetch(`/api/objects/${data.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const res = await apiClient.put(`/api/objects/${data.id}`, payload);
     
     if (!res.ok) {
       const text = await res.text();
@@ -184,20 +175,12 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
         type: 'update',
         description: `Изменён объект "${data.name}"`,
         undo: async () => {
-          await fetch(`/api/objects/${data.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(oldPayload),
-          });
+          await apiClient.put(`/api/objects/${data.id}`, oldPayload);
           const updated = await api('/objects');
           setNodes(prev => mergeNodesWithPositions(updated, prev));
         },
         redo: async () => {
-          await fetch(`/api/objects/${data.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
+          await apiClient.put(`/api/objects/${data.id}`, payload);
           const updated = await api('/objects');
           setNodes(prev => mergeNodesWithPositions(updated, prev));
         },
@@ -212,7 +195,7 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
     
     const relatedEdges = edges.filter(e => e.source === node.id || e.target === node.id);
     
-    await fetch(`/api/objects/${node.id}`, { method: "DELETE" });
+    await apiClient.delete(`/api/objects/${node.id}`);
     setNodes(prev => prev.filter((n) => n.id !== node.id));
     
     if (onAddHistoryAction) {
@@ -227,17 +210,13 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
               }))
             : [];
           
-          const res = await fetch('/api/objects', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          const res = await apiClient.post('/api/objects', {
               Name: deletedNode.name,
               ObjectTypeId: deletedNode.objectTypeId,
               Properties: propertiesArr,
               PositionX: deletedNode.PositionX,
               PositionY: deletedNode.PositionY,
-            }),
-          });
+            });
           const created = await res.json();
           restoredNodeId = created.id;
           const updated = await api('/objects');
@@ -252,16 +231,12 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
                 }))
               : [];
             
-            const edgeRes = await fetch('/api/relations', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
+            const edgeRes = await apiClient.post('/api/relations', {
                 Source: edge.source === deletedNode.id ? restoredNodeId : edge.source,
                 Target: edge.target === deletedNode.id ? restoredNodeId : edge.target,
                 RelationTypeId: edge.relationTypeId,
                 Properties: edgePropertiesArr,
-              }),
-            });
+              });
             const createdEdge = await edgeRes.json();
             restoredEdgeIds.set(edge.id, createdEdge.id);
           }
@@ -270,13 +245,13 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
         },
         redo: async () => {
           const idToDelete = restoredNodeId || deletedNode.id;
-          await fetch(`/api/objects/${idToDelete}`, { method: 'DELETE' });
+          await apiClient.delete(`/api/objects/${idToDelete}`);
           setNodes(prev => prev.filter((n) => n.id !== idToDelete));
           
           if (restoredEdgeIds.size > 0) {
             await Promise.all(
               Array.from(restoredEdgeIds.values()).map(edgeId => 
-                fetch(`/api/relations/${edgeId}`, { method: 'DELETE' })
+                apiClient.delete(`/api/relations/${edgeId}`)
               )
             );
             const updatedEdges = await api('/relations');
@@ -303,11 +278,7 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
       })),
     };
     
-    const res = await fetch("/api/relations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const res = await apiClient.post("/api/relations", payload);
     
     if (!res.ok) {
       const text = await res.text();
@@ -327,16 +298,12 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
         type: 'create',
         description: `Создана связь ${sourceNode?.name || data.source} → ${targetNode?.name || data.target}`,
         undo: async () => {
-          await fetch(`/api/relations/${createdRelation.id}`, { method: 'DELETE' });
+          await apiClient.delete(`/api/relations/${createdRelation.id}`);
           const updated = await api('/relations');
           setEdges(updated);
         },
         redo: async () => {
-          await fetch('/api/relations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
+          await apiClient.post('/api/relations', payload);
           const updated = await api('/relations');
           setEdges(updated);
         },
@@ -358,11 +325,7 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
       Properties: propertiesArr,
     };
     
-    const res = await fetch(`/api/relations/${data.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const res = await apiClient.put(`/api/relations/${data.id}`, payload);
     
     if (!res.ok) {
       const text = await res.text();
@@ -379,7 +342,7 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
     const deletedEdge = { ...edge };
     let restoredEdgeId: number | null = null;
     
-    await fetch(`/api/relations/${edge.id}`, { method: "DELETE" });
+    await apiClient.delete(`/api/relations/${edge.id}`);
     setEdges(edges.filter((e) => e.id !== edge.id));
     
     if (onAddHistoryAction) {
@@ -397,16 +360,12 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
               }))
             : [];
           
-          const res = await fetch('/api/relations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          const res = await apiClient.post('/api/relations', {
               Source: deletedEdge.source,
               Target: deletedEdge.target,
               RelationTypeId: deletedEdge.relationTypeId,
               Properties: propertiesArr,
-            }),
-          });
+            });
           const created = await res.json();
           restoredEdgeId = created.id;
           const updated = await api('/relations');
@@ -414,7 +373,7 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
         },
         redo: async () => {
           const idToDelete = restoredEdgeId || deletedEdge.id;
-          await fetch(`/api/relations/${idToDelete}`, { method: 'DELETE' });
+          await apiClient.delete(`/api/relations/${idToDelete}`);
           setEdges(prev => prev.filter(e => e.id !== idToDelete));
         },
       });
@@ -447,11 +406,7 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
       payload.Description = data.description;
     }
     
-    const res = await fetch("/api/objecttype", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const res = await apiClient.post("/api/object-types", payload);
     
     if (!res.ok) {
       const text = await res.text();
@@ -460,12 +415,12 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
     }
     
     toast.success("Тип объекта создан");
-    const types = await api("/objecttype");
+    const types = await api("/object-types");
     setObjectTypes(types);
   }, []);
 
   const deleteObjectType = useCallback(async (id: number) => {
-    await fetch(`/api/objecttype/${id}`, { method: "DELETE" });
+    await apiClient.delete(`/api/object-types/${id}`);
     setObjectTypes(objectTypes.filter((t) => t.id !== id));
   }, [objectTypes]);
 
@@ -474,17 +429,13 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
     description?: string;
     objectTypeId: number;
   }) => {
-    await fetch("/api/relationtype", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    const relTypes = await fetch("/api/relationtype").then((r) => r.json());
+    await apiClient.post("/api/relation-types", data);
+    const relTypes = await api("/relation-types");
     setRelationTypes(relTypes);
   }, []);
 
   const deleteRelationType = useCallback(async (id: number) => {
-    await fetch(`/api/relationtype/${id}`, { method: "DELETE" });
+    await apiClient.delete(`/api/relation-types/${id}`);
     setRelationTypes(relationTypes.filter((t) => t.id !== id));
   }, [relationTypes]);
 
@@ -510,3 +461,4 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
     mergeNodesWithPositions,
   };
 };
+
