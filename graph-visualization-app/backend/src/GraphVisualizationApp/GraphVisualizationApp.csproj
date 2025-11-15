@@ -30,6 +30,8 @@
     <Compile Include="..\Services\IGraphService.cs" />
     <Compile Include="..\Services\ExportService.cs" />
     <Compile Include="..\Services\IExportService.cs" />
+    <Compile Include="..\Services\ImportService.cs" />
+    <Compile Include="..\Services\IImportService.cs" />
     <Compile Include="..\Services\AnalyticsService.cs" />
     <Compile Include="..\Services\IAnalyticsService.cs" />
     <Compile Include="..\Services\AuthService.cs" />

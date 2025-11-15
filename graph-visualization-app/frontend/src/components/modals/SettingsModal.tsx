@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { exportGraph } from '../../utils/exportUtils';
+import { importGraph } from '../../utils/importUtils';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 import UserManagement from '../UserManagement';
@@ -12,8 +13,10 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!open) return null;
 
@@ -38,6 +41,40 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     } else {
       toast.error(`Ошибка экспорта: ${result.error}`);
     }
+  };
+
+  const handleImport = (format: 'json' | 'graphml') => {
+    if (!isAuthenticated || (user?.role !== 'Editor' && user?.role !== 'Admin')) {
+      toast.error('Только редакторы и администраторы могут импортировать графы');
+      return;
+    }
+
+    // Создаём временный input для выбора файла
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = format === 'json' ? '.json' : '.graphml,.xml';
+    
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      setIsImporting(true);
+      const result = await importGraph(file, format);
+      setIsImporting(false);
+
+      if (result.success) {
+        toast.success(
+          `Импорт завершён! Объектов: ${result.objectsImported}, Связей: ${result.relationsImported}`,
+          { autoClose: 5000 }
+        );
+        // Перезагружаем страницу для обновления данных
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        toast.error(`Ошибка импорта: ${result.error}`);
+      }
+    };
+
+    input.click();
   };
 
   return (
@@ -203,18 +240,59 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
             </div>
           </section>
 
-          {/* Import Section (Coming Soon) */}
+          {/* Import Section */}
           <section style={{ marginBottom: 32 }}>
             <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>📥</span>
               Импорт графа
-              <span style={{ fontSize: 12, background: '#FFC107', color: '#000', padding: '2px 8px', borderRadius: 4, fontWeight: 500 }}>
-                Скоро
-              </span>
             </h3>
-            <p style={{ color: '#999', fontSize: 14, fontStyle: 'italic' }}>
-              Функция импорта будет доступна в следующей версии
-            </p>
+            {!isAuthenticated || (user?.role !== 'Editor' && user?.role !== 'Admin') ? (
+              <p style={{ color: '#999', fontSize: 14, fontStyle: 'italic' }}>
+                Импорт доступен только редакторам и администраторам
+              </p>
+            ) : (
+              <>
+                <p style={{ color: '#666', fontSize: 14, marginBottom: 16 }}>
+                  Загрузите файл для импорта данных в граф
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <button
+                    onClick={() => handleImport('json')}
+                    disabled={isImporting}
+                    style={{
+                      ...importBtn,
+                      background: isImporting ? '#e0e0e0' : '#4CAF50',
+                      cursor: isImporting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>📄</span>
+                    <div style={{ flex: 1, textAlign: 'left' }}>
+                      <div style={{ fontWeight: 600 }}>JSON</div>
+                      <div style={{ fontSize: 13, opacity: 0.8 }}>Импорт из JSON файла</div>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => handleImport('graphml')}
+                    disabled={isImporting}
+                    style={{
+                      ...importBtn,
+                      background: isImporting ? '#e0e0e0' : '#2196F3',
+                      cursor: isImporting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>📊</span>
+                    <div style={{ flex: 1, textAlign: 'left' }}>
+                      <div style={{ fontWeight: 600 }}>GraphML</div>
+                      <div style={{ fontSize: 13, opacity: 0.8 }}>Импорт из GraphML файла</div>
+                    </div>
+                  </button>
+                </div>
+                <p style={{ color: '#ff9800', fontSize: 13, marginTop: 12, fontWeight: 500 }}>
+                  ⚠️ Импорт добавит данные к существующему графу
+                </p>
+              </>
+            )}
           </section>
 
           {/* Theme Section (Coming Soon) */}
@@ -250,6 +328,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 };
 
 const exportBtn: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 16,
+  padding: 16,
+  border: 'none',
+  borderRadius: 8,
+  color: '#fff',
+  fontSize: 15,
+  fontWeight: 500,
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+};
+
+const importBtn: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 16,

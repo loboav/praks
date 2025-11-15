@@ -1,9 +1,12 @@
 import { useCallback } from 'react';
 import { GraphObject, GraphRelation } from '../types/graph';
 import { toast } from 'react-toastify';
+import { apiClient } from '../utils/apiClient';
 
-const api = (path: string, opts?: any) =>
-  fetch("/api" + path, opts).then((r) => r.json());
+const api = async (path: string) => {
+  const response = await apiClient.get("/api" + path);
+  return response.json();
+};
 
 interface UseBulkOperationsProps {
   nodes: GraphObject[];
@@ -36,7 +39,7 @@ export const useBulkOperations = ({
       );
       
       await Promise.all(
-        selectedIds.map(id => fetch(`/api/objects/${id}`, { method: "DELETE" }))
+        selectedIds.map(id => apiClient.delete(`/api/objects/${id}`))
       );
       setNodes(prev => prev.filter(n => !selectedIds.includes(n.id)));
       
@@ -56,16 +59,12 @@ export const useBulkOperations = ({
                   }))
                 : [];
               
-              const res = await fetch('/api/objects', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  Name: node.name,
-                  ObjectTypeId: node.objectTypeId,
-                  Properties: propertiesArr,
-                  PositionX: node.PositionX,
-                  PositionY: node.PositionY,
-                }),
+              const res = await apiClient.post('/api/objects', {
+                Name: node.name,
+                ObjectTypeId: node.objectTypeId,
+                Properties: propertiesArr,
+                PositionX: node.PositionX,
+                PositionY: node.PositionY,
               });
               const created = await res.json();
               restoredNodeIds.set(node.id, created.id);
@@ -84,15 +83,11 @@ export const useBulkOperations = ({
               const newSource = restoredNodeIds.get(edge.source) || edge.source;
               const newTarget = restoredNodeIds.get(edge.target) || edge.target;
               
-              const edgeRes = await fetch('/api/relations', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  Source: newSource,
-                  Target: newTarget,
-                  RelationTypeId: edge.relationTypeId,
-                  Properties: edgePropertiesArr,
-                }),
+              const edgeRes = await apiClient.post('/api/relations', {
+                Source: newSource,
+                Target: newTarget,
+                RelationTypeId: edge.relationTypeId,
+                Properties: edgePropertiesArr,
               });
               const createdEdge = await edgeRes.json();
               restoredEdgeIds.push(createdEdge.id);
@@ -106,14 +101,14 @@ export const useBulkOperations = ({
               : deletedNodes.map(n => n.id);
             
             await Promise.all(
-              idsToDelete.map(id => fetch(`/api/objects/${id}`, { method: 'DELETE' }))
+              idsToDelete.map(id => apiClient.delete(`/api/objects/${id}`))
             );
             setNodes(prev => prev.filter(n => !idsToDelete.includes(n.id)));
             
             if (restoredEdgeIds.length > 0) {
               await Promise.all(
                 restoredEdgeIds.map(edgeId => 
-                  fetch(`/api/relations/${edgeId}`, { method: 'DELETE' })
+                  apiClient.delete(`/api/relations/${edgeId}`)
                 )
               );
               const updatedEdges = await api('/relations');
@@ -154,15 +149,11 @@ export const useBulkOperations = ({
             }))
           : [];
 
-        return fetch(`/api/objects/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            Id: id,
-            Name: node.name,
-            ObjectTypeId: newTypeId,
-            Properties: propertiesArr,
-          }),
+        return apiClient.put(`/api/objects/${id}`, {
+          Id: id,
+          Name: node.name,
+          ObjectTypeId: newTypeId,
+          Properties: propertiesArr,
         });
       });
 
@@ -176,15 +167,11 @@ export const useBulkOperations = ({
           description: `Изменён тип для ${oldNodes.length} объект(ов)`,
           undo: async () => {
             for (const oldNode of oldNodes) {
-              await fetch(`/api/objects/${oldNode.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  Id: oldNode.id,
-                  Name: oldNode.name,
-                  ObjectTypeId: oldNode.objectTypeId,
-                  Properties: oldNode.properties,
-                }),
+              await apiClient.put(`/api/objects/${oldNode.id}`, {
+                Id: oldNode.id,
+                Name: oldNode.name,
+                ObjectTypeId: oldNode.objectTypeId,
+                Properties: oldNode.properties,
               });
             }
             const updated = await api('/objects');
@@ -202,15 +189,11 @@ export const useBulkOperations = ({
                   }))
                 : [];
               
-              await fetch(`/api/objects/${oldNode.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  Id: oldNode.id,
-                  Name: node.name,
-                  ObjectTypeId: newTypeId,
-                  Properties: propertiesArr,
-                }),
+              await apiClient.put(`/api/objects/${oldNode.id}`, {
+                Id: oldNode.id,
+                Name: node.name,
+                ObjectTypeId: newTypeId,
+                Properties: propertiesArr,
               });
             }
             const updated = await api('/objects');

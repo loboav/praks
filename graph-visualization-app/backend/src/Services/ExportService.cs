@@ -86,6 +86,12 @@ namespace GraphVisualizationApp.Services
                 var objectTypes = await _graphService.GetObjectTypesAsync();
                 var relationTypes = await _graphService.GetRelationTypesAsync();
                 
+                // Опции JSON для корректной кодировки кириллицы
+                var jsonOptions = new JsonSerializerOptions
+                {
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                };
+                
                 XNamespace ns = "http://graphml.graphdrawing.org/xmlns";
                 var graphml = new XDocument(
                     new XDeclaration("1.0", "UTF-8", "yes"),
@@ -153,7 +159,7 @@ namespace GraphVisualizationApp.Services
                             {
                                 var typeName = objectTypes.FirstOrDefault(ot => ot.Id == o.ObjectTypeId)?.Name ?? "Unknown";
                                 var propsJson = o.Properties != null && o.Properties.Any()
-                                    ? JsonSerializer.Serialize(o.Properties.ToDictionary(p => p.Key ?? "", p => p.Value ?? ""))
+                                    ? JsonSerializer.Serialize(o.Properties.ToDictionary(p => p.Key ?? "", p => p.Value ?? ""), jsonOptions)
                                     : "";
                                 
                                 return new XElement(ns + "node",
@@ -170,7 +176,7 @@ namespace GraphVisualizationApp.Services
                             {
                                 var relTypeName = relationTypes.FirstOrDefault(rt => rt.Id == r.RelationTypeId)?.Name ?? "Unknown";
                                 var propsJson = r.Properties != null && r.Properties.Any()
-                                    ? JsonSerializer.Serialize(r.Properties.ToDictionary(p => p.Key ?? "", p => p.Value ?? ""))
+                                    ? JsonSerializer.Serialize(r.Properties.ToDictionary(p => p.Key ?? "", p => p.Value ?? ""), jsonOptions)
                                     : "";
                                 
                                 return new XElement(ns + "edge",

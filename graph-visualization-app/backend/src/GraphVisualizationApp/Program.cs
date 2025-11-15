@@ -77,6 +77,7 @@ builder.Services.AddDbContext<GraphDbContext>(options =>
 // Register application services
 builder.Services.AddScoped<IGraphService, GraphService>();
 builder.Services.AddScoped<IExportService, ExportService>();
+builder.Services.AddScoped<IImportService, ImportService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
