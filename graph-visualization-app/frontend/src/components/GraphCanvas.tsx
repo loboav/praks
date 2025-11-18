@@ -15,6 +15,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { GraphObject, GraphRelation, RelationType } from "../types/graph";
+import { apiClient } from "../utils/apiClient";
 
 interface GraphCanvasProps {
   nodes: GraphObject[];
@@ -353,7 +354,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
             const tryPrimary = async () => {
               try {
-                const r = await fetch(url);
+                const r = await apiClient.get(url);
                 if (r.status === 404 && !base) {
                   return null;
                 }
@@ -370,7 +371,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
               let data = await tryPrimary();
               if (!data) {
                 try {
-                  const r2 = await fetch(
+                  const r2 = await apiClient.get(
                     `http://localhost:5000/api/dijkstra-path?fromId=${from}&toId=${to}`,
                   );
                   if (r2.ok) data = await r2.json();
