@@ -1,6 +1,7 @@
 using GraphVisualizationApp.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 using System.Xml.Linq;
 
@@ -10,15 +11,21 @@ namespace GraphVisualizationApp.Services
     {
         private readonly GraphDbContext _db;
         private readonly IMemoryCache _cache;
+        private readonly CacheSettings _cacheSettings;
+        
         private const string CACHE_KEY_OBJECTS = "graph_objects";
         private const string CACHE_KEY_RELATIONS = "graph_relations";
         private const string CACHE_KEY_OBJECT_TYPES = "object_types";
         private const string CACHE_KEY_RELATION_TYPES = "relation_types";
 
-        public ImportService(GraphDbContext db, IMemoryCache cache)
+        public ImportService(
+            GraphDbContext db, 
+            IMemoryCache cache,
+            IOptions<CacheSettings> cacheOptions)
         {
             _db = db;
             _cache = cache;
+            _cacheSettings = cacheOptions.Value;
         }
 
         public async Task<ImportResult> ImportFromJsonAsync(string json)

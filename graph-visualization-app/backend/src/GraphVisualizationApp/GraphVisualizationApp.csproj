@@ -37,6 +37,7 @@
     <Compile Include="..\Services\AuthService.cs" />
     <Compile Include="..\Services\IAuthService.cs" />
     <Compile Include="..\Models\GraphModels.cs" />
+    <Compile Include="..\Models\ApplicationSettings.cs" />
     <Compile Include="..\Models\GraphDtos.cs" />
     <Compile Include="..\Models\ValidationModels.cs" />
     <Compile Include="..\Models\SearchModels.cs" />

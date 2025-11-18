@@ -10,6 +10,7 @@ using GraphVisualizationApp.Services;
 using GraphVisualizationApp;
 using GraphVisualizationApp.Middleware;
 using GraphVisualizationApp.Data;
+using GraphVisualizationApp.Models;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 
@@ -17,6 +18,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
 builder.Services.AddControllers();
+
+// ✅ НОВОЕ: Register Configuration Settings
+builder.Services.Configure<CacheSettings>(
+    builder.Configuration.GetSection("Cache"));
+builder.Services.Configure<ApiSettings>(
+    builder.Configuration.GetSection("Api"));
+builder.Services.Configure<JwtSettings>(
+    builder.Configuration.GetSection("Jwt"));
 
 // Add FluentValidation
 builder.Services.AddFluentValidationAutoValidation();

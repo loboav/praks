@@ -2,6 +2,7 @@ using GraphVisualizationApp.Models;
 using GraphVisualizationApp.Algorithms;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,16 +14,21 @@ namespace GraphVisualizationApp.Services
     {
         private readonly GraphDbContext _db;
         private readonly IMemoryCache _cache;
+        private readonly CacheSettings _cacheSettings;
+        
         private const string CACHE_KEY_OBJECTS = "graph_objects";
         private const string CACHE_KEY_RELATIONS = "graph_relations";
         private const string CACHE_KEY_OBJECT_TYPES = "object_types";
         private const string CACHE_KEY_RELATION_TYPES = "relation_types";
-        private static readonly TimeSpan CacheExpiration = TimeSpan.FromMinutes(5);
 
-        public GraphService(GraphDbContext db, IMemoryCache cache) 
+        public GraphService(
+            GraphDbContext db, 
+            IMemoryCache cache,
+            IOptions<CacheSettings> cacheOptions) 
         { 
             _db = db;
             _cache = cache;
+            _cacheSettings = cacheOptions.Value;
         }
 
         // Поиск кратчайшего пути по Дейкстре (оптимизировано с использованием кэша)
@@ -204,7 +210,7 @@ namespace GraphVisualizationApp.Services
         {
             return await _cache.GetOrCreateAsync(CACHE_KEY_OBJECT_TYPES, async entry =>
             {
-                entry.AbsoluteExpirationRelativeToNow = CacheExpiration;
+                entry.AbsoluteExpirationRelativeToNow = _cacheSettings.ObjectTypesCacheDuration;
                 return await _db.ObjectTypes.AsNoTracking().ToListAsync();
             }) ?? new List<ObjectType>();
         }
@@ -237,7 +243,7 @@ namespace GraphVisualizationApp.Services
         {
             return await _cache.GetOrCreateAsync(CACHE_KEY_RELATION_TYPES, async entry =>
             {
-                entry.AbsoluteExpirationRelativeToNow = CacheExpiration;
+                entry.AbsoluteExpirationRelativeToNow = _cacheSettings.RelationTypesCacheDuration;
                 return await _db.RelationTypes.AsNoTracking().ToListAsync();
             }) ?? new List<RelationType>();
         }
@@ -255,7 +261,7 @@ namespace GraphVisualizationApp.Services
         {
             return await _cache.GetOrCreateAsync(CACHE_KEY_OBJECTS, async entry =>
             {
-                entry.AbsoluteExpirationRelativeToNow = CacheExpiration;
+                entry.AbsoluteExpirationRelativeToNow = _cacheSettings.ObjectsCacheDuration;
                 return await _db.GraphObjects
                     .Include(o => o.Properties)
                     .AsSplitQuery()
@@ -277,7 +283,7 @@ namespace GraphVisualizationApp.Services
         {
             return await _cache.GetOrCreateAsync(CACHE_KEY_RELATIONS, async entry =>
             {
-                entry.AbsoluteExpirationRelativeToNow = CacheExpiration;
+                entry.AbsoluteExpirationRelativeToNow = _cacheSettings.RelationsCacheDuration;
                 return await _db.GraphRelations
                     .Include(r => r.Properties)
                     .AsSplitQuery()
