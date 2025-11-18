@@ -210,16 +210,50 @@ namespace GraphVisualizationApp.Migrations
                     b.Property<int>("ObjectTypeId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("ObjectTypeId1")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ObjectTypeId");
 
-                    b.HasIndex("ObjectTypeId1");
-
                     b.ToTable("RelationTypes");
+                });
+
+            modelBuilder.Entity("GraphVisualizationApp.Models.User", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("password_hash");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("role");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("username");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("users");
                 });
 
             modelBuilder.Entity("GraphVisualizationApp.Models.GraphObject", b =>
@@ -285,14 +319,10 @@ namespace GraphVisualizationApp.Migrations
             modelBuilder.Entity("GraphVisualizationApp.Models.RelationType", b =>
                 {
                     b.HasOne("GraphVisualizationApp.Models.ObjectType", "ObjectType")
-                        .WithMany()
+                        .WithMany("RelationTypes")
                         .HasForeignKey("ObjectTypeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("GraphVisualizationApp.Models.ObjectType", null)
-                        .WithMany("RelationTypes")
-                        .HasForeignKey("ObjectTypeId1");
 
                     b.Navigation("ObjectType");
                 });
