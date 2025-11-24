@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GraphVisualizationApp.Migrations
 {
     [DbContext(typeof(GraphDbContext))]
-    [Migration("20251118142404_InitialCreate")]
+    [Migration("20251124165208_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />

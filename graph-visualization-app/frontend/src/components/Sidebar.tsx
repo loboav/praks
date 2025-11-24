@@ -21,7 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onDeleteRelationType,
 }) => {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'Admin';
+  const canManageTypes = user?.role === 'Admin' || user?.role === 'Editor';
   const handleDeleteObjectType = async (id: number) => {
     if (window.confirm("Удалить тип объекта?")) {
       try {
@@ -56,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       }}
     >
       <h3 style={{ marginTop: 0 }}>Типы объектов</h3>
-      {isAdmin && (
+      {canManageTypes && (
         <button
           onClick={onAddObjectType}
           style={{
@@ -86,7 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             }}
           >
             <span>{type.name}</span>
-            {isAdmin && (
+            {canManageTypes && (
               <button
                 onClick={() => handleDeleteObjectType(type.id)}
                 style={{
@@ -104,7 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         ))}
       </ul>
       <h3 style={{ marginTop: 28 }}>Типы связей</h3>
-      {isAdmin && (
+      {canManageTypes && (
         <button
           onClick={onAddRelationType}
           style={{
@@ -134,7 +134,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             }}
           >
             <span>{type.name}</span>
-            {isAdmin && (
+            {canManageTypes && (
               <button
                 onClick={() => handleDeleteRelationType(type.id)}
                 style={{

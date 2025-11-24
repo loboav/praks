@@ -124,7 +124,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpPost("object-types")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> CreateObjectType([FromBody] ObjectType type)
         {
             var created = await _service.CreateObjectTypeAsync(type);
@@ -132,7 +132,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpDelete("object-types/{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> DeleteObjectType(int id)
         {
             var ok = await _service.DeleteObjectTypeAsync(id);
@@ -150,7 +150,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpPost("relation-types")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> CreateRelationType([FromBody] RelationType type)
         {
             var created = await _service.CreateRelationTypeAsync(type);
@@ -158,7 +158,7 @@ namespace GraphVisualizationApp.Controllers
         }
 
         [HttpDelete("relation-types/{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> DeleteRelationType(int id)
         {
             var ok = await _service.DeleteRelationTypeAsync(id);

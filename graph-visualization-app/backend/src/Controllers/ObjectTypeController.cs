@@ -9,7 +9,7 @@ namespace GraphVisualizationApp.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Editor,Admin")]
     public class ObjectTypeController : ControllerBase
     {
         private readonly IGraphService _service;
