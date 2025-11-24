@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export type LayoutType = 'force' | 'circular' | 'hierarchical' | 'radial' | 'grid' | 'manual';
+export type LayoutType = 'force' | 'circular' | 'hierarchical' | 'radial' | 'grid' | 'manual' | 'elk-layered' | 'elk-radial' | 'elk-force';
 
 interface LayoutSelectorProps {
   currentLayout: LayoutType;
@@ -11,7 +11,9 @@ interface LayoutSelectorProps {
 
 const layoutOptions = [
   { value: 'hierarchical' as LayoutType, label: '📊 Иерархия' },
-  { value: 'radial' as LayoutType, label: '🎯 Радиальное' },
+  { value: 'elk-layered' as LayoutType, label: '🌟 Иерархия (Расширенная)' },
+  { value: 'elk-radial' as LayoutType, label: '🎯 Радиальное' },
+  { value: 'elk-force' as LayoutType, label: '⚡ Силовое' },
   { value: 'circular' as LayoutType, label: '⭕ Круг' },
   { value: 'grid' as LayoutType, label: '⊞ Сетка' },
   { value: 'manual' as LayoutType, label: '✋ Вручную' },

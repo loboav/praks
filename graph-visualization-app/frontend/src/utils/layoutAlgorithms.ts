@@ -28,7 +28,7 @@ export function forceDirectedLayout(
   } = options;
 
   const positions = new Map<number, { x: number; y: number; vx: number; vy: number }>();
-  
+
   nodes.forEach(node => {
     const existingX = node.PositionX ?? Math.random() * 800 + 100;
     const existingY = node.PositionY ?? Math.random() * 600 + 100;
@@ -45,7 +45,7 @@ export function forceDirectedLayout(
 
   for (let iter = 0; iter < iterations; iter++) {
     const forces = new Map<number, { fx: number; fy: number }>();
-    
+
     nodes.forEach(node => {
       forces.set(node.id, { fx: 0, fy: 0 });
     });
@@ -56,7 +56,7 @@ export function forceDirectedLayout(
 
       nodes.forEach((nodeB, j) => {
         if (i >= j) return;
-        
+
         const posB = positions.get(nodeB.id)!;
         const dx = posB.x - posA.x;
         const dy = posB.y - posA.y;
@@ -64,17 +64,17 @@ export function forceDirectedLayout(
         const dist = Math.sqrt(distSq) || 1;
 
         let repulsionForce = repulsion / distSq;
-        
+
         if (dist < minDistance) {
           repulsionForce *= 2;
         }
-        
+
         const fx = (dx / dist) * repulsionForce;
         const fy = (dy / dist) * repulsionForce;
 
         forceA.fx -= fx;
         forceA.fy -= fy;
-        
+
         const forceB = forces.get(nodeB.id)!;
         forceB.fx += fx;
         forceB.fy += fy;
@@ -89,7 +89,7 @@ export function forceDirectedLayout(
     edges.forEach(edge => {
       const posA = positions.get(edge.source);
       const posB = positions.get(edge.target);
-      
+
       if (!posA || !posB) return;
 
       const dx = posB.x - posA.x;
@@ -166,7 +166,7 @@ export function hierarchicalLayout(
 ): LayoutResult {
   const levels = new Map<number, number>();
   const visited = new Set<number>();
-  
+
   const findRoots = () => {
     const hasIncoming = new Set(edges.map(e => e.target));
     return nodes.filter(n => !hasIncoming.has(n.id));
@@ -176,7 +176,7 @@ export function hierarchicalLayout(
     if (visited.has(nodeId)) return;
     visited.add(nodeId);
     levels.set(nodeId, Math.max(levels.get(nodeId) || 0, level));
-    
+
     edges
       .filter(e => e.source === nodeId)
       .forEach(e => assignLevels(e.target, level + 1));
@@ -232,7 +232,7 @@ export function radialLayout(
 ): LayoutResult {
   const centerX = 500;
   const centerY = 400;
-  
+
   const findRoots = () => {
     const hasIncoming = new Set(edges.map(e => e.target));
     return nodes.filter(n => !hasIncoming.has(n.id));
@@ -240,7 +240,7 @@ export function radialLayout(
 
   const roots = findRoots();
   const centerNode = roots.length > 0 ? roots[0] : nodes[0];
-  
+
   if (!centerNode) return { nodes: [] };
 
   const levels = new Map<number, number>();
@@ -250,14 +250,14 @@ export function radialLayout(
     if (visited.has(nodeId)) return;
     visited.add(nodeId);
     levels.set(nodeId, level);
-    
+
     edges
       .filter(e => e.source === nodeId)
       .forEach(e => assignLevels(e.target, level + 1));
   };
 
   assignLevels(centerNode.id, 0);
-  
+
   nodes.forEach(node => {
     if (!levels.has(node.id)) {
       levels.set(node.id, 1);
@@ -273,14 +273,33 @@ export function radialLayout(
   });
 
   const result: Array<{ id: number; x: number; y: number }> = [];
+  let currentRadius = 0;
+  const nodeWidth = 200; // Approximate width including gap
+  const nodeHeight = 100; // Approximate height including gap
 
-  nodesByLevel.forEach((nodeIds, level) => {
+  // Sort levels to process from center outwards
+  const sortedLevels = Array.from(nodesByLevel.keys()).sort((a, b) => a - b);
+
+  sortedLevels.forEach((level) => {
+    const nodeIds = nodesByLevel.get(level)!;
+
     if (level === 0) {
       result.push({ id: nodeIds[0], x: centerX, y: centerY });
+      currentRadius += nodeHeight * 1.5; // Initial radius for next layer
     } else {
-      const radius = level * 120;
+      // Calculate required circumference to fit all nodes
+      const requiredCircumference = nodeIds.length * nodeWidth;
+      // Calculate minimum radius based on circumference
+      const minRadiusForCircumference = requiredCircumference / (2 * Math.PI);
+
+      // Use the larger of: current accumulated radius OR radius needed for circumference
+      const radius = Math.max(currentRadius, minRadiusForCircumference);
+
+      // Update currentRadius for the NEXT layer (add some spacing)
+      currentRadius = radius + nodeHeight * 1.5;
+
       const angleStep = (2 * Math.PI) / nodeIds.length;
-      
+
       nodeIds.forEach((nodeId, i) => {
         result.push({
           id: nodeId,

@@ -8,8 +8,10 @@ import {
   hierarchicalLayout,
   radialLayout
 } from '../utils/layoutAlgorithms';
+import { elkLayout } from '../utils/elkLayout';
 
-export type LayoutType = 'force' | 'circular' | 'hierarchical' | 'radial' | 'grid' | 'manual';
+export type LayoutType = 'force' | 'circular' | 'hierarchical' | 'radial' | 'grid' | 'manual' | 'elk-layered' | 'elk-radial' | 'elk-force';
+
 
 interface LayoutPosition {
   id: number;
@@ -34,7 +36,7 @@ export const useLayoutManager = ({
   const [isApplyingLayout, setIsApplyingLayout] = useState(false);
   const [layout, setLayout] = useState<any>(null);
 
-  const applyLayout = useCallback(() => {
+  const applyLayout = useCallback(async () => {
     if (nodes.length === 0) {
       toast.warning('Нет узлов для расположения');
       return;
@@ -48,7 +50,7 @@ export const useLayoutManager = ({
 
     setIsApplyingLayout(true);
 
-    setTimeout(() => {
+    try {
       let layoutResult;
 
       switch (currentLayoutType) {
@@ -56,9 +58,18 @@ export const useLayoutManager = ({
           toast.info('Применяется иерархический layout...');
           layoutResult = hierarchicalLayout(nodes, edges);
           break;
-        case 'radial':
+        case 'elk-layered':
+          toast.info('Применяется расширенная иерархия...');
+          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'layered', layerSpacing: 150, nodeSpacing: 100 }) };
+          break;
+        case 'elk-radial':
           toast.info('Применяется радиальный layout...');
+          // Using improved custom radial layout
           layoutResult = radialLayout(nodes, edges);
+          break;
+        case 'elk-force':
+          toast.info('Применяется силовой layout...');
+          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'stress' }) };
           break;
         case 'circular':
           toast.info('Применяется круговой layout...');
@@ -83,7 +94,7 @@ export const useLayoutManager = ({
 
       onNodesUpdate(() => updatedNodes);
       setIsApplyingLayout(false);
-      
+
       if (onAddHistoryAction) {
         onAddHistoryAction({
           type: 'layout',
@@ -103,7 +114,11 @@ export const useLayoutManager = ({
           },
         });
       }
-    }, 100);
+    } catch (error) {
+      console.error('Layout error:', error);
+      toast.error('Ошибка применения layout');
+      setIsApplyingLayout(false);
+    }
   }, [nodes, edges, currentLayoutType, onNodesUpdate, onAddHistoryAction]);
 
   const saveLayout = useCallback(async () => {
@@ -114,9 +129,9 @@ export const useLayoutManager = ({
         y: n.PositionY ?? 0,
       }))
     };
-    
+
     const res = await apiClient.post("/api/layout", { layoutJson: JSON.stringify(layoutObj) });
-    
+
     if (res.ok) {
       toast.success("Сетка успешно сохранена!");
     } else {
@@ -128,7 +143,7 @@ export const useLayoutManager = ({
     try {
       const response = await apiClient.get("/api/layout");
       if (!response.ok) return null;
-      
+
       const layoutData = await response.json();
       if (layoutData && layoutData.layoutJson) {
         const layoutObj = JSON.parse(layoutData.layoutJson);
