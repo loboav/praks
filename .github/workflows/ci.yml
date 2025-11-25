@@ -45,20 +45,20 @@ jobs:
 
       # Шаг 4: Восстановить зависимости
       - name: 📦 Restore dependencies
-        run: dotnet restore backend/src/GraphVisualizationApp/GraphVisualizationApp.csproj
+        run: dotnet restore graph-visualization-app/backend/src/GraphVisualizationApp/GraphVisualizationApp.csproj
 
       # Шаг 5: Собрать проект
       - name: 🔨 Build backend
-        run: dotnet build backend/src/GraphVisualizationApp/GraphVisualizationApp.csproj --configuration Release --no-restore
+        run: dotnet build graph-visualization-app/backend/src/GraphVisualizationApp/GraphVisualizationApp.csproj --configuration Release --no-restore
 
       # Шаг 6: Запустить тесты (когда появятся)
       # TODO: Раскомментировать когда создадите тесты
       # - name: 🧪 Run tests
-      #   run: dotnet test backend/tests/ --configuration Release --no-build --verbosity normal
+      #   run: dotnet test graph-visualization-app/backend/tests/ --configuration Release --no-build --verbosity normal
 
       # Шаг 7: Проверка формата кода (опционально)
       - name: 🎨 Check code format
-        run: dotnet format backend/src/GraphVisualizationApp/GraphVisualizationApp.csproj --verify-no-changes --verbosity diagnostic
+        run: dotnet format graph-visualization-app/backend/src/GraphVisualizationApp/GraphVisualizationApp.csproj --verify-no-changes --verbosity diagnostic
         continue-on-error: true  # Не блокируем сборку, только предупреждаем
 
   # ==========================================
@@ -79,31 +79,31 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: graph-visualization-app/frontend/package-lock.json
 
       # Шаг 3: Установить зависимости
       - name: 📦 Install dependencies
         run: |
-          cd frontend
+          cd graph-visualization-app/frontend
           npm ci
 
       # Шаг 4: Проверка кода ESLint (если настроен)
       - name: 🎨 Lint code
         run: |
-          cd frontend
+          cd graph-visualization-app/frontend
           npm run lint || echo "⚠️ ESLint не настроен, пропускаем"
         continue-on-error: true
 
       # Шаг 5: Проверка TypeScript
       - name: 🔍 TypeScript check
         run: |
-          cd frontend
+          cd graph-visualization-app/frontend
           npx tsc --noEmit
 
       # Шаг 6: Собрать production bundle
       - name: 🔨 Build frontend
         run: |
-          cd frontend
+          cd graph-visualization-app/frontend
           npm run build
         env:
           NODE_OPTIONS: --openssl-legacy-provider
@@ -112,7 +112,7 @@ jobs:
       # TODO: Раскомментировать когда создадите тесты
       # - name: 🧪 Run tests
       #   run: |
-      #     cd frontend
+      #     cd graph-visualization-app/frontend
       #     npm test -- --coverage --watchAll=false
 
       # Шаг 8: Сохранить build артефакты
@@ -120,7 +120,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: frontend/dist
+          path: graph-visualization-app/frontend/dist
           retention-days: 7
 
   # ==========================================
@@ -137,7 +137,7 @@ jobs:
       # Backend: Проверка .NET зависимостей
       - name: 🔒 Scan .NET dependencies
         run: |
-          dotnet list backend/src/GraphVisualizationApp/GraphVisualizationApp.csproj package --vulnerable --include-transitive 2>&1 | tee dotnet-vulnerabilities.txt
+          dotnet list graph-visualization-app/backend/src/GraphVisualizationApp/GraphVisualizationApp.csproj package --vulnerable --include-transitive 2>&1 | tee dotnet-vulnerabilities.txt
           if grep -q "has the following vulnerable packages" dotnet-vulnerabilities.txt; then
             echo "⚠️ Найдены уязвимости в .NET зависимостях"
             exit 1
@@ -147,7 +147,7 @@ jobs:
       # Frontend: Проверка npm зависимостей
       - name: 🔒 Scan npm dependencies
         run: |
-          cd frontend
+          cd graph-visualization-app/frontend
           npm audit --audit-level=moderate || echo "⚠️ Найдены уязвимости в npm пакетах"
         continue-on-error: true
 
@@ -181,8 +181,8 @@ jobs:
       - name: 🐳 Build backend image
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
-          file: ./backend/Dockerfile
+          context: ./graph-visualization-app/backend
+          file: ./graph-visualization-app/backend/Dockerfile
           push: false  # Пока только собираем, не пушим
           tags: |
             graph-visualization-backend:latest
@@ -194,8 +194,8 @@ jobs:
       - name: 🐳 Build frontend image
         uses: docker/build-push-action@v5
         with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
+          context: ./graph-visualization-app/frontend
+          file: ./graph-visualization-app/frontend/Dockerfile
           push: false  # Пока только собираем, не пушим
           tags: |
             graph-visualization-frontend:latest
@@ -206,6 +206,7 @@ jobs:
       # Тестовый запуск всего стека через docker-compose
       - name: 🧪 Test docker-compose
         run: |
+          cd graph-visualization-app
           # Копируем пример env файла
           cp .env.example .env
           # Проверяем что docker-compose конфигурация валидна
