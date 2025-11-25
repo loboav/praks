@@ -203,19 +203,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Тестовый запуск всего стека через docker-compose
-      - name: 🧪 Test docker-compose
+      # Тестовый запуск всего стека через docker compose
+      - name: 🧪 Test docker compose
         run: |
           cd graph-visualization-app
           # Копируем пример env файла
           cp .env.example .env
-          # Проверяем что docker-compose конфигурация валидна
-          docker-compose config
+          # Проверяем что docker compose конфигурация валидна
+          docker compose config
           # Можно добавить полный запуск, но это займёт время:
-          # docker-compose up -d
+          # docker compose up -d
           # sleep 30
           # curl http://localhost:5000/api/health
-          # docker-compose down
+          # docker compose down
 
   # ==========================================
   # JOB 5: Итоговый отчёт
