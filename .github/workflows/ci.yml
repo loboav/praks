@@ -26,7 +26,7 @@ jobs:
     steps:
       # Шаг 1: Получить код из репозитория
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Шаг 2: Установить .NET SDK
       - name: 🔧 Setup .NET ${{ env.DOTNET_VERSION }}
@@ -71,7 +71,7 @@ jobs:
     steps:
       # Шаг 1: Получить код
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Шаг 2: Установить Node.js
       - name: 🔧 Setup Node.js ${{ env.NODE_VERSION }}
@@ -132,7 +132,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Backend: Проверка .NET зависимостей
       - name: 🔒 Scan .NET dependencies
@@ -161,7 +161,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Настройка Docker Buildx для многоплатформенной сборки
       - name: 🔧 Set up Docker Buildx
