@@ -37,6 +37,7 @@ Build and start the full stack (API + frontend + Postgres):
 Default ports and environment bindings (from `docker-compose.yml`):
 - Backend HTTP API: `${API_PORT:-5000}` mapped to container port `80` → typically `http://localhost:5000`.
 - Frontend: `${FRONTEND_PORT:-3000}` mapped to container port `80` → typically `http://localhost:3000`.
+- Note: When running locally with Vite (without Docker), the default port is `5173`.
 - PostgreSQL: `5432:5432` (configure via `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`).
 - The backend connection string is passed via `DB_CONNECTION_STRING` → `ConnectionStrings__DefaultConnection`.
 - Frontend uses `REACT_APP_API_URL` to know where the API lives.
@@ -64,8 +65,8 @@ Install dependencies and run the dev server:
 - `cd frontend`
 - Install dependencies:
   - `npm install`
-- Start the development server (default `http://localhost:3000`):
-  - `npm start`
+- Start the development server (default `http://localhost:5173`):
+  - `npm run dev`
 
 Build a production bundle (if you need a static build outside Docker):
 - `npm run build`
