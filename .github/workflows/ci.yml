@@ -30,7 +30,7 @@ jobs:
 
       # Шаг 2: Установить .NET SDK
       - name: 🔧 Setup .NET ${{ env.DOTNET_VERSION }}
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
