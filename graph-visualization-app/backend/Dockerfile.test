@@ -1,0 +1,35 @@
+# Добавляем тестовый проект в solution
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS test
+WORKDIR /src
+
+# Копируем solution и проекты
+COPY graph-visualization-app.sln .
+COPY backend/src/GraphVisualizationApp/GraphVisualizationApp.csproj backend/src/GraphVisualizationApp/
+COPY backend/tests/GraphVisualizationApp.Tests/GraphVisualizationApp.Tests.csproj backend/tests/GraphVisualizationApp.Tests/
+
+# Restore зависимостей
+RUN dotnet restore backend/tests/GraphVisualizationApp.Tests/GraphVisualizationApp.Tests.csproj
+
+# Копируем весь код
+COPY backend/ backend/
+
+# Запускаем тесты
+WORKDIR /src/backend/tests/GraphVisualizationApp.Tests
+RUN dotnet test --logger "trx;LogFileName=test_results.trx" --no-restore
+
+# Основной образ (без изменений)
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+EXPOSE 80
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY . .
+RUN dotnet restore src/GraphVisualizationApp/GraphVisualizationApp.csproj
+RUN dotnet publish src/GraphVisualizationApp/GraphVisualizationApp.csproj -c Release -o /app/publish
+
+FROM base AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENV ASPNETCORE_URLS=http://+:80
+ENTRYPOINT ["dotnet", "GraphVisualizationApp.dll"]

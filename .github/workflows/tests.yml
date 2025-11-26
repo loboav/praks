@@ -1,0 +1,141 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'graph-visualization-app/backend/**'
+      - '.github/workflows/tests.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'graph-visualization-app/backend/**'
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./graph-visualization-app/backend/tests/GraphVisualizationApp.Tests
+    
+    - name: Build
+      run: dotnet build --no-restore
+      working-directory: ./graph-visualization-app/backend/tests/GraphVisualizationApp.Tests
+    
+    - name: Run Unit Tests
+      run: dotnet test --no-build --verbosity normal --filter "FullyQualifiedName!~Integration" --logger "trx;LogFileName=test-results.trx"
+      working-directory: ./graph-visualization-app/backend/tests/GraphVisualizationApp.Tests
+    
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: unit-test-results
+        path: graph-visualization-app/backend/tests/GraphVisualizationApp.Tests/TestResults/test-results.trx
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: testdb
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./graph-visualization-app/backend/tests/GraphVisualizationApp.Tests
+    
+    - name: Build
+      run: dotnet build --no-restore
+      working-directory: ./graph-visualization-app/backend/tests/GraphVisualizationApp.Tests
+    
+    - name: Run Integration Tests
+      run: dotnet test --no-build --verbosity normal --filter "FullyQualifiedName~Integration" --logger "trx;LogFileName=integration-test-results.trx"
+      working-directory: ./graph-visualization-app/backend/tests/GraphVisualizationApp.Tests
+      env:
+        ConnectionStrings__DefaultConnection: "Host=localhost;Database=testdb;Username=testuser;Password=testpass"
+    
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: integration-test-results
+        path: graph-visualization-app/backend/tests/GraphVisualizationApp.Tests/TestResults/integration-test-results.trx
+
+  code-coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./graph-visualization-app/backend/tests/GraphVisualizationApp.Tests
+    
+    - name: Run Tests with Coverage
+      run: dotnet test --collect:"XPlat Code Coverage" --results-directory ./coverage
+      working-directory: ./graph-visualization-app/backend/tests/GraphVisualizationApp.Tests
+    
+    - name: Upload Coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./graph-visualization-app/backend/tests/GraphVisualizationApp.Tests/coverage/**/coverage.cobertura.xml
+        flags: backend
+        name: backend-coverage
+        fail_ci_if_error: false
+    
+    - name: Generate Coverage Report
+      run: |
+        dotnet tool install -g dotnet-reportgenerator-globaltool
+        reportgenerator -reports:./coverage/**/coverage.cobertura.xml -targetdir:./coverage/report -reporttypes:Html
+      working-directory: ./graph-visualization-app/backend/tests/GraphVisualizationApp.Tests
+    
+    - name: Upload Coverage Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: graph-visualization-app/backend/tests/GraphVisualizationApp.Tests/coverage/report
+
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, code-coverage]
+    
+    steps:
+    - name: Check Test Results
+      run: echo "All tests passed! ✅"

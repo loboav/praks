@@ -1,0 +1,65 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+
+jobs:
+  dependency-scan:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./graph-visualization-app/backend/src/GraphVisualizationApp
+    
+    - name: List vulnerable packages
+      run: dotnet list package --vulnerable --include-transitive
+      working-directory: ./graph-visualization-app/backend/src/GraphVisualizationApp
+      continue-on-error: true
+    
+    - name: Check for outdated packages
+      run: dotnet list package --outdated
+      working-directory: ./graph-visualization-app/backend/src/GraphVisualizationApp
+      continue-on-error: true
+
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: csharp
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Build
+      run: dotnet build
+      working-directory: ./graph-visualization-app/backend/src/GraphVisualizationApp
+    
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3

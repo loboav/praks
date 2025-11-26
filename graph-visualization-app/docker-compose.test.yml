@@ -1,0 +1,32 @@
+# Docker Compose для запуска тестов
+version: '3.8'
+
+services:
+  # Тестовая база данных
+  test-db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_USER=testuser
+      - POSTGRES_PASSWORD=testpass
+    ports:
+      - "5433:5432" # Используем другой порт, чтобы не конфликтовать с основной БД
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U testuser -d testdb" ]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  # Запуск тестов
+  backend-tests:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    depends_on:
+      test-db:
+        condition: service_healthy
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=test-db;Database=testdb;Username=testuser;Password=testpass
+    volumes:
+      - ./backend/tests/TestResults:/src/backend/tests/GraphVisualizationApp.Tests/TestResults
+    command: dotnet test --logger "trx;LogFileName=test_results.trx"
