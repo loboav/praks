@@ -15,19 +15,12 @@ namespace GraphVisualizationApp.Validators
                 .WithMessage("Ключ свойства обязателен")
                 .MaximumLength(100)
                 .WithMessage("Ключ свойства не может быть длиннее 100 символов")
-                .Matches(@"^[a-zA-Z0-9_\-\.]+$")
-                .WithMessage("Ключ свойства может содержать только латинские буквы, цифры, _, - и .");
+                .Matches(@"^[a-zA-Zа-яА-ЯёЁ0-9_\-\.\s]+$")
+                .WithMessage("Ключ свойства может содержать только буквы, цифры, пробелы, _, - и .");
 
             RuleFor(x => x.Value)
-                .NotEmpty()
-                .WithMessage("Значение свойства обязательно")
                 .MaximumLength(1000)
                 .WithMessage("Значение свойства не может быть длиннее 1000 символов");
-
-            RuleFor(x => x.RelationId)
-                .GreaterThan(0)
-                .When(x => x.RelationId > 0)
-                .WithMessage("Некорректный ID связи");
         }
     }
 }

@@ -17,6 +17,7 @@ import HistoryPanel from "./HistoryPanel";
 import SettingsButton from "./SettingsButton";
 import SearchPanel from "./SearchPanel";
 import AnalyticsDashboard from "./AnalyticsDashboard";
+import TopToolbar from "./TopToolbar";
 import { toast } from "react-toastify";
 import { useAuth } from "../contexts/AuthContext";
 import { useMultiSelection } from "../hooks/useMultiSelection";
@@ -238,6 +239,32 @@ export default function GraphView() {
   return (
     <div style={{ width: "100vw", height: "100vh", background: "#f4f6fa", overflow: "hidden" }}>
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "#f4f6fa", overflow: "hidden" }}>
+        {/* Top Toolbar */}
+        <TopToolbar
+          canEdit={canEdit}
+          isAdmin={isAdmin}
+          onAddObject={() => setAddObjectOpen(true)}
+          onSave={saveLayout}
+          onHistory={() => setHistoryPanelOpen(!historyPanelOpen)}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          historyPanelOpen={historyPanelOpen}
+          historyCount={history.length}
+          currentLayout={currentLayoutType}
+          onLayoutChange={setCurrentLayoutType}
+          onApplyLayout={applyLayout}
+          isApplyingLayout={isApplyingLayout}
+          onFilter={() => setFilterOpen(!filterOpen)}
+          onSearch={() => setSearchPanelOpen(!searchPanelOpen)}
+          onAnalytics={() => setAnalyticsOpen(!analyticsOpen)}
+          onAccount={() => setSettingsOpen(true)}
+          searchPanelOpen={searchPanelOpen}
+          analyticsOpen={analyticsOpen}
+          hasActiveFilters={hasActiveFilters}
+        />
+
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
           <Sidebar
             objectTypes={objectTypes}
@@ -248,9 +275,7 @@ export default function GraphView() {
             onDeleteRelationType={(id) => window.confirm("Удалить тип связи?") && deleteRelationType(id)}
           />
           <div style={{ flex: 1, position: "relative", minWidth: 0, minHeight: 0 }}>
-            {/* Settings Button */}
-            <SettingsButton onClick={() => setSettingsOpen(true)} />
-            
+
             {nodes.length === 0 ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 20, fontFamily: "Segoe UI, sans-serif", color: "#5f6368" }}>
                 <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.3 }}>
@@ -308,71 +333,12 @@ export default function GraphView() {
           </div>
         </div>
 
-        {/* Bottom Actions Bar */}
-        <div style={{ height: 60, background: "#23272f", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", gap: 32, fontSize: 18, fontWeight: 500, letterSpacing: 0.5 }}>
-          <div style={{ fontSize: 13, color: "#aaa" }}>
+        {/* Bottom Status Bar - Statistics Only */}
+        <div style={{ height: 48, background: "#23272f", color: "#fff", display: "flex", alignItems: "center", padding: "0 24px", fontSize: 13 }}>
+          <div style={{ color: "#aaa" }}>
             Узлов: {filteredNodes.length}/{nodes.length} | Связей: {filteredEdges.length}/{edges.length}
             {hasActiveFilters && <span style={{ color: "#ff9800", marginLeft: 8 }}>• Фильтры активны</span>}
           </div>
-          {canEdit && (
-            <button onClick={saveLayout} style={actionBtn}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                <rect x="4" y="4" width="16" height="16" rx="2" stroke="#fff" strokeWidth="2" />
-                <path d="M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span style={{ marginLeft: 8 }}>Сохранить</span>
-            </button>
-          )}
-          {canEdit && (
-            <button onClick={() => setAddObjectOpen(true)} style={actionBtn}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="#fff" strokeWidth="2" />
-                <path d="M12 8v8M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span style={{ marginLeft: 8 }}>Добавить объект</span>
-            </button>
-          )}
-          <LayoutSelector
-            currentLayout={currentLayoutType}
-            onLayoutChange={setCurrentLayoutType}
-            onApply={applyLayout}
-            isApplying={isApplyingLayout}
-          />
-          <button onClick={() => setHistoryPanelOpen(!historyPanelOpen)} style={{ ...actionBtn, position: "relative" }} title="История (Ctrl+H)">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span style={{ marginLeft: 8 }}>История</span>
-            {history.length > 0 && (
-              <span style={{ position: "absolute", top: 4, right: 4, background: "#4CAF50", color: "#fff", borderRadius: "50%", width: 20, height: 20, fontSize: 11, fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>
-                {history.length}
-              </span>
-            )}
-          </button>
-          <button onClick={() => setFilterOpen(true)} style={{ ...actionBtn, position: "relative" }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <path d="M4 6h16M6 12h12M8 18h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span style={{ marginLeft: 8 }}>Фильтр</span>
-            {hasActiveFilters && (
-              <span style={{ position: "absolute", top: 4, right: 4, background: "#ff5722", color: "#fff", borderRadius: "50%", width: 20, height: 20, fontSize: 11, fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>
-                {objectTypes.length - filters.selectedObjectTypes.length + (relationTypes.length - filters.selectedRelationTypes.length) + (filters.showIsolatedNodes ? 0 : 1)}
-              </span>
-            )}
-          </button>
-          <button onClick={() => setSearchPanelOpen(!searchPanelOpen)} style={{ ...actionBtn, background: searchPanelOpen ? "rgba(33, 150, 243, 0.2)" : "none" }} title="Поиск (Ctrl+F)">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <circle cx="11" cy="11" r="8" stroke="#fff" strokeWidth="2" />
-              <path d="M21 21l-4.35-4.35" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span style={{ marginLeft: 8 }}>Поиск</span>
-          </button>
-          <button onClick={() => setAnalyticsOpen(!analyticsOpen)} style={{ ...actionBtn, background: analyticsOpen ? "rgba(76, 175, 80, 0.2)" : "none" }} title="Аналитика">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <path d="M4 19V10m6 9V5m6 14v-7" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span style={{ marginLeft: 8 }}>Аналитика</span>
-          </button>
         </div>
 
         {/* Modals */}
@@ -386,9 +352,27 @@ export default function GraphView() {
             id: editNode.id,
             name: editNode.name,
             objectTypeId: editNode.objectTypeId,
-            properties: Array.isArray(editNode.properties)
-              ? editNode.properties.reduce((acc: any, p: any) => { acc[p.key || p.Key] = p.value || p.Value; return acc; }, {})
-              : typeof editNode.properties === "object" ? editNode.properties : {},
+            properties: (() => {
+              // Обработка свойств: поддержка старого формата (Key/Value) и нового (key/value)
+              if (!editNode.properties) return {};
+
+              if (Array.isArray(editNode.properties)) {
+                return editNode.properties.reduce((acc: any, p: any) => {
+                  const key = p.key || p.Key;
+                  const value = p.value || p.Value;
+                  if (key) acc[key] = value || '';
+                  return acc;
+                }, {});
+              }
+
+              if (typeof editNode.properties === "object") {
+                return editNode.properties;
+              }
+
+              return {};
+            })(),
+            color: editNode.color,
+            icon: editNode.icon,
           } : undefined}
         />
 
@@ -403,9 +387,25 @@ export default function GraphView() {
           editData={editEdge ? {
             id: editEdge.id,
             relationTypeId: editEdge.relationTypeId,
-            properties: Array.isArray(editEdge.properties)
-              ? editEdge.properties.reduce((acc: any, p: any) => { acc[p.key || p.Key] = p.value || p.Value; return acc; }, {})
-              : typeof editEdge.properties === "object" ? editEdge.properties : {},
+            properties: (() => {
+              // Обработка свойств: поддержка старого формата (Key/Value) и нового (key/value)
+              if (!editEdge.properties) return {};
+
+              if (Array.isArray(editEdge.properties)) {
+                return editEdge.properties.reduce((acc: any, p: any) => {
+                  const key = p.key || p.Key;
+                  const value = p.value || p.Value;
+                  if (key) acc[key] = value || '';
+                  return acc;
+                }, {});
+              }
+
+              if (typeof editEdge.properties === "object") {
+                return editEdge.properties;
+              }
+
+              return {};
+            })(),
           } : undefined}
         />
 

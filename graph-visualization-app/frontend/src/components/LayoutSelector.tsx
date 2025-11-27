@@ -68,9 +68,9 @@ export default function LayoutSelector({
           <div
             style={{
               position: 'absolute',
-              bottom: '100%',
+              top: '100%',
               left: 0,
-              marginBottom: '8px',
+              marginTop: '8px',
               background: 'white',
               borderRadius: '8px',
               boxShadow: '0 4px 20px rgba(0,0,0,0.15)',

@@ -15,7 +15,7 @@ namespace GraphVisualizationApp.Validators
                 .WithMessage("Имя объекта обязательно")
                 .MaximumLength(200)
                 .WithMessage("Имя объекта не может быть длиннее 200 символов")
-                .Matches(@"^[a-zA-Zа-яА-ЯёЁ0-9\s\-_\.]+$")
+                .Matches(@"^[a-zA-Zа-яА-ЯёЁ0-9\s\-_\.,\(\)\[\]""']+$")
                 .WithMessage("Имя объекта содержит недопустимые символы");
 
             RuleFor(x => x.ObjectTypeId)

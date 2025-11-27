@@ -4,12 +4,14 @@ export const apiClient = {
   get: async (url: string) => {
     const token = localStorage.getItem('auth_token');
     const headers: HeadersInit = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
     };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    return fetch(url, { headers });
+    return fetch(url, { headers, cache: 'no-store' });
   },
 
   post: async (url: string, body?: any) => {
