@@ -1,4 +1,6 @@
 import React, { useState, useRef } from 'react';
+import { toPng, toJpeg, toSvg } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 import { useNavigate } from 'react-router-dom';
 import { exportGraph } from '../../utils/exportUtils';
 import { importGraph } from '../../utils/importUtils';
@@ -43,6 +45,68 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     }
   };
 
+  const downloadLink = (dataUrl: string, fileName: string) => {
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = dataUrl;
+    link.click();
+  };
+
+  const handleExportImage = async (format: 'png' | 'jpeg' | 'svg' | 'pdf') => {
+    const node = document.querySelector('.react-flow') as HTMLElement;
+    if (!node) {
+      toast.error('Не удалось найти область графа');
+      return;
+    }
+
+    setIsExporting(true);
+    const toastId = toast.loading('Генерация изображения...');
+
+    try {
+      // Фильтр для исключения элементов управления из скриншота
+      const filter = (node: HTMLElement) => {
+        const exclusionClasses = ['react-flow__controls', 'react-flow__panel', 'react-flow__attribution'];
+        return !exclusionClasses.some((classname) => node.classList?.contains(classname));
+      };
+
+      let dataUrl;
+      const fileName = `graph-export-${new Date().toISOString().slice(0, 10)}`;
+      const options = { backgroundColor: '#fff', filter, pixelRatio: 2 };
+
+      switch (format) {
+        case 'png':
+          dataUrl = await toPng(node, options);
+          downloadLink(dataUrl, `${fileName}.png`);
+          break;
+        case 'jpeg':
+          dataUrl = await toJpeg(node, options);
+          downloadLink(dataUrl, `${fileName}.jpg`);
+          break;
+        case 'svg':
+          dataUrl = await toSvg(node, { ...options, pixelRatio: 1 });
+          downloadLink(dataUrl, `${fileName}.svg`);
+          break;
+        case 'pdf':
+          // Для PDF сначала делаем PNG
+          dataUrl = await toPng(node, options);
+          const pdf = new jsPDF({
+            orientation: node.offsetWidth > node.offsetHeight ? 'l' : 'p',
+            unit: 'px',
+            format: [node.offsetWidth, node.offsetHeight]
+          });
+          pdf.addImage(dataUrl, 'PNG', 0, 0, node.offsetWidth, node.offsetHeight);
+          pdf.save(`${fileName}.pdf`);
+          break;
+      }
+      toast.update(toastId, { render: 'Экспорт выполнен успешно', type: 'success', isLoading: false, autoClose: 3000 });
+    } catch (error) {
+      console.error(error);
+      toast.update(toastId, { render: 'Ошибка при экспорте', type: 'error', isLoading: false, autoClose: 3000 });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleImport = (format: 'json' | 'graphml') => {
     if (!isAuthenticated || (user?.role !== 'Editor' && user?.role !== 'Admin')) {
       toast.error('Только редакторы и администраторы могут импортировать графы');
@@ -53,7 +117,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = format === 'json' ? '.json' : '.graphml,.xml';
-    
+
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
@@ -205,38 +269,82 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
             <p style={{ color: '#666', fontSize: 14, marginBottom: 16 }}>
               Сохраните текущий граф в файл для резервного копирования или обмена данными
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <button
-                onClick={() => handleExport('json')}
-                disabled={isExporting}
-                style={{
-                  ...exportBtn,
-                  background: isExporting ? '#e0e0e0' : '#4CAF50',
-                  cursor: isExporting ? 'not-allowed' : 'pointer',
-                }}
-              >
-                <span style={{ fontSize: 20 }}>📄</span>
-                <div style={{ flex: 1, textAlign: 'left' }}>
-                  <div style={{ fontWeight: 600 }}>JSON</div>
-                  <div style={{ fontSize: 13, opacity: 0.8 }}>Универсальный формат с полными данными</div>
-                </div>
-              </button>
-              
-              <button
-                onClick={() => handleExport('graphml')}
-                disabled={isExporting}
-                style={{
-                  ...exportBtn,
-                  background: isExporting ? '#e0e0e0' : '#2196F3',
-                  cursor: isExporting ? 'not-allowed' : 'pointer',
-                }}
-              >
-                <span style={{ fontSize: 20 }}>📊</span>
-                <div style={{ flex: 1, textAlign: 'left' }}>
-                  <div style={{ fontWeight: 600 }}>GraphML</div>
-                  <div style={{ fontSize: 13, opacity: 0.8 }}>Для Gephi, Cytoscape и других инструментов</div>
-                </div>
-              </button>
+
+            {/* Data Export */}
+            <div style={{ marginBottom: 24 }}>
+              <h4 style={{ fontSize: 14, fontWeight: 600, color: '#444', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Данные</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <button
+                  onClick={() => handleExport('json')}
+                  disabled={isExporting}
+                  style={{
+                    ...exportBtn,
+                    background: isExporting ? '#e0e0e0' : '#4CAF50',
+                    cursor: isExporting ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>📄</span>
+                  <div style={{ flex: 1, textAlign: 'left' }}>
+                    <div style={{ fontWeight: 600 }}>JSON</div>
+                    <div style={{ fontSize: 13, opacity: 0.8 }}>Универсальный формат с полными данными</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleExport('graphml')}
+                  disabled={isExporting}
+                  style={{
+                    ...exportBtn,
+                    background: isExporting ? '#e0e0e0' : '#2196F3',
+                    cursor: isExporting ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>📊</span>
+                  <div style={{ flex: 1, textAlign: 'left' }}>
+                    <div style={{ fontWeight: 600 }}>GraphML</div>
+                    <div style={{ fontSize: 13, opacity: 0.8 }}>Для Gephi, Cytoscape и других инструментов</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Image Export */}
+            <div>
+              <h4 style={{ fontSize: 14, fontWeight: 600, color: '#444', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Изображение</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <button
+                  onClick={() => handleExportImage('png')}
+                  disabled={isExporting}
+                  style={{ ...imageExportBtn, background: '#673AB7' }}
+                  title="Скачать как PNG"
+                >
+                  <span style={{ fontSize: 18 }}>🖼️</span> PNG
+                </button>
+                <button
+                  onClick={() => handleExportImage('jpeg')}
+                  disabled={isExporting}
+                  style={{ ...imageExportBtn, background: '#3F51B5' }}
+                  title="Скачать как JPEG"
+                >
+                  <span style={{ fontSize: 18 }}>🖼️</span> JPEG
+                </button>
+                <button
+                  onClick={() => handleExportImage('svg')}
+                  disabled={isExporting}
+                  style={{ ...imageExportBtn, background: '#E91E63' }}
+                  title="Скачать как SVG"
+                >
+                  <span style={{ fontSize: 18 }}>📐</span> SVG
+                </button>
+                <button
+                  onClick={() => handleExportImage('pdf')}
+                  disabled={isExporting}
+                  style={{ ...imageExportBtn, background: '#F44336' }}
+                  title="Скачать как PDF"
+                >
+                  <span style={{ fontSize: 18 }}>📄</span> PDF
+                </button>
+              </div>
             </div>
           </section>
 
@@ -271,7 +379,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                       <div style={{ fontSize: 13, opacity: 0.8 }}>Импорт из JSON файла</div>
                     </div>
                   </button>
-                  
+
                   <button
                     onClick={() => handleImport('graphml')}
                     disabled={isImporting}
@@ -355,6 +463,22 @@ const importBtn: React.CSSProperties = {
   cursor: 'pointer',
   transition: 'all 0.2s',
   boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+};
+
+const imageExportBtn: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  padding: '12px',
+  border: 'none',
+  borderRadius: 8,
+  color: '#fff',
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)',
 };
 
 export default SettingsModal;

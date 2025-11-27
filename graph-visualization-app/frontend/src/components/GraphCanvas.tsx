@@ -221,6 +221,15 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
               : 1,
           strokeDasharray: isHighlighted ? undefined : "6 6",
         },
+        labelStyle: {
+          fontSize: 11,
+          fontWeight: 500,
+          fill: '#555',
+        },
+        labelBgStyle: {
+          fill: '#fff',
+          fillOpacity: 0.7,
+        },
         animated: !isHighlighted,
       };
     });
@@ -337,7 +346,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
             setFallbackFindFirst(menu.node.id);
             setFindMessage(
               "Первый узел для поиска пути выбран: " +
-                (menu.node.name || menu.node.id),
+              (menu.node.name || menu.node.id),
             );
             setTimeout(() => setFindMessage(null), 2200);
             setMenu(null);
@@ -375,7 +384,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                     `http://localhost:5000/api/dijkstra-path?fromId=${from}&toId=${to}`,
                   );
                   if (r2.ok) data = await r2.json();
-                } catch (e) {}
+                } catch (e) { }
               }
 
               if (!data) {
