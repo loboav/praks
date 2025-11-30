@@ -11,8 +11,8 @@ namespace GraphVisualizationApp.Controllers
     [Authorize]
     public class LayoutController : ControllerBase
     {
-        private readonly IGraphService _service;
-        public LayoutController(IGraphService service) { _service = service; }
+        private readonly ILayoutService _service;
+        public LayoutController(ILayoutService service) { _service = service; }
 
         [HttpGet]
         [AllowAnonymous]

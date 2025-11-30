@@ -26,8 +26,23 @@
 
   <ItemGroup>
     <Compile Include="..\Controllers\**\*.cs" />
-    <Compile Include="..\Services\GraphService.cs" />
-    <Compile Include="..\Services\IGraphService.cs" />
+    
+    <!-- NEW: Specialized Services -->
+    <Compile Include="..\Services\TypeService.cs" />
+    <Compile Include="..\Services\ITypeService.cs" />
+    <Compile Include="..\Services\ObjectService.cs" />
+    <Compile Include="..\Services\IObjectService.cs" />
+    <Compile Include="..\Services\RelationService.cs" />
+    <Compile Include="..\Services\IRelationService.cs" />
+    <Compile Include="..\Services\PathfindingService.cs" />
+    <Compile Include="..\Services\IPathfindingService.cs" />
+    <Compile Include="..\Services\LayoutService.cs" />
+    <Compile Include="..\Services\ILayoutService.cs" />
+    <Compile Include="..\Services\SearchService.cs" />
+    <Compile Include="..\Services\ISearchService.cs" />
+    <Compile Include="..\Services\DtoMapper.cs" />
+    
+    <!-- Other Services -->
     <Compile Include="..\Services\ExportService.cs" />
     <Compile Include="..\Services\IExportService.cs" />
     <Compile Include="..\Services\ImportService.cs" />

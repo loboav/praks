@@ -7,17 +7,21 @@ using Microsoft.Extensions.Options;
 using GraphVisualizationApp.Models;
 using GraphVisualizationApp.Services;
 using System.Threading.Tasks;
+using System;
 
 namespace GraphVisualizationApp.Tests.Integration
 {
     /// <summary>
     /// Интеграционные тесты с реальной PostgreSQL БД через Docker Testcontainers
     /// </summary>
-    public class GraphServiceIntegrationTests : IAsyncLifetime
+    public class ServiceIntegrationTests : IAsyncLifetime
     {
         private PostgreSqlContainer? _postgresContainer;
         private GraphDbContext? _context;
-        private GraphService? _service;
+        private ObjectService? _objectService;
+        private RelationService? _relationService;
+        private TypeService? _typeService;
+        private PathfindingService? _pathfindingService;
         private IMemoryCache? _cache;
 
         public async Task InitializeAsync()
@@ -40,7 +44,7 @@ namespace GraphVisualizationApp.Tests.Integration
             _context = new GraphDbContext(options);
             await _context.Database.EnsureCreatedAsync();
 
-            // Настраиваем сервис
+            // Настраиваем сервисы
             _cache = new MemoryCache(new MemoryCacheOptions());
             var cacheSettings = Options.Create(new CacheSettings
             {
@@ -50,7 +54,10 @@ namespace GraphVisualizationApp.Tests.Integration
                 RelationTypesCacheDuration = TimeSpan.FromMinutes(10)
             });
 
-            _service = new GraphService(_context, _cache, cacheSettings);
+            _typeService = new TypeService(_context, _cache, cacheSettings);
+            _objectService = new ObjectService(_context, _cache, cacheSettings);
+            _relationService = new RelationService(_context, _cache, cacheSettings);
+            _pathfindingService = new PathfindingService(_objectService, _relationService);
         }
 
         [Fact]
@@ -62,7 +69,7 @@ namespace GraphVisualizationApp.Tests.Integration
                 Name = "TestType",
                 Description = "Test object type"
             };
-            var createdType = await _service.CreateObjectTypeAsync(objectType);
+            var createdType = await _typeService!.CreateObjectTypeAsync(objectType);
             createdType.Id.Should().BeGreaterThan(0);
 
             // Act 1 - создаём объект
@@ -72,7 +79,7 @@ namespace GraphVisualizationApp.Tests.Integration
                 ObjectTypeId = createdType.Id,
                 Color = "#FF0000"
             };
-            var createdObject = await _service.CreateObjectAsync(newObject);
+            var createdObject = await _objectService!.CreateObjectAsync(newObject);
 
             // Assert 1
             createdObject.Should().NotBeNull();
@@ -80,17 +87,17 @@ namespace GraphVisualizationApp.Tests.Integration
 
             // Act 2 - обновляем объект
             createdObject.Name = "UpdatedObject";
-            var updatedObject = await _service.UpdateObjectAsync(createdObject);
+            var updatedObject = await _objectService.UpdateObjectAsync(createdObject);
 
             // Assert 2
             updatedObject.Name.Should().Be("UpdatedObject");
 
             // Act 3 - удаляем объект
-            var deleteResult = await _service.DeleteObjectAsync(createdObject.Id);
+            var deleteResult = await _objectService.DeleteObjectAsync(createdObject.Id);
 
             // Assert 3
             deleteResult.Should().BeTrue();
-            var deletedObject = await _service.GetObjectAsync(createdObject.Id);
+            var deletedObject = await _objectService.GetObjectAsync(createdObject.Id);
             deletedObject.Should().BeNull();
         }
 
@@ -98,24 +105,24 @@ namespace GraphVisualizationApp.Tests.Integration
         public async Task PathFinding_WithRealDatabase_ShouldFindCorrectPath()
         {
             // Arrange - создаём граф
-            var objectType = await _service.CreateObjectTypeAsync(new ObjectType { Name = "Node" });
-            var relationType = await _service.CreateRelationTypeAsync(new RelationType 
+            var objectType = await _typeService!.CreateObjectTypeAsync(new ObjectType { Name = "Node" });
+            var relationType = await _typeService.CreateRelationTypeAsync(new RelationType 
             { 
                 Name = "Edge", 
                 ObjectTypeId = objectType.Id 
             });
 
-            var node1 = await _service.CreateObjectAsync(new GraphObject { Name = "Node1", ObjectTypeId = objectType.Id });
-            var node2 = await _service.CreateObjectAsync(new GraphObject { Name = "Node2", ObjectTypeId = objectType.Id });
-            var node3 = await _service.CreateObjectAsync(new GraphObject { Name = "Node3", ObjectTypeId = objectType.Id });
+            var node1 = await _objectService!.CreateObjectAsync(new GraphObject { Name = "Node1", ObjectTypeId = objectType.Id });
+            var node2 = await _objectService.CreateObjectAsync(new GraphObject { Name = "Node2", ObjectTypeId = objectType.Id });
+            var node3 = await _objectService.CreateObjectAsync(new GraphObject { Name = "Node3", ObjectTypeId = objectType.Id });
 
-            await _service.CreateRelationAsync(new GraphRelation 
+            await _relationService!.CreateRelationAsync(new GraphRelation 
             { 
                 Source = node1.Id, 
                 Target = node2.Id, 
                 RelationTypeId = relationType.Id 
             });
-            await _service.CreateRelationAsync(new GraphRelation 
+            await _relationService.CreateRelationAsync(new GraphRelation 
             { 
                 Source = node2.Id, 
                 Target = node3.Id, 
@@ -123,7 +130,7 @@ namespace GraphVisualizationApp.Tests.Integration
             });
 
             // Act
-            var path = await _service.FindPathAsync(node1.Id, node3.Id);
+            var path = await _pathfindingService!.FindPathAsync(node1.Id, node3.Id);
 
             // Assert
             path.Should().NotBeNull();
@@ -135,9 +142,9 @@ namespace GraphVisualizationApp.Tests.Integration
 
         public async Task DisposeAsync()
         {
-            await _context.DisposeAsync();
-            _cache.Dispose();
-            await _postgresContainer.DisposeAsync();
+            if (_context != null) await _context.DisposeAsync();
+            _cache?.Dispose();
+            if (_postgresContainer != null) await _postgresContainer.DisposeAsync();
         }
     }
 }

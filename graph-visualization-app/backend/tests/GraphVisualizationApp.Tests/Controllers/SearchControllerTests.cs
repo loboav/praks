@@ -12,13 +12,13 @@ namespace GraphVisualizationApp.Tests.Controllers
 {
     public class SearchControllerTests
     {
-        private readonly Mock<IGraphService> _mockGraphService;
+        private readonly Mock<ISearchService> _mockSearchService;
         private readonly SearchController _controller;
 
         public SearchControllerTests()
         {
-            _mockGraphService = new Mock<IGraphService>();
-            _controller = new SearchController(_mockGraphService.Object);
+            _mockSearchService = new Mock<ISearchService>();
+            _controller = new SearchController(_mockSearchService.Object);
         }
 
         [Fact]
@@ -35,7 +35,7 @@ namespace GraphVisualizationApp.Tests.Controllers
                 Query = query
             };
 
-            _mockGraphService.Setup(s => s.SearchAsync(query, It.IsAny<SearchOptions>()))
+            _mockSearchService.Setup(s => s.SearchAsync(query, It.IsAny<SearchOptions>()))
                 .ReturnsAsync(expectedResults);
 
             // Act
@@ -84,7 +84,7 @@ namespace GraphVisualizationApp.Tests.Controllers
                 }
             };
 
-            _mockGraphService.Setup(s => s.SearchObjectsAsync(query, It.IsAny<SearchOptions>()))
+            _mockSearchService.Setup(s => s.SearchObjectsAsync(query, It.IsAny<SearchOptions>()))
                 .ReturnsAsync(expectedResults);
 
             // Act
@@ -122,7 +122,7 @@ namespace GraphVisualizationApp.Tests.Controllers
                 }
             };
 
-            _mockGraphService.Setup(s => s.SearchRelationsAsync(query, It.IsAny<SearchOptions>()))
+            _mockSearchService.Setup(s => s.SearchRelationsAsync(query, It.IsAny<SearchOptions>()))
                 .ReturnsAsync(expectedResults);
 
             // Act
@@ -149,7 +149,7 @@ namespace GraphVisualizationApp.Tests.Controllers
                 Query = query
             };
 
-            _mockGraphService.Setup(s => s.SearchAsync(query, It.IsAny<SearchOptions>()))
+            _mockSearchService.Setup(s => s.SearchAsync(query, It.IsAny<SearchOptions>()))
                 .ReturnsAsync(expectedResults);
 
             // Act
@@ -169,7 +169,7 @@ namespace GraphVisualizationApp.Tests.Controllers
             var query = "test";
             SearchOptions? capturedOptions = null;
 
-            _mockGraphService.Setup(s => s.SearchAsync(query, It.IsAny<SearchOptions>()))
+            _mockSearchService.Setup(s => s.SearchAsync(query, It.IsAny<SearchOptions>()))
                 .Callback<string, SearchOptions>((q, opts) => capturedOptions = opts)
                 .ReturnsAsync(new SearchResults { TotalFound = 0, Query = query });
 
@@ -194,14 +194,14 @@ namespace GraphVisualizationApp.Tests.Controllers
                 MaxResults = 10
             };
 
-            _mockGraphService.Setup(s => s.SearchAsync(query, options))
+            _mockSearchService.Setup(s => s.SearchAsync(query, options))
                 .ReturnsAsync(new SearchResults { TotalFound = 0, Query = query });
 
             // Act
             await _controller.Search(query, options);
 
             // Assert
-            _mockGraphService.Verify(s => s.SearchAsync(query, options), Times.Once);
+            _mockSearchService.Verify(s => s.SearchAsync(query, options), Times.Once);
         }
     }
 }

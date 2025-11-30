@@ -83,8 +83,15 @@ builder.Services.AddDbContext<GraphDbContext>(options =>
     }
 });
 
-// Register application services
-builder.Services.AddScoped<IGraphService, GraphService>();
+// Register application services (NEW: specialized services instead of monolithic GraphService)
+builder.Services.AddScoped<ITypeService, TypeService>();
+builder.Services.AddScoped<IObjectService, ObjectService>();
+builder.Services.AddScoped<IRelationService, RelationService>();
+builder.Services.AddScoped<IPathfindingService, PathfindingService>();
+builder.Services.AddScoped<ILayoutService, LayoutService>();
+builder.Services.AddScoped<ISearchService, SearchService>();
+
+// Other services
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<IImportService, ImportService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();

@@ -14,14 +14,27 @@ namespace GraphVisualizationApp.Controllers
     [Authorize]
     public class GraphController : ControllerBase
     {
-        private readonly IGraphService _service;
-        public GraphController(IGraphService service) { _service = service; }
+        private readonly IObjectService _objectService;
+        private readonly IRelationService _relationService;
+        private readonly ITypeService _typeService;
+        private readonly IPathfindingService _pathfindingService;
+
+        public GraphController(
+            IObjectService objectService,
+            IRelationService relationService,
+            ITypeService typeService,
+            IPathfindingService pathfindingService)
+        {
+            _objectService = objectService;
+            _relationService = relationService;
+            _typeService = typeService;
+            _pathfindingService = pathfindingService;
+        }
 
         [HttpGet("dijkstra-path")]
         public async Task<IActionResult> FindShortestPathDijkstra([FromQuery] int fromId, [FromQuery] int toId)
         {
-          
-            var allObjects = await _service.GetObjectsAsync();
+            var allObjects = await _objectService.GetObjectsAsync();
             var hasFrom = allObjects.Any(o => o.Id == fromId);
             var hasTo = allObjects.Any(o => o.Id == toId);
             if (!hasFrom || !hasTo)
@@ -32,11 +45,10 @@ namespace GraphVisualizationApp.Controllers
                 return NotFound(new { reason = "missing_node", missing });
             }
 
-            var result = await _service.FindShortestPathDijkstraAsync(fromId, toId);
+            var result = await _pathfindingService.FindShortestPathDijkstraAsync(fromId, toId);
             if (result == null || result.NodeIds == null || result.NodeIds.Count == 0)
             {
-                
-                var rels = await _service.GetRelationsAsync();
+                var rels = await _relationService.GetRelationsAsync();
                 return NotFound(new { reason = "no_path", fromId, toId, nodes = allObjects.Count, relations = rels.Count });
             }
             return Ok(new {
@@ -46,11 +58,10 @@ namespace GraphVisualizationApp.Controllers
             });
         }
 
-        
         public class BatchUpdateRequest
         {
-        public required List<int> Ids { get; set; }
-        public required Dictionary<string, object> Fields { get; set; }
+            public required List<int> Ids { get; set; }
+            public required Dictionary<string, object> Fields { get; set; }
         }
 
         [HttpPost("objects/batch-update")]
@@ -59,7 +70,7 @@ namespace GraphVisualizationApp.Controllers
         {
             if (req == null || req.Ids == null || req.Ids.Count == 0 || req.Fields == null)
                 return BadRequest();
-            var updated = await _service.UpdateObjectsBatchAsync(req.Ids, req.Fields);
+            var updated = await _objectService.UpdateObjectsBatchAsync(req.Ids, req.Fields);
             return Ok(new { updated });
         }
 
@@ -69,7 +80,7 @@ namespace GraphVisualizationApp.Controllers
         {
             if (req == null || req.Ids == null || req.Ids.Count == 0 || req.Fields == null)
                 return BadRequest();
-            var updated = await _service.UpdateRelationsBatchAsync(req.Ids, req.Fields);
+            var updated = await _relationService.UpdateRelationsBatchAsync(req.Ids, req.Fields);
             return Ok(new { updated });
         }
 
@@ -77,14 +88,16 @@ namespace GraphVisualizationApp.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetGraph()
         {
-            var graph = await _service.GetGraphAsync();
-            return Ok(graph);
+            // Re-implemented GetGraphAsync logic here
+            var objects = await _objectService.GetObjectsAsync();
+            var relations = await _relationService.GetRelationsAsync();
+            return Ok(new { Objects = objects, Relations = relations });
         }
 
         [HttpGet("get-object/{id}")]
         public async Task<ActionResult<GraphObject>> GetObject(int id)
         {
-            var graphObject = await _service.GetObjectAsync(id);
+            var graphObject = await _objectService.GetObjectAsync(id);
             if (graphObject == null)
             {
                 return NotFound();
@@ -95,7 +108,7 @@ namespace GraphVisualizationApp.Controllers
         [HttpGet("get-relation/{id}")]
         public async Task<ActionResult<GraphRelation>> GetRelation(int id)
         {
-            var graphRelation = await _service.GetRelationAsync(id);
+            var graphRelation = await _relationService.GetRelationAsync(id);
             if (graphRelation == null)
             {
                 return NotFound();
@@ -106,7 +119,7 @@ namespace GraphVisualizationApp.Controllers
         [HttpGet("find-path")]
         public async Task<ActionResult<IEnumerable<GraphObject>>> FindPath(int startId, int endId)
         {
-            var path = await _service.FindPathAsync(startId, endId);
+            var path = await _pathfindingService.FindPathAsync(startId, endId);
             if (path == null || path.Count == 0)
             {
                 return NotFound();
@@ -118,8 +131,8 @@ namespace GraphVisualizationApp.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetObjectTypes()
         {
-            var types = await _service.GetObjectTypesAsync();
-            var dtos = types.Select(GraphService.ToDto).ToList();
+            var types = await _typeService.GetObjectTypesAsync();
+            var dtos = types.Select(DtoMapper.ToDto).ToList();
             return Ok(dtos);
         }
 
@@ -127,15 +140,15 @@ namespace GraphVisualizationApp.Controllers
         [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> CreateObjectType([FromBody] ObjectType type)
         {
-            var created = await _service.CreateObjectTypeAsync(type);
-            return Ok(GraphService.ToDto(created));
+            var created = await _typeService.CreateObjectTypeAsync(type);
+            return Ok(DtoMapper.ToDto(created));
         }
 
         [HttpDelete("object-types/{id}")]
         [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> DeleteObjectType(int id)
         {
-            var ok = await _service.DeleteObjectTypeAsync(id);
+            var ok = await _typeService.DeleteObjectTypeAsync(id);
             if (!ok) return NotFound();
             return NoContent();
         }
@@ -144,8 +157,8 @@ namespace GraphVisualizationApp.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetRelationTypes()
         {
-            var types = await _service.GetRelationTypesAsync();
-            var dtos = types.Select(GraphService.ToDto).ToList();
+            var types = await _typeService.GetRelationTypesAsync();
+            var dtos = types.Select(DtoMapper.ToDto).ToList();
             return Ok(dtos);
         }
 
@@ -153,15 +166,15 @@ namespace GraphVisualizationApp.Controllers
         [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> CreateRelationType([FromBody] RelationType type)
         {
-            var created = await _service.CreateRelationTypeAsync(type);
-            return Ok(GraphService.ToDto(created));
+            var created = await _typeService.CreateRelationTypeAsync(type);
+            return Ok(DtoMapper.ToDto(created));
         }
 
         [HttpDelete("relation-types/{id}")]
         [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> DeleteRelationType(int id)
         {
-            var ok = await _service.DeleteRelationTypeAsync(id);
+            var ok = await _typeService.DeleteRelationTypeAsync(id);
             if (!ok) return NotFound();
             return NoContent();
         }
@@ -170,8 +183,8 @@ namespace GraphVisualizationApp.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetObjects()
         {
-            var objects = await _service.GetObjectsAsync();
-            var dtos = objects.Select(GraphService.ToDto).ToList();
+            var objects = await _objectService.GetObjectsAsync();
+            var dtos = objects.Select(DtoMapper.ToDto).ToList();
             return Ok(dtos);
         }
 
@@ -193,8 +206,8 @@ namespace GraphVisualizationApp.Controllers
                 }).ToList() ?? new List<ObjectProperty>()
             };
             
-            var created = await _service.CreateObjectAsync(obj);
-            return Ok(GraphService.ToDto(created));
+            var created = await _objectService.CreateObjectAsync(obj);
+            return Ok(DtoMapper.ToDto(created));
         }
 
         [HttpPut("objects/{id}")]
@@ -203,18 +216,18 @@ namespace GraphVisualizationApp.Controllers
         {
             if (obj == null || obj.Id != id)
                 return BadRequest();
-            var updated = await _service.UpdateObjectAsync(obj);
+            var updated = await _objectService.UpdateObjectAsync(obj);
             if (updated == null)
                 return NotFound();
-            return Ok(GraphService.ToDto(updated));
+            return Ok(DtoMapper.ToDto(updated));
         }
 
         [HttpGet("relations")]
         [AllowAnonymous]
         public async Task<IActionResult> GetRelations()
         {
-            var rels = await _service.GetRelationsAsync();
-            var dtos = rels.Select(GraphService.ToDto).ToList();
+            var rels = await _relationService.GetRelationsAsync();
+            var dtos = rels.Select(DtoMapper.ToDto).ToList();
             return Ok(dtos);
         }
 
@@ -222,8 +235,8 @@ namespace GraphVisualizationApp.Controllers
         [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> CreateRelation([FromBody] GraphRelation rel)
         {
-            var created = await _service.CreateRelationAsync(rel);
-            return Ok(GraphService.ToDto(created));
+            var created = await _relationService.CreateRelationAsync(rel);
+            return Ok(DtoMapper.ToDto(created));
         }
 
         [HttpPut("relations/{id}")]
@@ -232,17 +245,17 @@ namespace GraphVisualizationApp.Controllers
         {
             if (rel == null || rel.Id != id)
                 return BadRequest();
-            var updated = await _service.UpdateRelationAsync(rel);
+            var updated = await _relationService.UpdateRelationAsync(rel);
             if (updated == null)
                 return NotFound();
-            return Ok(GraphService.ToDto(updated));
+            return Ok(DtoMapper.ToDto(updated));
         }
 
         [HttpDelete("objects/{id}")]
         [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> DeleteObject(int id)
         {
-            var ok = await _service.DeleteObjectAsync(id);
+            var ok = await _objectService.DeleteObjectAsync(id);
             if (!ok) return NotFound();
             return NoContent();
         }
@@ -251,24 +264,24 @@ namespace GraphVisualizationApp.Controllers
         [Authorize(Roles = "Editor,Admin")]
         public async Task<IActionResult> DeleteRelation(int id)
         {
-            var ok = await _service.DeleteRelationAsync(id);
+            var ok = await _relationService.DeleteRelationAsync(id);
             if (!ok) return NotFound();
             return NoContent();
         }
 
         [HttpGet("object-properties/{objectId}")]
-        public async Task<IActionResult> GetObjectProperties(int objectId) => Ok(await _service.GetObjectPropertiesAsync(objectId));
+        public async Task<IActionResult> GetObjectProperties(int objectId) => Ok(await _objectService.GetObjectPropertiesAsync(objectId));
 
         [HttpPost("object-properties")]
-        public async Task<IActionResult> AddObjectProperty([FromBody] ObjectProperty prop) => Ok(await _service.AddObjectPropertyAsync(prop));
+        public async Task<IActionResult> AddObjectProperty([FromBody] ObjectProperty prop) => Ok(await _objectService.AddObjectPropertyAsync(prop));
 
         [HttpGet("relation-properties/{relationId}")]
-        public async Task<IActionResult> GetRelationProperties(int relationId) => Ok(await _service.GetRelationPropertiesAsync(relationId));
+        public async Task<IActionResult> GetRelationProperties(int relationId) => Ok(await _relationService.GetRelationPropertiesAsync(relationId));
 
         [HttpPost("relation-properties")]
-        public async Task<IActionResult> AddRelationProperty([FromBody] RelationProperty prop) => Ok(await _service.AddRelationPropertyAsync(prop));
+        public async Task<IActionResult> AddRelationProperty([FromBody] RelationProperty prop) => Ok(await _relationService.AddRelationPropertyAsync(prop));
 
         [HttpGet("paths")]
-        public async Task<IActionResult> FindPaths([FromQuery] int fromId, [FromQuery] int toId) => Ok(await _service.FindPathsAsync(fromId, toId));
+        public async Task<IActionResult> FindPaths([FromQuery] int fromId, [FromQuery] int toId) => Ok(await _pathfindingService.FindPathsAsync(fromId, toId));
     }
 }

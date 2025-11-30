@@ -8,19 +8,26 @@ namespace GraphVisualizationApp.Services
 {
     public class ExportService : IExportService
     {
-        private readonly IGraphService _graphService;
+        private readonly IObjectService _objectService;
+        private readonly IRelationService _relationService;
+        private readonly ITypeService _typeService;
 
-        public ExportService(IGraphService graphService)
+        public ExportService(
+            IObjectService objectService,
+            IRelationService relationService,
+            ITypeService typeService)
         {
-            _graphService = graphService;
+            _objectService = objectService;
+            _relationService = relationService;
+            _typeService = typeService;
         }
 
         public async Task<string> ExportToJsonAsync()
         {
-            var objects = await _graphService.GetObjectsAsync();
-            var relations = await _graphService.GetRelationsAsync();
-            var objectTypes = await _graphService.GetObjectTypesAsync();
-            var relationTypes = await _graphService.GetRelationTypesAsync();
+            var objects = await _objectService.GetObjectsAsync();
+            var relations = await _relationService.GetRelationsAsync();
+            var objectTypes = await _typeService.GetObjectTypesAsync();
+            var relationTypes = await _typeService.GetRelationTypesAsync();
 
             var export = new
             {
@@ -78,13 +85,13 @@ namespace GraphVisualizationApp.Services
 
         public async Task<string> ExportToGraphMLAsync()
         {
-            var objects = await _graphService.GetObjectsAsync();
-            var relations = await _graphService.GetRelationsAsync();
+            var objects = await _objectService.GetObjectsAsync();
+            var relations = await _relationService.GetRelationsAsync();
 
             try
             {
-                var objectTypes = await _graphService.GetObjectTypesAsync();
-                var relationTypes = await _graphService.GetRelationTypesAsync();
+                var objectTypes = await _typeService.GetObjectTypesAsync();
+                var relationTypes = await _typeService.GetRelationTypesAsync();
                 
                 // Опции JSON для корректной кодировки кириллицы
                 var jsonOptions = new JsonSerializerOptions
@@ -211,10 +218,10 @@ namespace GraphVisualizationApp.Services
 
         public async Task<(string nodesCsv, string edgesCsv)> ExportToCsvAsync()
         {
-            var objects = await _graphService.GetObjectsAsync();
-            var relations = await _graphService.GetRelationsAsync();
-            var objectTypes = await _graphService.GetObjectTypesAsync();
-            var relationTypes = await _graphService.GetRelationTypesAsync();
+            var objects = await _objectService.GetObjectsAsync();
+            var relations = await _relationService.GetRelationsAsync();
+            var objectTypes = await _typeService.GetObjectTypesAsync();
+            var relationTypes = await _typeService.GetRelationTypesAsync();
 
             // Nodes CSV с расширенными данными
             var nodesCsv = new StringBuilder();

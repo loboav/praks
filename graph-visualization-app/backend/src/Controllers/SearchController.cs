@@ -12,11 +12,11 @@ namespace GraphVisualizationApp.Controllers
     [Route("api/search")]
     public class SearchController : ControllerBase
     {
-        private readonly IGraphService _graphService;
+        private readonly ISearchService _searchService;
 
-        public SearchController(IGraphService graphService)
+        public SearchController(ISearchService searchService)
         {
-            _graphService = graphService;
+            _searchService = searchService;
         }
 
         /// <summary>
@@ -37,7 +37,7 @@ namespace GraphVisualizationApp.Controllers
                 return BadRequest(new { error = "Query cannot be empty" });
             }
 
-            var results = await _graphService.SearchAsync(query, options);
+            var results = await _searchService.SearchAsync(query, options);
             return Ok(results);
         }
 
@@ -56,7 +56,7 @@ namespace GraphVisualizationApp.Controllers
                 return BadRequest(new { error = "Query cannot be empty" });
             }
 
-            var results = await _graphService.SearchObjectsAsync(query, options);
+            var results = await _searchService.SearchObjectsAsync(query, options);
             return Ok(results);
         }
 
@@ -75,7 +75,7 @@ namespace GraphVisualizationApp.Controllers
                 return BadRequest(new { error = "Query cannot be empty" });
             }
 
-            var results = await _graphService.SearchRelationsAsync(query, options);
+            var results = await _searchService.SearchRelationsAsync(query, options);
             return Ok(results);
         }
 
@@ -108,7 +108,7 @@ namespace GraphVisualizationApp.Controllers
                 SearchInTypeDescriptions = false
             };
 
-            var results = await _graphService.SearchAsync(q, options);
+            var results = await _searchService.SearchAsync(q, options);
             return Ok(results);
         }
     }

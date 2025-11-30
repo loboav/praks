@@ -12,8 +12,8 @@ namespace GraphVisualizationApp.Controllers
     [Authorize(Roles = "Editor,Admin")]
     public class RelationTypeController : ControllerBase
     {
-        private readonly IGraphService _service;
-        public RelationTypeController(IGraphService service) { _service = service; }
+        private readonly ITypeService _service;
+        public RelationTypeController(ITypeService service) { _service = service; }
 
         [HttpGet]
         public async Task<ActionResult<List<RelationType>>> GetAll()

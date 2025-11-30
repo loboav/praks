@@ -12,8 +12,8 @@ namespace GraphVisualizationApp.Controllers
     [Authorize(Roles = "Editor,Admin")]
     public class ObjectTypeController : ControllerBase
     {
-        private readonly IGraphService _service;
-        public ObjectTypeController(IGraphService service) { _service = service; }
+        private readonly ITypeService _service;
+        public ObjectTypeController(ITypeService service) { _service = service; }
 
         [HttpGet]
         public async Task<ActionResult<List<ObjectType>>> GetAll()

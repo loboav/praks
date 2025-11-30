@@ -12,34 +12,43 @@ namespace GraphVisualizationApp.Tests.Controllers
 {
     public class GraphControllerTests
     {
-        private readonly Mock<IGraphService> _mockGraphService;
+        private readonly Mock<IObjectService> _mockObjectService;
+        private readonly Mock<IRelationService> _mockRelationService;
+        private readonly Mock<ITypeService> _mockTypeService;
+        private readonly Mock<IPathfindingService> _mockPathfindingService;
         private readonly GraphController _controller;
 
         public GraphControllerTests()
         {
-            _mockGraphService = new Mock<IGraphService>();
-            _controller = new GraphController(_mockGraphService.Object);
+            _mockObjectService = new Mock<IObjectService>();
+            _mockRelationService = new Mock<IRelationService>();
+            _mockTypeService = new Mock<ITypeService>();
+            _mockPathfindingService = new Mock<IPathfindingService>();
+            
+            _controller = new GraphController(
+                _mockObjectService.Object,
+                _mockRelationService.Object,
+                _mockTypeService.Object,
+                _mockPathfindingService.Object
+            );
         }
 
         [Fact]
         public async Task GetGraph_ShouldReturnOkWithGraphData()
         {
             // Arrange
-            var graphData = new
+            var objects = new List<GraphObject>
             {
-                Objects = new List<GraphObject>
-                {
-                    new GraphObject { Id = 1, Name = "Test1", ObjectTypeId = 1 },
-                    new GraphObject { Id = 2, Name = "Test2", ObjectTypeId = 1 }
-                },
-                Relations = new List<GraphRelation>
-                {
-                    new GraphRelation { Id = 1, Source = 1, Target = 2, RelationTypeId = 1 }
-                }
+                new GraphObject { Id = 1, Name = "Test1", ObjectTypeId = 1 },
+                new GraphObject { Id = 2, Name = "Test2", ObjectTypeId = 1 }
+            };
+            var relations = new List<GraphRelation>
+            {
+                new GraphRelation { Id = 1, Source = 1, Target = 2, RelationTypeId = 1 }
             };
 
-            _mockGraphService.Setup(s => s.GetGraphAsync())
-                .ReturnsAsync(graphData);
+            _mockObjectService.Setup(s => s.GetObjectsAsync()).ReturnsAsync(objects);
+            _mockRelationService.Setup(s => s.GetRelationsAsync()).ReturnsAsync(relations);
 
             // Act
             var result = await _controller.GetGraph();
@@ -47,6 +56,7 @@ namespace GraphVisualizationApp.Tests.Controllers
             // Assert
             var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
             okResult.Value.Should().NotBeNull();
+            // Verify structure if needed, but checking NotBeNull is a good start
         }
 
         [Fact]
@@ -59,7 +69,7 @@ namespace GraphVisualizationApp.Tests.Controllers
                 new GraphObject { Id = 2, Name = "Bob", ObjectTypeId = 1 }
             };
 
-            _mockGraphService.Setup(s => s.GetObjectsAsync())
+            _mockObjectService.Setup(s => s.GetObjectsAsync())
                 .ReturnsAsync(expectedObjects);
 
             // Act
@@ -68,7 +78,6 @@ namespace GraphVisualizationApp.Tests.Controllers
             // Assert
             var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
             okResult.Value.Should().NotBeNull();
-            // Controller returns DTOs, not raw objects
         }
 
         [Fact]
@@ -91,7 +100,7 @@ namespace GraphVisualizationApp.Tests.Controllers
                 Color = "#FF0000"
             };
 
-            _mockGraphService.Setup(s => s.CreateObjectAsync(It.IsAny<GraphObject>()))
+            _mockObjectService.Setup(s => s.CreateObjectAsync(It.IsAny<GraphObject>()))
                 .ReturnsAsync(createdObject);
 
             // Act
@@ -114,7 +123,7 @@ namespace GraphVisualizationApp.Tests.Controllers
                 ObjectTypeId = 1
             };
 
-            _mockGraphService.Setup(s => s.UpdateObjectAsync(It.IsAny<GraphObject>()))
+            _mockObjectService.Setup(s => s.UpdateObjectAsync(It.IsAny<GraphObject>()))
                 .ReturnsAsync(updatedObject);
 
             // Act
@@ -123,14 +132,13 @@ namespace GraphVisualizationApp.Tests.Controllers
             // Assert
             var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
             okResult.Value.Should().NotBeNull();
-            // Controller returns DTO, not raw object
         }
 
         [Fact]
         public async Task DeleteObject_ExistingId_ShouldReturnNoContent()
         {
             // Arrange
-            _mockGraphService.Setup(s => s.DeleteObjectAsync(1))
+            _mockObjectService.Setup(s => s.DeleteObjectAsync(1))
                 .ReturnsAsync(true);
 
             // Act
@@ -144,7 +152,7 @@ namespace GraphVisualizationApp.Tests.Controllers
         public async Task DeleteObject_NonExistingId_ShouldReturnNotFound()
         {
             // Arrange
-            _mockGraphService.Setup(s => s.DeleteObjectAsync(999))
+            _mockObjectService.Setup(s => s.DeleteObjectAsync(999))
                 .ReturnsAsync(false);
 
             // Act
