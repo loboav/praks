@@ -20,8 +20,8 @@ namespace GraphVisualizationApp.Controllers
             => Ok(await _service.GetSummaryAsync());
 
         [HttpGet("node-metrics")]
-        public async Task<ActionResult<List<NodeMetricsDto>>> GetNodeMetrics([FromQuery] bool closeness = false)
-            => Ok(await _service.GetNodeMetricsAsync(closeness));
+        public async Task<ActionResult<List<NodeMetricsDto>>> GetNodeMetrics([FromQuery] bool closeness = false, [FromQuery] bool betweenness = false)
+            => Ok(await _service.GetNodeMetricsAsync(closeness, betweenness));
 
         [HttpGet("pagerank")]
         public async Task<ActionResult<List<PageRankEntryDto>>> GetPageRank([FromQuery] int iterations = 50, [FromQuery] double damping = 0.85)

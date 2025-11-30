@@ -16,6 +16,7 @@ export interface NodeMetrics {
   degree: number;
   degreeCentrality: number;
   closenessCentrality?: number | null;
+  betweennessCentrality?: number | null;
 }
 
 export interface PageRankEntry { nodeId: number; score: number; }
@@ -31,7 +32,7 @@ export const useAnalytics = () => {
       const r = await fetch(url);
       if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
       return await r.json();
-    } catch (e:any) {
+    } catch (e: any) {
       setError(e.message || 'Ошибка запроса');
       throw e;
     } finally {
@@ -40,9 +41,9 @@ export const useAnalytics = () => {
   }, []);
 
   const getSummary = useCallback(() => fetchJson<AnalyticsSummary>('/api/analytics/summary'), [fetchJson]);
-  const getNodeMetrics = useCallback((closeness=false) => fetchJson<NodeMetrics[]>(`/api/analytics/node-metrics?closeness=${closeness}`), [fetchJson]);
-  const getPageRank = useCallback((iterations=50, damping=0.85) => fetchJson<PageRankEntry[]>(`/api/analytics/pagerank?iterations=${iterations}&damping=${damping}`), [fetchJson]);
-  const getCommunities = useCallback((passes=10) => fetchJson<Communities>(`/api/analytics/communities?passes=${passes}`), [fetchJson]);
+  const getNodeMetrics = useCallback((closeness = false, betweenness = false) => fetchJson<NodeMetrics[]>(`/api/analytics/node-metrics?closeness=${closeness}&betweenness=${betweenness}`), [fetchJson]);
+  const getPageRank = useCallback((iterations = 50, damping = 0.85) => fetchJson<PageRankEntry[]>(`/api/analytics/pagerank?iterations=${iterations}&damping=${damping}`), [fetchJson]);
+  const getCommunities = useCallback((passes = 10) => fetchJson<Communities>(`/api/analytics/communities?passes=${passes}`), [fetchJson]);
 
   return { loading, error, getSummary, getNodeMetrics, getPageRank, getCommunities };
 };

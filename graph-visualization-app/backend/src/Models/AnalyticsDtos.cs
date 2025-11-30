@@ -20,6 +20,7 @@ namespace GraphVisualizationApp.Models
         public int Degree { get; set; }
         public double DegreeCentrality { get; set; }
         public double? ClosenessCentrality { get; set; }
+        public double? BetweennessCentrality { get; set; }
     }
 
     public class PageRankEntryDto

@@ -38,7 +38,7 @@ namespace GraphVisualizationApp.Services
             };
         }
 
-        public async Task<List<NodeMetricsDto>> GetNodeMetricsAsync(bool includeCloseness = false)
+        public async Task<List<NodeMetricsDto>> GetNodeMetricsAsync(bool includeCloseness = false, bool includeBetweenness = false)
         {
             var nodes = await _db.GraphObjects.AsNoTracking().Select(o => o.Id).ToListAsync();
             var edges = await _db.GraphRelations.AsNoTracking().Select(e => new { e.Source, e.Target }).ToListAsync();
@@ -49,9 +49,15 @@ namespace GraphVisualizationApp.Services
 
             var metrics = new List<NodeMetricsDto>(nodes.Count);
             Dictionary<int, List<int>>? undirected = null;
-            if (includeCloseness)
+            if (includeCloseness || includeBetweenness)
             {
                 undirected = BuildUndirectedAdjacency(nodes, await _db.GraphRelations.AsNoTracking().ToListAsync());
+            }
+
+            Dictionary<int, double>? betweenness = null;
+            if (includeBetweenness && undirected != null)
+            {
+                betweenness = ComputeBetweenness(undirected, nodes);
             }
 
             foreach (var id in nodes)
@@ -65,6 +71,13 @@ namespace GraphVisualizationApp.Services
                 {
                     close = ComputeCloseness(undirected, id, nodes.Count);
                 }
+                
+                double? betw = null;
+                if (betweenness != null && betweenness.ContainsKey(id))
+                {
+                    betw = Math.Round(betweenness[id], 6);
+                }
+
                 metrics.Add(new NodeMetricsDto
                 {
                     NodeId = id,
@@ -72,7 +85,8 @@ namespace GraphVisualizationApp.Services
                     OutDegree = outD,
                     Degree = deg,
                     DegreeCentrality = Math.Round(degCent, 6),
-                    ClosenessCentrality = close
+                    ClosenessCentrality = close,
+                    BetweennessCentrality = betw
                 });
             }
             return metrics.OrderByDescending(m => m.Degree).ToList();
@@ -292,6 +306,73 @@ namespace GraphVisualizationApp.Services
                 }
             }
             return Q / m2;
+        }
+
+        private static Dictionary<int, double> ComputeBetweenness(Dictionary<int, List<int>> adj, List<int> nodes)
+        {
+            // Brandes' Algorithm for unweighted graph
+            var cb = nodes.ToDictionary(n => n, _ => 0.0);
+
+            foreach (var s in nodes)
+            {
+                var stack = new Stack<int>();
+                var P = nodes.ToDictionary(n => n, _ => new List<int>());
+                var sigma = nodes.ToDictionary(n => n, _ => 0.0);
+                var d = nodes.ToDictionary(n => n, _ => -1);
+                
+                sigma[s] = 1.0;
+                d[s] = 0;
+                
+                var q = new Queue<int>();
+                q.Enqueue(s);
+
+                while (q.Count > 0)
+                {
+                    var v = q.Dequeue();
+                    stack.Push(v);
+
+                    foreach (var w in adj[v])
+                    {
+                        if (d[w] < 0)
+                        {
+                            q.Enqueue(w);
+                            d[w] = d[v] + 1;
+                        }
+                        if (d[w] == d[v] + 1)
+                        {
+                            sigma[w] += sigma[v];
+                            P[w].Add(v);
+                        }
+                    }
+                }
+
+                var delta = nodes.ToDictionary(n => n, _ => 0.0);
+                while (stack.Count > 0)
+                {
+                    var w = stack.Pop();
+                    foreach (var v in P[w])
+                    {
+                        delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w]);
+                    }
+                    if (w != s)
+                    {
+                        cb[w] += delta[w];
+                    }
+                }
+            }
+
+            // For undirected graph, divide by 2
+            // Normalization: divide by (N-1)(N-2)
+            double N = nodes.Count;
+            double norm = (N - 1) * (N - 2);
+            if (norm <= 0) norm = 1;
+
+            var result = new Dictionary<int, double>();
+            foreach (var kv in cb)
+            {
+                result[kv.Key] = (kv.Value / 2.0) / norm;
+            }
+            return result;
         }
     }
 }
