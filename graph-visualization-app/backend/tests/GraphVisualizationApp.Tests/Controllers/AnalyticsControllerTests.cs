@@ -57,7 +57,7 @@ namespace GraphVisualizationApp.Tests.Controllers
                 new NodeMetricsDto { NodeId = 2, Degree = 3, DegreeCentrality = 0.1 }
             };
 
-            _mockAnalyticsService.Setup(s => s.GetNodeMetricsAsync(false))
+            _mockAnalyticsService.Setup(s => s.GetNodeMetricsAsync(false, false))
                 .ReturnsAsync(expectedMetrics);
 
             // Act
@@ -85,7 +85,7 @@ namespace GraphVisualizationApp.Tests.Controllers
                 }
             };
 
-            _mockAnalyticsService.Setup(s => s.GetNodeMetricsAsync(true))
+            _mockAnalyticsService.Setup(s => s.GetNodeMetricsAsync(true, false))
                 .ReturnsAsync(expectedMetrics);
 
             // Act
