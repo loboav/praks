@@ -8,7 +8,7 @@ updates:
   # .NET Backend зависимости
   # ==========================================
   - package-ecosystem: "nuget"
-    directory: "/backend/src/GraphVisualizationApp"
+    directory: "/graph-visualization-app/backend/src/GraphVisualizationApp"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -55,7 +55,7 @@ updates:
   # Frontend (npm) зависимости
   # ==========================================
   - package-ecosystem: "npm"
-    directory: "/frontend"
+    directory: "/graph-visualization-app/frontend"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -104,7 +104,7 @@ updates:
   # Docker базовые образы
   # ==========================================
   - package-ecosystem: "docker"
-    directory: "/backend"
+    directory: "/graph-visualization-app/backend"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -115,7 +115,7 @@ updates:
       - "backend"
 
   - package-ecosystem: "docker"
-    directory: "/frontend"
+    directory: "/graph-visualization-app/frontend"
     schedule:
       interval: "weekly"
       day: "monday"
