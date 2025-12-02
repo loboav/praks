@@ -54,6 +54,68 @@ namespace GraphVisualizationApp.Services
             return finder.FindShortestPath(nodeList, edgeList, fromId, toId);
         }
 
+        // A* алгоритм с эвристикой
+        public async Task<AStarPathFinder.PathResult> FindPathAStarAsync(int fromId, int toId, string heuristic = "euclidean")
+        {
+            var nodes = await _objectService.GetObjectsAsync();
+            var edges = await _relationService.GetRelationsAsync();
+            
+            var nodeList = nodes.Select(n => new GraphObject
+            {
+                Id = n.Id,
+                Name = n.Name,
+                ObjectTypeId = n.ObjectTypeId,
+                PositionX = n.PositionX,
+                PositionY = n.PositionY,
+                Color = n.Color,
+                Icon = n.Icon,
+                Properties = n.Properties?.ToList() ?? new List<ObjectProperty>()
+            }).ToList();
+            
+            var edgeList = edges.Select(e => new GraphRelation
+            {
+                Id = e.Id,
+                Source = e.Source,
+                Target = e.Target,
+                RelationTypeId = e.RelationTypeId,
+                Color = e.Color,
+                Properties = e.Properties?.ToList() ?? new List<RelationProperty>()
+            }).ToList();
+            
+            var finder = new AStarPathFinder();
+            return finder.FindPath(nodeList, edgeList, fromId, toId, heuristic);
+        }
+
+        // Yen's K кратчайших путей
+        public async Task<YenKShortestPaths.KPathsResult> FindKShortestPathsAsync(int fromId, int toId, int k = 3)
+        {
+            var nodes = await _objectService.GetObjectsAsync();
+            var edges = await _relationService.GetRelationsAsync();
+            
+            var nodeList = nodes.Select(n => new GraphObject
+            {
+                Id = n.Id,
+                Name = n.Name,
+                ObjectTypeId = n.ObjectTypeId,
+                Color = n.Color,
+                Icon = n.Icon,
+                Properties = n.Properties?.ToList() ?? new List<ObjectProperty>()
+            }).ToList();
+            
+            var edgeList = edges.Select(e => new GraphRelation
+            {
+                Id = e.Id,
+                Source = e.Source,
+                Target = e.Target,
+                RelationTypeId = e.RelationTypeId,
+                Color = e.Color,
+                Properties = e.Properties?.ToList() ?? new List<RelationProperty>()
+            }).ToList();
+            
+            var finder = new YenKShortestPaths();
+            return finder.FindKShortestPaths(nodeList, edgeList, fromId, toId, k);
+        }
+
         // Legacy BFS метод (для обратной совместимости)
         public async Task<List<GraphObject>> FindPathAsync(int startId, int endId)
         {

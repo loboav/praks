@@ -58,6 +58,77 @@ namespace GraphVisualizationApp.Controllers
             });
         }
 
+        [HttpGet("astar-path")]
+        public async Task<IActionResult> FindPathAStar(
+            [FromQuery] int fromId, 
+            [FromQuery] int toId,
+            [FromQuery] string heuristic = "euclidean")
+        {
+            var allObjects = await _objectService.GetObjectsAsync();
+            var hasFrom = allObjects.Any(o => o.Id == fromId);
+            var hasTo = allObjects.Any(o => o.Id == toId);
+            if (!hasFrom || !hasTo)
+            {
+                var missing = new List<string>();
+                if (!hasFrom) missing.Add("fromId");
+                if (!hasTo) missing.Add("toId");
+                return NotFound(new { reason = "missing_node", missing });
+            }
+
+            var result = await _pathfindingService.FindPathAStarAsync(fromId, toId, heuristic);
+            if (result == null || result.NodeIds == null || result.NodeIds.Count == 0)
+            {
+                var rels = await _relationService.GetRelationsAsync();
+                return NotFound(new { reason = "no_path", fromId, toId, nodes = allObjects.Count, relations = rels.Count });
+            }
+            
+            return Ok(new
+            {
+                nodeIds = result.NodeIds,
+                edgeIds = result.EdgeIds,
+                totalWeight = result.TotalWeight,
+                nodesVisited = result.NodesVisited,
+                algorithm = "astar",
+                heuristic
+            });
+        }
+
+        [HttpGet("k-shortest-paths")]
+        public async Task<IActionResult> FindKShortestPaths(
+            [FromQuery] int fromId,
+            [FromQuery] int toId,
+            [FromQuery] int k = 3)
+        {
+            if (k < 1 || k > 10)
+                return BadRequest(new { error = "k must be between 1 and 10" });
+
+            var allObjects = await _objectService.GetObjectsAsync();
+            var hasFrom = allObjects.Any(o => o.Id == fromId);
+            var hasTo = allObjects.Any(o => o.Id == toId);
+            if (!hasFrom || !hasTo)
+            {
+                var missing = new List<string>();
+                if (!hasFrom) missing.Add("fromId");
+                if (!hasTo) missing.Add("toId");
+                return NotFound(new { reason = "missing_node", missing });
+            }
+
+            var result = await _pathfindingService.FindKShortestPathsAsync(fromId, toId, k);
+            if (result.Paths.Count == 0)
+            {
+                var rels = await _relationService.GetRelationsAsync();
+                return NotFound(new { reason = "no_path", fromId, toId, nodes = allObjects.Count, relations = rels.Count });
+            }
+            
+            return Ok(new
+            {
+                paths = result.Paths,
+                requestedK = result.RequestedK,
+                foundK = result.FoundK,
+                algorithm = "k-shortest"
+            });
+        }
+
         public class BatchUpdateRequest
         {
             public required List<int> Ids { get; set; }

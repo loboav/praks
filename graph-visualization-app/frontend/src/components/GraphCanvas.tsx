@@ -14,7 +14,7 @@ import ReactFlow, {
   Edge,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { GraphObject, GraphRelation, RelationType } from "../types/graph";
+import { GraphObject, GraphRelation, RelationType, PathAlgorithm } from "../types/graph";
 import { apiClient } from "../utils/apiClient";
 
 interface GraphCanvasProps {
@@ -28,6 +28,7 @@ interface GraphCanvasProps {
   onMove?: () => void;
   selectedNodes?: number[];
   panOnDrag?: boolean;
+  selectedAlgorithm?: PathAlgorithm;
   onNodesPositionChange?: (
     positions: { id: number; x: number; y: number }[],
   ) => void;
@@ -48,6 +49,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   selectedNodes: propsSelectedNodes,
   selectedEdges,
   panOnDrag = true,
+  selectedAlgorithm = 'dijkstra',
   onNodesPositionChange,
 }) => {
   // Local highlighting for found path
@@ -59,6 +61,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     edgeIds: number[];
     totalWeight?: number;
     names?: string[];
+    allPaths?: Array<{ nodeIds: number[]; names: string[]; weight?: number }>;
   } | null>(null);
   const [findMessage, setFindMessage] = useState<string | null>(null);
   const [pathModalPos, setPathModalPos] = useState<{
@@ -355,11 +358,27 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
             const from = fallbackFindFirst;
             const to = menu.node.id;
             const base = (window as any).__API_BASE || "";
-            const url =
-              `${base}/api/dijkstra-path?fromId=${from}&toId=${to}`.replace(
-                /([^:]?)\/\//g,
-                "$1//",
-              );
+
+            // Выбираем endpoint в зависимости от алгоритма
+            let endpoint = '';
+            switch (selectedAlgorithm) {
+              case 'astar':
+                endpoint = `${base}/api/astar-path?fromId=${from}&toId=${to}&heuristic=euclidean`;
+                break;
+              case 'bfs':
+                endpoint = `${base}/api/find-path?startId=${from}&endId=${to}`;
+                break;
+              case 'k-shortest':
+                endpoint = `${base}/api/k-shortest-paths?fromId=${from}&toId=${to}&k=3`;
+                break;
+              case 'all-paths':
+                endpoint = `${base}/api/paths?fromId=${from}&toId=${to}`;
+                break;
+              default:
+                endpoint = `${base}/api/dijkstra-path?fromId=${from}&toId=${to}`;
+            }
+
+            const url = endpoint.replace(/([^:]?)\/\//g, "$1//");
 
             const tryPrimary = async () => {
               try {
@@ -394,19 +413,140 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                 return;
               }
 
-              if (data && data.nodeIds && data.nodeIds.length) {
-                const names = (data.nodeIds as number[]).map(
+              let pathNodeIds: number[] = [];
+              let pathEdgeIds: number[] = [];
+              let totalWeight: number | undefined = undefined;
+              let pathsCount = 0;
+              let allPathsData: Array<{ nodeIds: number[]; names: string[]; weight?: number }> = [];
+
+              // Helper to find edge between two nodes
+              const findEdgeId = (source: number, target: number) => {
+                const edge = edges.find(e =>
+                  (e.source === source && e.target === target) ||
+                  (e.source === target && e.target === source) // Assuming undirected for visualization
+                );
+                return edge ? edge.id : null;
+              };
+
+              // Handle different response formats
+              if (Array.isArray(data)) {
+                if (data.length > 0) {
+                  if (Array.isArray(data[0])) {
+                    // All Paths: [[1,2,3], [1,4,5]]
+                    const allNodes = new Set<number>();
+                    const allEdges = new Set<number>();
+
+                    // Store each path separately
+                    allPathsData = data.map((path: number[]) => ({
+                      nodeIds: path,
+                      names: path.map(id => nodes.find(n => n.id === id)?.name || String(id)),
+                      weight: path.length - 1
+                    }));
+
+                    // Merge all paths for visualization
+                    data.forEach((path: number[]) => {
+                      path.forEach((nodeId, index) => {
+                        allNodes.add(nodeId);
+                        if (index < path.length - 1) {
+                          const nextNodeId = path[index + 1];
+                          const edgeId = findEdgeId(nodeId, nextNodeId);
+                          if (edgeId) allEdges.add(edgeId);
+                        }
+                      });
+                    });
+
+                    pathNodeIds = Array.from(allNodes);
+                    pathEdgeIds = Array.from(allEdges);
+                    pathsCount = data.length;
+                    console.log(`Visualizing ${pathsCount} paths (merged)`);
+                  } else if (typeof data[0] === 'object' && 'id' in data[0]) {
+                    // Legacy BFS: [{id:1}, {id:2}]
+                    pathNodeIds = data.map((n: any) => n.id);
+                    // Calculate edges for BFS
+                    for (let i = 0; i < pathNodeIds.length - 1; i++) {
+                      const edgeId = findEdgeId(pathNodeIds[i], pathNodeIds[i + 1]);
+                      if (edgeId) pathEdgeIds.push(edgeId);
+                    }
+                  }
+                }
+              } else if (data.paths && Array.isArray(data.paths)) {
+                // K-Shortest Paths
+                if (data.paths.length > 0) {
+                  const allNodes = new Set<number>();
+                  const allEdges = new Set<number>();
+
+                  // Store each path separately
+                  allPathsData = data.paths.map((path: any) => ({
+                    nodeIds: path.nodeIds,
+                    names: path.nodeIds.map((id: number) => nodes.find(n => n.id === id)?.name || String(id)),
+                    weight: path.totalWeight
+                  }));
+
+                  // Merge all paths for visualization
+                  data.paths.forEach((path: any) => {
+                    path.nodeIds.forEach((id: number) => allNodes.add(id));
+                    if (path.edgeIds) {
+                      path.edgeIds.forEach((id: number) => allEdges.add(id));
+                    } else {
+                      // If edgeIds missing, calculate them
+                      for (let i = 0; i < path.nodeIds.length - 1; i++) {
+                        const edgeId = findEdgeId(path.nodeIds[i], path.nodeIds[i + 1]);
+                        if (edgeId) allEdges.add(edgeId);
+                      }
+                    }
+                  });
+
+                  pathNodeIds = Array.from(allNodes);
+                  pathEdgeIds = Array.from(allEdges);
+                  pathsCount = data.paths.length;
+                  // Show weight of the shortest one (first one)
+                  totalWeight = data.paths[0].totalWeight;
+                }
+              } else if (data.nodeIds) {
+                // Standard format (Dijkstra, A*)
+                pathNodeIds = data.nodeIds;
+                pathEdgeIds = data.edgeIds || [];
+                totalWeight = data.totalWeight;
+
+                // If edges missing, calculate
+                if (pathEdgeIds.length === 0 && pathNodeIds.length > 1) {
+                  for (let i = 0; i < pathNodeIds.length - 1; i++) {
+                    const edgeId = findEdgeId(pathNodeIds[i], pathNodeIds[i + 1]);
+                    if (edgeId) pathEdgeIds.push(edgeId);
+                  }
+                }
+              }
+
+              if (pathNodeIds.length > 0) {
+                const names = pathNodeIds.map(
                   (id: number) =>
                     nodes.find((n) => n.id === id)?.name || String(id),
                 );
+
+                // Custom message for multiple paths
+                let modalTitle = "Найденный путь";
+                if (pathsCount > 1) {
+                  modalTitle = `Найдено путей: ${pathsCount} (показаны все)`;
+                }
+
                 setPathResult({
-                  nodeIds: data.nodeIds,
-                  edgeIds: data.edgeIds || [],
-                  totalWeight: data.totalWeight,
+                  nodeIds: pathNodeIds,
+                  edgeIds: pathEdgeIds,
+                  totalWeight: totalWeight,
                   names,
+                  allPaths: allPathsData.length > 0 ? allPathsData : undefined
                 });
-                setSelectedNodesLocal(data.nodeIds);
-                setSelectedEdgesLocal(data.edgeIds || []);
+
+                // Update selection to highlight EVERYTHING
+                setSelectedNodesLocal(pathNodeIds);
+                setSelectedEdgesLocal(pathEdgeIds);
+
+                // Update message
+                if (pathsCount > 1) {
+                  setFindMessage(`Найдено ${pathsCount} вариантов пути`);
+                  setTimeout(() => setFindMessage(null), 3000);
+                }
+
                 setPathModalOpen(true);
               } else {
                 setFindMessage("Путь не найден");
@@ -545,21 +685,53 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                 cursor: "move",
               }}
             >
-              <h3 style={{ marginTop: 0, marginBottom: 6 }}>Найденный путь</h3>
-              <p style={{ margin: "6px 0 12px 0", color: "#666" }}>
-                Вес: {pathResult.totalWeight ?? "N/A"}
-              </p>
-              <ol style={{ paddingLeft: 18 }}>
-                {pathResult.names &&
-                  pathResult.names.map((n, idx) => (
-                    <li key={idx} style={{ marginBottom: 6 }}>
-                      {n}{" "}
-                      <small style={{ color: "#999" }}>
-                        #{pathResult.nodeIds[idx]}
-                      </small>
-                    </li>
+              <h3 style={{ marginTop: 0, marginBottom: 6 }}>
+                {pathResult.allPaths && pathResult.allPaths.length > 1
+                  ? `Найдено путей: ${pathResult.allPaths.length}`
+                  : "Найденный путь"}
+              </h3>
+
+              {pathResult.allPaths && pathResult.allPaths.length > 0 ? (
+                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  {pathResult.allPaths.map((path, pathIdx) => (
+                    <div key={pathIdx} style={{
+                      marginBottom: 16,
+                      paddingBottom: 12,
+                      borderBottom: pathIdx < pathResult.allPaths!.length - 1 ? '1px solid #eee' : 'none'
+                    }}>
+                      <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#333" }}>
+                        Путь {pathIdx + 1} ({path.nodeIds.length} узлов
+                        {path.weight !== undefined ? `, вес: ${path.weight}` : ''})
+                      </p>
+                      <ol style={{ paddingLeft: 18, margin: 0 }}>
+                        {path.names.map((name, idx) => (
+                          <li key={idx} style={{ marginBottom: 4, fontSize: '14px' }}>
+                            {name}{" "}
+                            <small style={{ color: "#999" }}>#{path.nodeIds[idx]}</small>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
                   ))}
-              </ol>
+                </div>
+              ) : (
+                <>
+                  <p style={{ margin: "6px 0 12px 0", color: "#666" }}>
+                    Вес: {pathResult.totalWeight ?? "N/A"}
+                  </p>
+                  <ol style={{ paddingLeft: 18 }}>
+                    {pathResult.names &&
+                      pathResult.names.map((n, idx) => (
+                        <li key={idx} style={{ marginBottom: 6 }}>
+                          {n}{" "}
+                          <small style={{ color: "#999" }}>
+                            #{pathResult.nodeIds[idx]}
+                          </small>
+                        </li>
+                      ))}
+                  </ol>
+                </>
+              )}
               <div
                 style={{
                   display: "flex",

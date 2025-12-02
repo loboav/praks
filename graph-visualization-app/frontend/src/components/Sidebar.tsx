@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ObjectType, RelationType } from "../types/graph";
+import { ObjectType, RelationType, PathAlgorithm, AlgorithmOption } from "../types/graph";
 import { toast } from "react-toastify";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -10,6 +10,8 @@ interface SidebarProps {
   onAddRelationType: () => void;
   onDeleteObjectType: (id: number) => void;
   onDeleteRelationType: (id: number) => void;
+  selectedAlgorithm: PathAlgorithm;
+  onAlgorithmChange: (algorithm: PathAlgorithm) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -19,6 +21,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onAddRelationType,
   onDeleteObjectType,
   onDeleteRelationType,
+  selectedAlgorithm,
+  onAlgorithmChange,
 }) => {
   const { user } = useAuth();
   const canManageTypes = user?.role === 'Admin' || user?.role === 'Editor';
@@ -34,6 +38,46 @@ const Sidebar: React.FC<SidebarProps> = ({
     return saved !== null ? saved === 'true' : false;
   });
 
+  const [algorithmsExpanded, setAlgorithmsExpanded] = useState(() => {
+    const saved = localStorage.getItem('sidebar_algorithms_expanded');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  // Список алгоритмов
+  const algorithms: AlgorithmOption[] = [
+    {
+      id: 'dijkstra',
+      name: 'Dijkstra',
+      description: 'Кратчайший путь с весами',
+      icon: '',
+    },
+    {
+      id: 'astar',
+      name: 'A*',
+      description: 'Эвристический поиск',
+      icon: '',
+    },
+    {
+      id: 'bfs',
+      name: 'BFS',
+      description: 'Поиск в ширину',
+      icon: '',
+    },
+    {
+      id: 'k-shortest',
+      name: 'K путей',
+      description: 'Несколько кратчайших путей',
+      icon: '',
+      requiresConfig: true,
+    },
+    {
+      id: 'all-paths',
+      name: 'Все пути',
+      description: 'DFS - все возможные',
+      icon: '',
+    },
+  ];
+
   // Save collapse state to localStorage
   useEffect(() => {
     localStorage.setItem('sidebar_objectTypes_expanded', String(objectTypesExpanded));
@@ -42,6 +86,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     localStorage.setItem('sidebar_relationTypes_expanded', String(relationTypesExpanded));
   }, [relationTypesExpanded]);
+
+  useEffect(() => {
+    localStorage.setItem('sidebar_algorithms_expanded', String(algorithmsExpanded));
+  }, [algorithmsExpanded]);
 
   const handleDeleteObjectType = async (id: number) => {
     if (window.confirm("Удалить тип объекта?")) {
@@ -299,6 +347,74 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Algorithms Section */}
+      <div>
+        <SectionHeader
+          title="Алгоритмы поиска"
+          count={algorithms.length}
+          expanded={algorithmsExpanded}
+          onToggle={() => setAlgorithmsExpanded(!algorithmsExpanded)}
+        />
+
+        <div style={{
+          maxHeight: algorithmsExpanded ? '500px' : '0',
+          overflow: 'hidden',
+          transition: 'max-height 0.3s ease',
+        }}>
+          <div style={{
+            maxHeight: '400px',
+            overflowY: 'auto',
+            background: '#fff',
+            borderRadius: 6,
+            padding: '4px',
+          }}>
+            {algorithms.map((algo) => (
+              <div
+                key={algo.id}
+                onClick={() => onAlgorithmChange(algo.id)}
+                style={{
+                  padding: '10px 12px',
+                  background: selectedAlgorithm === algo.id ? '#e3f2fd' : '#fff',
+                  borderLeft: selectedAlgorithm === algo.id ? '4px solid #2196f3' : '4px solid transparent',
+                  cursor: 'pointer',
+                  borderRadius: 4,
+                  marginBottom: 4,
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedAlgorithm !== algo.id) {
+                    e.currentTarget.style.background = '#f5f5f5';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedAlgorithm !== algo.id) {
+                    e.currentTarget.style.background = '#fff';
+                  }
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      fontWeight: selectedAlgorithm === algo.id ? 600 : 500,
+                      fontSize: 14,
+                      color: selectedAlgorithm === algo.id ? '#2196f3' : '#333',
+                    }}>
+                      {algo.name}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                      {algo.description}
+                    </div>
+                  </div>
+                  {selectedAlgorithm === algo.id && (
+                    <span style={{ color: '#2196f3', fontSize: 16 }}>✓</span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

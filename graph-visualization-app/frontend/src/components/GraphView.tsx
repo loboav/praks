@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { GraphObject, GraphRelation } from "../types/graph";
+import { GraphObject, GraphRelation, PathAlgorithm } from "../types/graph";
 import GraphCanvas from "./GraphCanvas";
 import ObjectCard from "./ObjectCard";
 import RelationCard from "./RelationCard";
@@ -51,6 +51,18 @@ export default function GraphView() {
   const [editEdge, setEditEdge] = useState<GraphRelation | null>(null);
   const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
   const [addRelationTypeOpen, setAddRelationTypeOpen] = useState(false);
+
+  // Состояние выбранного алгоритма
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState<PathAlgorithm>(() => {
+    const saved = localStorage.getItem('selected_algorithm');
+    return (saved as PathAlgorithm) || 'dijkstra';
+  });
+
+  // Сохранять выбор алгоритма
+  useEffect(() => {
+    localStorage.setItem('selected_algorithm', selectedAlgorithm);
+    toast.info(`Алгоритм: ${selectedAlgorithm}`, { autoClose: 1500 });
+  }, [selectedAlgorithm]);
 
   // Custom Hooks
   const { selectedIds, toggleSelection, selectAll, clearSelection } = useMultiSelection();
@@ -273,6 +285,8 @@ export default function GraphView() {
             onAddRelationType={() => setAddRelationTypeOpen(true)}
             onDeleteObjectType={(id) => window.confirm("Удалить тип объекта?") && deleteObjectType(id)}
             onDeleteRelationType={(id) => window.confirm("Удалить тип связи?") && deleteRelationType(id)}
+            selectedAlgorithm={selectedAlgorithm}
+            onAlgorithmChange={setSelectedAlgorithm}
           />
           <div style={{ flex: 1, position: "relative", minWidth: 0, minHeight: 0 }}>
 
@@ -319,6 +333,7 @@ export default function GraphView() {
                   onNodeAction={handleNodeAction}
                   onNodesPositionChange={updateNodesPositions}
                   selectedNodes={selectedIds}
+                  selectedAlgorithm={selectedAlgorithm}
                 />
                 {selected?.type === "node" && <ObjectCard object={selected.data} />}
                 {selected?.type === "edge" && (

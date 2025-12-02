@@ -12,6 +12,8 @@ namespace GraphVisualizationApp.Services
     {
         // Новые алгоритмы
         Task<DijkstraPathFinder.PathResult> FindShortestPathDijkstraAsync(int fromId, int toId);
+        Task<AStarPathFinder.PathResult> FindPathAStarAsync(int fromId, int toId, string heuristic = "euclidean");
+        Task<YenKShortestPaths.KPathsResult> FindKShortestPathsAsync(int fromId, int toId, int k = 3);
         
         // Legacy методы (для обратной совместимости)
         Task<List<GraphObject>> FindPathAsync(int startId, int endId);

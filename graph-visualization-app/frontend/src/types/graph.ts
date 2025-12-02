@@ -34,3 +34,19 @@ export interface GraphRelation {
     properties: Record<string, string>;
     color?: string; // HEX или CSS-цвет
 }
+
+// Типы алгоритмов поиска пути
+export type PathAlgorithm =
+    | 'dijkstra'      // Кратчайший путь (взвешенный)
+    | 'astar'         // A* (с эвристикой)
+    | 'bfs'           // Поиск в ширину
+    | 'k-shortest'    // K кратчайших путей
+    | 'all-paths';    // Все пути (DFS)
+
+export interface AlgorithmOption {
+    id: PathAlgorithm;
+    name: string;
+    description: string;
+    icon: string;
+    requiresConfig?: boolean;
+}
