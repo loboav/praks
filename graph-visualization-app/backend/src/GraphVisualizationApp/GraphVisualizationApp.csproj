@@ -51,6 +51,7 @@
     <Compile Include="..\Services\IAnalyticsService.cs" />
     <Compile Include="..\Services\AuthService.cs" />
     <Compile Include="..\Services\IAuthService.cs" />
+    <Compile Include="..\Services\TimelineService.cs" />
     <Compile Include="..\Models\GraphModels.cs" />
     <Compile Include="..\Models\ApplicationSettings.cs" />
     <Compile Include="..\Models\GraphDtos.cs" />

@@ -96,6 +96,7 @@ builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<IImportService, ImportService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ITimelineService, TimelineService>();
 
 // Add health checks
 builder.Services.AddHealthChecks()

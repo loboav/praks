@@ -114,7 +114,7 @@ namespace GraphVisualizationApp.Controllers
             }
 
             var result = await _pathfindingService.FindKShortestPathsAsync(fromId, toId, k);
-            if (result.Paths.Count == 0)
+            if (result == null || result.Paths.Count == 0)
             {
                 var rels = await _relationService.GetRelationsAsync();
                 return NotFound(new { reason = "no_path", fromId, toId, nodes = allObjects.Count, relations = rels.Count });
@@ -316,6 +316,10 @@ namespace GraphVisualizationApp.Controllers
         {
             if (rel == null || rel.Id != id)
                 return BadRequest();
+            var existing = await _relationService.GetRelationAsync(id);
+            if (existing == null) return NotFound();
+            rel.Source = existing.Source;
+            rel.Target = existing.Target;
             var updated = await _relationService.UpdateRelationAsync(rel);
             if (updated == null)
                 return NotFound();

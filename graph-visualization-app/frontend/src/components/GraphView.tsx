@@ -27,6 +27,8 @@ import { usePathFinding } from "../hooks/usePathFinding";
 import { useGraphData } from "../hooks/useGraphData";
 import { useGraphFilters } from "../hooks/useGraphFilters";
 import { useBulkOperations } from "../hooks/useBulkOperations";
+import { useTimelineFilter } from "../hooks/useTimelineFilter";
+import TimelinePanel from "./TimelinePanel";
 
 export default function GraphView() {
   const { user, isAuthenticated } = useAuth();
@@ -51,6 +53,7 @@ export default function GraphView() {
   const [editEdge, setEditEdge] = useState<GraphRelation | null>(null);
   const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
   const [addRelationTypeOpen, setAddRelationTypeOpen] = useState(false);
+  const [isTimelineVisible, setIsTimelineVisible] = useState(false);
 
   // Состояние выбранного алгоритма
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<PathAlgorithm>(() => {
@@ -120,6 +123,23 @@ export default function GraphView() {
     mergeNodesWithPositions,
     onAddHistoryAction: addAction,
   });
+
+  // Timeline Filter Hook
+  const {
+    dateRange,
+    setDateRange,
+    isTimelineEnabled,
+    toggleTimeline,
+    histogramData,
+    dateBoundaries,
+    edgesWithDatesCount,
+    filterEdgesByTimeline
+  } = useTimelineFilter({ edges: filteredEdges });
+
+  // Apply timeline filter to edges
+  const timelineFilteredEdges = useMemo(() => {
+    return filterEdgesByTimeline(filteredEdges);
+  }, [filteredEdges, filterEdgesByTimeline]);
 
   // Load initial data
   useEffect(() => {
@@ -318,7 +338,7 @@ export default function GraphView() {
               <>
                 <GraphCanvas
                   nodes={nodesWithPositions}
-                  edges={filteredEdges}
+                  edges={timelineFilteredEdges}
                   relationTypes={relationTypes}
                   onSelectNode={(node) => {
                     const isShiftPressed = (window.event as KeyboardEvent)?.shiftKey;
@@ -348,11 +368,58 @@ export default function GraphView() {
           </div>
         </div>
 
-        {/* Bottom Status Bar - Statistics Only */}
-        <div style={{ height: 48, background: "#23272f", color: "#fff", display: "flex", alignItems: "center", padding: "0 24px", fontSize: 13 }}>
-          <div style={{ color: "#aaa" }}>
-            Узлов: {filteredNodes.length}/{nodes.length} | Связей: {filteredEdges.length}/{edges.length}
-            {hasActiveFilters && <span style={{ color: "#ff9800", marginLeft: 8 }}>• Фильтры активны</span>}
+        {/* Timeline Panel - Positioned as overlay above bottom bar */}
+        {isTimelineVisible && (
+          <div style={{
+            position: "absolute",
+            bottom: 48, // Height of status bar
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            boxShadow: "0 -2px 10px rgba(0,0,0,0.1)"
+          }}>
+            <TimelinePanel
+              histogramData={histogramData}
+              dateBoundaries={dateBoundaries}
+              dateRange={dateRange}
+              onDateRangeChange={setDateRange}
+              isEnabled={isTimelineEnabled}
+              onToggle={toggleTimeline}
+              edgesWithDatesCount={edgesWithDatesCount}
+              totalEdgesCount={edges.length}
+            />
+          </div>
+        )}
+
+        {/* Bottom Status Bar */}
+        <div style={{ height: 48, background: "#23272f", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", fontSize: 13, zIndex: 101 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <div style={{ color: "#aaa" }}>
+              Узлов: {filteredNodes.length}/{nodes.length} | Связей: {timelineFilteredEdges.length}/{edges.length}
+              {hasActiveFilters && <span style={{ color: "#ff9800", marginLeft: 8 }}>• Фильтры активны</span>}
+            </div>
+
+            {/* Timeline Toggle Button */}
+            <button
+              onClick={() => setIsTimelineVisible(!isTimelineVisible)}
+              style={{
+                background: isTimelineVisible ? "rgba(255,255,255,0.2)" : "transparent",
+                border: "1px solid rgba(255,255,255,0.3)",
+                borderRadius: 4,
+                color: "#fff",
+                padding: "4px 12px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                transition: "all 0.2s"
+              }}
+            >
+              <span>📅</span>
+              Timeline
+              {isTimelineEnabled && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4caf50", display: "inline-block" }} />}
+            </button>
           </div>
         </div>
 
