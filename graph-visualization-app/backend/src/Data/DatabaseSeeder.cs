@@ -80,356 +80,607 @@ namespace GraphVisualizationApp.Data
         }
 
         /// <summary>
-        /// Шаблон для расследований (люди, компании, связи)
+        /// Шаблон для расследования финансовых махинаций
         /// </summary>
         private static async Task SeedInvestigationTemplateAsync(GraphDbContext context)
         {
-            Console.WriteLine("Seeding Investigation template...");
+            Console.WriteLine("Seeding Fraud Investigation template...");
 
             // 1. Создаем типы объектов
             var personType = new ObjectType
             {
                 Name = "Персона",
-                Description = "Физическое лицо (гражданин РБ)"
+                Description = "Физическое лицо - подозреваемый или свидетель"
             };
             var companyType = new ObjectType
             {
                 Name = "Компания",
-                Description = "Юридическое лицо (зарегистрировано в РБ)"
+                Description = "Юридическое лицо (в том числе фирмы-однодневки)"
+            };
+            var bankAccountType = new ObjectType
+            {
+                Name = "Банковский счёт",
+                Description = "Расчётный счёт в банке"
+            };
+            var transactionType = new ObjectType
+            {
+                Name = "Транзакция",
+                Description = "Финансовая операция / перевод средств"
             };
             var documentType = new ObjectType
             {
                 Name = "Документ",
-                Description = "Документ или контракт"
+                Description = "Контракт, договор, акт"
             };
-            var eventType = new ObjectType
+            var propertyType = new ObjectType
             {
-                Name = "Событие",
-                Description = "Событие или инцидент"
-            };
-            var locationType = new ObjectType
-            {
-                Name = "Локация",
-                Description = "Место или адрес"
+                Name = "Имущество",
+                Description = "Недвижимость, автомобили, ценности"
             };
 
-            context.ObjectTypes.AddRange(personType, companyType, documentType, eventType, locationType);
+            context.ObjectTypes.AddRange(personType, companyType, bankAccountType, transactionType, documentType, propertyType);
             await context.SaveChangesAsync();
 
             // 2. Создаем типы связей
-            var worksForRelation = new RelationType
-            {
-                Name = "Работает в",
-                Description = "Трудовые отношения",
-                ObjectTypeId = personType.Id
-            };
-            var ownsRelation = new RelationType
-            {
-                Name = "Владеет",
-                Description = "Отношения владения",
-                ObjectTypeId = personType.Id
-            };
-            var relatedToRelation = new RelationType
-            {
-                Name = "Связан с",
-                Description = "Общая связь",
-                ObjectTypeId = personType.Id
-            };
-            var signedRelation = new RelationType
-            {
-                Name = "Подписал",
-                Description = "Подпись документа",
-                ObjectTypeId = personType.Id
-            };
-            var locatedAtRelation = new RelationType
-            {
-                Name = "Находится в",
-                Description = "Географическое расположение",
-                ObjectTypeId = companyType.Id
-            };
-            var participatedInRelation = new RelationType
-            {
-                Name = "Участвовал в",
-                Description = "Участие в событии",
-                ObjectTypeId = personType.Id
-            };
+            var ownsRelation = new RelationType { Name = "Владеет", Description = "Отношения владения", ObjectTypeId = personType.Id };
+            var controlsRelation = new RelationType { Name = "Контролирует", Description = "Теневой контроль", ObjectTypeId = personType.Id };
+            var transferRelation = new RelationType { Name = "Перевод средств", Description = "Денежный перевод", ObjectTypeId = bankAccountType.Id };
+            var signedRelation = new RelationType { Name = "Подписал", Description = "Подпись документа", ObjectTypeId = personType.Id };
+            var receivedRelation = new RelationType { Name = "Получил", Description = "Получение средств/имущества", ObjectTypeId = personType.Id };
+            var worksForRelation = new RelationType { Name = "Работает в", Description = "Номинальная или реальная должность", ObjectTypeId = personType.Id };
+            var relatedToRelation = new RelationType { Name = "Связан с", Description = "Родственные или деловые связи", ObjectTypeId = personType.Id };
+            var hasAccountRelation = new RelationType { Name = "Имеет счёт", Description = "Владелец банковского счёта", ObjectTypeId = companyType.Id };
 
-            context.RelationTypes.AddRange(
-                worksForRelation,
-                ownsRelation,
-                relatedToRelation,
-                signedRelation,
-                locatedAtRelation,
-                participatedInRelation
-            );
+            context.RelationTypes.AddRange(ownsRelation, controlsRelation, transferRelation, signedRelation, receivedRelation, worksForRelation, relatedToRelation, hasAccountRelation);
             await context.SaveChangesAsync();
 
-            // 3. Создаем примеры объектов (персоны)
-            var person1 = new GraphObject
+            // 3. ПЕРСОНЫ (подозреваемые и их окружение)
+            var mastermind = new GraphObject
             {
-                Name = "Иван Петров",
+                Name = "Виктор Черненко",
                 ObjectTypeId = personType.Id,
                 Properties = new List<ObjectProperty>
                 {
-                    new ObjectProperty { Key = "Возраст", Value = "45" },
-                    new ObjectProperty { Key = "Должность", Value = "Генеральный директор" },
-                    new ObjectProperty { Key = "УНП", Value = "123456789" }
+                    new ObjectProperty { Key = "Возраст", Value = "54" },
+                    new ObjectProperty { Key = "Роль", Value = "Организатор схемы" },
+                    new ObjectProperty { Key = "Паспорт", Value = "MP3456789" },
+                    new ObjectProperty { Key = "Адрес", Value = "г. Минск, ул. Захарова, 15" }
                 },
-                Color = "#4CAF50",
-                Icon = "👤",
-                PositionX = 200,
-                PositionY = 100
+                Color = "#D32F2F", Icon = "🎯", PositionX = 500, PositionY = 100
             };
 
-            var person2 = new GraphObject
+            var nominee1 = new GraphObject
             {
-                Name = "Мария Сидорова",
+                Name = "Сергей Лукашевич",
                 ObjectTypeId = personType.Id,
                 Properties = new List<ObjectProperty>
                 {
-                    new ObjectProperty { Key = "Возраст", Value = "38" },
-                    new ObjectProperty { Key = "Должность", Value = "Финансовый директор" },
-                    new ObjectProperty { Key = "УНП", Value = "987654321" }
+                    new ObjectProperty { Key = "Возраст", Value = "32" },
+                    new ObjectProperty { Key = "Роль", Value = "Номинальный директор" },
+                    new ObjectProperty { Key = "Паспорт", Value = "MP1234567" }
                 },
-                Color = "#4CAF50",
-                Icon = "👤",
-                PositionX = 500,
-                PositionY = 100
+                Color = "#FF5722", Icon = "👤", PositionX = 200, PositionY = 250
             };
 
-            var person3 = new GraphObject
+            var nominee2 = new GraphObject
             {
-                Name = "Алексей Ковалев",
+                Name = "Анна Коваленко",
                 ObjectTypeId = personType.Id,
                 Properties = new List<ObjectProperty>
                 {
-                    new ObjectProperty { Key = "Возраст", Value = "52" },
-                    new ObjectProperty { Key = "Должность", Value = "Совладелец" },
-                    new ObjectProperty { Key = "УНП", Value = "456789123" }
+                    new ObjectProperty { Key = "Возраст", Value = "28" },
+                    new ObjectProperty { Key = "Роль", Value = "Номинальный учредитель" },
+                    new ObjectProperty { Key = "Паспорт", Value = "MP7654321" }
                 },
-                Color = "#4CAF50",
-                Icon = "👤",
-                PositionX = 800,
-                PositionY = 100
+                Color = "#FF5722", Icon = "👤", PositionX = 800, PositionY = 250
             };
 
-            // Компании
-            var company1 = new GraphObject
+            var accountant = new GraphObject
             {
-                Name = "ООО 'Альфа Инвест'",
+                Name = "Елена Громова",
+                ObjectTypeId = personType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Возраст", Value = "41" },
+                    new ObjectProperty { Key = "Роль", Value = "Главный бухгалтер" },
+                    new ObjectProperty { Key = "Образование", Value = "БГЭУ, 2005" }
+                },
+                Color = "#FFC107", Icon = "👩‍💼", PositionX = 500, PositionY = 250
+            };
+
+            var lawyer = new GraphObject
+            {
+                Name = "Дмитрий Волков",
+                ObjectTypeId = personType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Возраст", Value = "47" },
+                    new ObjectProperty { Key = "Роль", Value = "Юридическое сопровождение" },
+                    new ObjectProperty { Key = "Лицензия", Value = "№ 02354/2010" }
+                },
+                Color = "#9C27B0", Icon = "⚖️", PositionX = 350, PositionY = 100
+            };
+
+            var relative = new GraphObject
+            {
+                Name = "Ирина Черненко",
+                ObjectTypeId = personType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Возраст", Value = "48" },
+                    new ObjectProperty { Key = "Роль", Value = "Супруга организатора" },
+                    new ObjectProperty { Key = "Связь", Value = "Родственная" }
+                },
+                Color = "#E91E63", Icon = "👩", PositionX = 650, PositionY = 100
+            };
+
+            // 4. КОМПАНИИ (схема фирм-однодневок)
+            var mainCompany = new GraphObject
+            {
+                Name = "ООО 'ТрейдИнвест'",
                 ObjectTypeId = companyType.Id,
                 Properties = new List<ObjectProperty>
                 {
-                    new ObjectProperty { Key = "УНП", Value = "190123456" },
-                    new ObjectProperty { Key = "Дата регистрации", Value = "2015-03-15" },
-                    new ObjectProperty { Key = "Уставной капитал", Value = "10000000 BYN" },
-                    new ObjectProperty { Key = "Адрес", Value = "г. Минск, пр-т Независимости, 84" }
+                    new ObjectProperty { Key = "УНП", Value = "192345678" },
+                    new ObjectProperty { Key = "Дата регистрации", Value = "12.03.2021" },
+                    new ObjectProperty { Key = "Уставной капитал", Value = "50 BYN" },
+                    new ObjectProperty { Key = "Статус", Value = "Действующая" }
                 },
-                Color = "#2196F3",
-                Icon = "🏢",
-                PositionX = 350,
-                PositionY = 300
+                Color = "#1976D2", Icon = "🏢", PositionX = 200, PositionY = 450
             };
 
-            var company2 = new GraphObject
+            var shell1 = new GraphObject
             {
-                Name = "ОАО 'Бета Групп'",
+                Name = "ООО 'АльфаКонсалт'",
                 ObjectTypeId = companyType.Id,
                 Properties = new List<ObjectProperty>
                 {
-                    new ObjectProperty { Key = "УНП", Value = "100654321" },
-                    new ObjectProperty { Key = "Дата регистрации", Value = "2010-07-22" },
-                    new ObjectProperty { Key = "Уставной капитал", Value = "50000000 BYN" },
-                    new ObjectProperty { Key = "Адрес", Value = "г. Минск, ул. Ленина, 17" }
+                    new ObjectProperty { Key = "УНП", Value = "193456789" },
+                    new ObjectProperty { Key = "Дата регистрации", Value = "05.07.2022" },
+                    new ObjectProperty { Key = "Статус", Value = "Фирма-однодневка" }
                 },
-                Color = "#2196F3",
-                Icon = "🏢",
-                PositionX = 650,
-                PositionY = 300
+                Color = "#F44336", Icon = "🏚️", PositionX = 400, PositionY = 450
             };
 
-            // Документы
-            var document1 = new GraphObject
+            var shell2 = new GraphObject
             {
-                Name = "Контракт №45/2023",
+                Name = "ИП Коваленко А.В.",
+                ObjectTypeId = companyType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "УНП", Value = "194567890" },
+                    new ObjectProperty { Key = "Дата регистрации", Value = "18.11.2022" },
+                    new ObjectProperty { Key = "Статус", Value = "Транзитная компания" }
+                },
+                Color = "#F44336", Icon = "🏚️", PositionX = 600, PositionY = 450
+            };
+
+            var offshore = new GraphObject
+            {
+                Name = "Cyprus Holdings Ltd",
+                ObjectTypeId = companyType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Регистрация", Value = "Кипр, Никосия" },
+                    new ObjectProperty { Key = "Дата регистрации", Value = "23.01.2020" },
+                    new ObjectProperty { Key = "Статус", Value = "Оффшор" }
+                },
+                Color = "#795548", Icon = "🌍", PositionX = 800, PositionY = 450
+            };
+
+            // 5. БАНКОВСКИЕ СЧЕТА
+            var account1 = new GraphObject
+            {
+                Name = "BY20ALFA30125678901234567890",
+                ObjectTypeId = bankAccountType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Банк", Value = "Альфабанк" },
+                    new ObjectProperty { Key = "Валюта", Value = "BYN" },
+                    new ObjectProperty { Key = "Открыт", Value = "15.03.2021" }
+                },
+                Color = "#4CAF50", Icon = "💳", PositionX = 200, PositionY = 650
+            };
+
+            var account2 = new GraphObject
+            {
+                Name = "BY45PRIOR3012987654321098765",
+                ObjectTypeId = bankAccountType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Банк", Value = "Приорбанк" },
+                    new ObjectProperty { Key = "Валюта", Value = "USD" },
+                    new ObjectProperty { Key = "Открыт", Value = "10.07.2022" }
+                },
+                Color = "#4CAF50", Icon = "💳", PositionX = 400, PositionY = 650
+            };
+
+            var account3 = new GraphObject
+            {
+                Name = "BY78BELB30121111222233334444",
+                ObjectTypeId = bankAccountType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Банк", Value = "Белинвестбанк" },
+                    new ObjectProperty { Key = "Валюта", Value = "EUR" },
+                    new ObjectProperty { Key = "Открыт", Value = "25.11.2022" }
+                },
+                Color = "#4CAF50", Icon = "💳", PositionX = 600, PositionY = 650
+            };
+
+            var offshoreAccount = new GraphObject
+            {
+                Name = "CY9876543210EUR",
+                ObjectTypeId = bankAccountType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Банк", Value = "Bank of Cyprus" },
+                    new ObjectProperty { Key = "Валюта", Value = "EUR" },
+                    new ObjectProperty { Key = "Открыт", Value = "01.02.2020" }
+                },
+                Color = "#FF9800", Icon = "💰", PositionX = 800, PositionY = 650
+            };
+
+            // 6. ТРАНЗАКЦИИ (подозрительные переводы)
+            var tx1 = new GraphObject
+            {
+                Name = "Платёж #TRX-001",
+                ObjectTypeId = transactionType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Сумма", Value = "150 000 BYN" },
+                    new ObjectProperty { Key = "Назначение", Value = "Консультационные услуги" },
+                    new ObjectProperty { Key = "Дата", Value = "20.04.2023" }
+                },
+                Color = "#E91E63", Icon = "💸", PositionX = 300, PositionY = 850
+            };
+
+            var tx2 = new GraphObject
+            {
+                Name = "Платёж #TRX-002",
+                ObjectTypeId = transactionType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Сумма", Value = "75 000 USD" },
+                    new ObjectProperty { Key = "Назначение", Value = "Маркетинговые услуги" },
+                    new ObjectProperty { Key = "Дата", Value = "15.06.2023" }
+                },
+                Color = "#E91E63", Icon = "💸", PositionX = 500, PositionY = 850
+            };
+
+            var tx3 = new GraphObject
+            {
+                Name = "Платёж #TRX-003",
+                ObjectTypeId = transactionType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Сумма", Value = "200 000 EUR" },
+                    new ObjectProperty { Key = "Назначение", Value = "Инвестиции в проект" },
+                    new ObjectProperty { Key = "Дата", Value = "03.09.2023" }
+                },
+                Color = "#E91E63", Icon = "💸", PositionX = 700, PositionY = 850
+            };
+
+            // 7. ДОКУМЕНТЫ (фиктивные контракты)
+            var contract1 = new GraphObject
+            {
+                Name = "Договор №15/2023",
                 ObjectTypeId = documentType.Id,
                 Properties = new List<ObjectProperty>
                 {
-                    new ObjectProperty { Key = "Дата", Value = "2023-06-10" },
-                    new ObjectProperty { Key = "Сумма", Value = "5000000 BYN" },
-                    new ObjectProperty { Key = "Статус", Value = "Действующий" }
+                    new ObjectProperty { Key = "Дата", Value = "10.04.2023" },
+                    new ObjectProperty { Key = "Предмет", Value = "Консультационные услуги" },
+                    new ObjectProperty { Key = "Сумма", Value = "150 000 BYN" },
+                    new ObjectProperty { Key = "Статус", Value = "Фиктивный" }
                 },
-                Color = "#FF9800",
-                Icon = "📄",
-                PositionX = 500,
-                PositionY = 500
+                Color = "#FF9800", Icon = "📄", PositionX = 100, PositionY = 350
             };
 
-            // События
-            var event1 = new GraphObject
+            var contract2 = new GraphObject
             {
-                Name = "Заседание совета директоров",
-                ObjectTypeId = eventType.Id,
+                Name = "Договор №28/2023",
+                ObjectTypeId = documentType.Id,
                 Properties = new List<ObjectProperty>
                 {
-                    new ObjectProperty { Key = "Дата", Value = "2024-01-15" },
-                    new ObjectProperty { Key = "Место", Value = "Минск, БЦ 'Столица'" },
-                    new ObjectProperty { Key = "Тип", Value = "Деловая встреча" }
+                    new ObjectProperty { Key = "Дата", Value = "01.06.2023" },
+                    new ObjectProperty { Key = "Предмет", Value = "Маркетинговое исследование" },
+                    new ObjectProperty { Key = "Сумма", Value = "75 000 USD" },
+                    new ObjectProperty { Key = "Статус", Value = "Фиктивный" }
                 },
-                Color = "#9C27B0",
-                Icon = "📅",
-                PositionX = 200,
-                PositionY = 500
+                Color = "#FF9800", Icon = "📄", PositionX = 500, PositionY = 350
             };
 
-            // Локации
-            var location1 = new GraphObject
+            // 8. ИМУЩЕСТВО (нажитое преступным путём)
+            var apartment = new GraphObject
             {
-                Name = "Минск, пр-т Независимости 84",
-                ObjectTypeId = locationType.Id,
+                Name = "Квартира в ЖК 'Маяк'",
+                ObjectTypeId = propertyType.Id,
                 Properties = new List<ObjectProperty>
                 {
-                    new ObjectProperty { Key = "Адрес", Value = "г. Минск, пр-т Независимости, д. 84" },
-                    new ObjectProperty { Key = "Координаты", Value = "53.9006,27.5590" }
+                    new ObjectProperty { Key = "Адрес", Value = "г. Минск, ул. Притыцкого, 89-45" },
+                    new ObjectProperty { Key = "Площадь", Value = "120 кв.м" },
+                    new ObjectProperty { Key = "Стоимость", Value = "280 000 USD" },
+                    new ObjectProperty { Key = "Дата покупки", Value = "15.12.2023" }
                 },
-                Color = "#F44336",
-                Icon = "📍",
-                PositionX = 350,
-                PositionY = 700
+                Color = "#3F51B5", Icon = "🏠", PositionX = 650, PositionY = 0
+            };
+
+            var car = new GraphObject
+            {
+                Name = "Mercedes-Benz S-Class",
+                ObjectTypeId = propertyType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Гос. номер", Value = "7777 AA-7" },
+                    new ObjectProperty { Key = "Год выпуска", Value = "2023" },
+                    new ObjectProperty { Key = "Стоимость", Value = "180 000 EUR" },
+                    new ObjectProperty { Key = "Дата покупки", Value = "20.10.2023" }
+                },
+                Color = "#607D8B", Icon = "🚗", PositionX = 800, PositionY = 0
             };
 
             context.GraphObjects.AddRange(
-                person1, person2, person3,
-                company1, company2,
-                document1,
-                event1,
-                location1
+                mastermind, nominee1, nominee2, accountant, lawyer, relative,
+                mainCompany, shell1, shell2, offshore,
+                account1, account2, account3, offshoreAccount,
+                tx1, tx2, tx3,
+                contract1, contract2,
+                apartment, car
             );
             await context.SaveChangesAsync();
 
-            // 4. Создаем связи
+            // 9. СВЯЗИ (с датами для Timeline!)
             var relations = new[]
             {
-                // Иван работает в Альфа Инвест
+                // Организатор контролирует схему
                 new GraphRelation
                 {
-                    Source = person1.Id,
-                    Target = company1.Id,
-                    RelationTypeId = worksForRelation.Id,
+                    Source = mastermind.Id, Target = nominee1.Id, RelationTypeId = controlsRelation.Id, Color = "#D32F2F",
                     Properties = new List<RelationProperty>
                     {
-                        new RelationProperty { Key = "С даты", Value = "2015-04-01" },
-                        new RelationProperty { Key = "Зарплата", Value = "5000 BYN" }
-                    },
-                    Color = "#4CAF50"
+                        new RelationProperty { Key = "date", Value = "01.03.2021" },
+                        new RelationProperty { Key = "Тип", Value = "Теневой контроль" }
+                    }
                 },
-                // Мария работает в Альфа Инвест
                 new GraphRelation
                 {
-                    Source = person2.Id,
-                    Target = company1.Id,
-                    RelationTypeId = worksForRelation.Id,
+                    Source = mastermind.Id, Target = nominee2.Id, RelationTypeId = controlsRelation.Id, Color = "#D32F2F",
                     Properties = new List<RelationProperty>
                     {
-                        new RelationProperty { Key = "С даты", Value = "2016-09-15" },
-                        new RelationProperty { Key = "Зарплата", Value = "4000 BYN" }
-                    },
-                    Color = "#4CAF50"
+                        new RelationProperty { Key = "date", Value = "05.07.2022" },
+                        new RelationProperty { Key = "Тип", Value = "Теневой контроль" }
+                    }
                 },
-                // Алексей владеет Бета Групп
                 new GraphRelation
                 {
-                    Source = person3.Id,
-                    Target = company2.Id,
-                    RelationTypeId = ownsRelation.Id,
+                    Source = mastermind.Id, Target = accountant.Id, RelationTypeId = relatedToRelation.Id, Color = "#FFC107",
                     Properties = new List<RelationProperty>
                     {
-                        new RelationProperty { Key = "Доля", Value = "51%" },
-                        new RelationProperty { Key = "С даты", Value = "2010-07-22" }
-                    },
-                    Color = "#FFC107"
+                        new RelationProperty { Key = "date", Value = "15.03.2021" },
+                        new RelationProperty { Key = "Связь", Value = "Сообщник" }
+                    }
                 },
-                // Иван связан с Алексеем
                 new GraphRelation
                 {
-                    Source = person1.Id,
-                    Target = person3.Id,
-                    RelationTypeId = relatedToRelation.Id,
+                    Source = mastermind.Id, Target = lawyer.Id, RelationTypeId = relatedToRelation.Id, Color = "#9C27B0",
                     Properties = new List<RelationProperty>
                     {
-                        new RelationProperty { Key = "Тип связи", Value = "Деловое партнерство" },
-                        new RelationProperty { Key = "С года", Value = "2018" }
-                    },
-                    Color = "#9E9E9E"
+                        new RelationProperty { Key = "date", Value = "01.02.2021" },
+                        new RelationProperty { Key = "Связь", Value = "Юридическое сопровождение" }
+                    }
                 },
-                // Иван подписал контракт
                 new GraphRelation
                 {
-                    Source = person1.Id,
-                    Target = document1.Id,
-                    RelationTypeId = signedRelation.Id,
+                    Source = mastermind.Id, Target = relative.Id, RelationTypeId = relatedToRelation.Id, Color = "#E91E63",
                     Properties = new List<RelationProperty>
                     {
-                        new RelationProperty { Key = "Дата подписания", Value = "2023-06-10" },
-                        new RelationProperty { Key = "Роль", Value = "От имени Альфа Инвест" }
-                    },
-                    Color = "#FF9800"
+                        new RelationProperty { Key = "date", Value = "10.06.1998" },
+                        new RelationProperty { Key = "Связь", Value = "Брак" }
+                    }
                 },
-                // Алексей подписал контракт
+
+                // Номинальные директора в компаниях
                 new GraphRelation
                 {
-                    Source = person3.Id,
-                    Target = document1.Id,
-                    RelationTypeId = signedRelation.Id,
+                    Source = nominee1.Id, Target = mainCompany.Id, RelationTypeId = worksForRelation.Id, Color = "#1976D2",
                     Properties = new List<RelationProperty>
                     {
-                        new RelationProperty { Key = "Дата подписания", Value = "2023-06-10" },
-                        new RelationProperty { Key = "Роль", Value = "От имени Бета Групп" }
-                    },
-                    Color = "#FF9800"
+                        new RelationProperty { Key = "date", Value = "12.03.2021" },
+                        new RelationProperty { Key = "Должность", Value = "Директор" }
+                    }
                 },
-                // Альфа Инвест находится в Минске
                 new GraphRelation
                 {
-                    Source = company1.Id,
-                    Target = location1.Id,
-                    RelationTypeId = locatedAtRelation.Id,
+                    Source = nominee1.Id, Target = shell1.Id, RelationTypeId = worksForRelation.Id, Color = "#F44336",
                     Properties = new List<RelationProperty>
                     {
-                        new RelationProperty { Key = "Тип", Value = "Юридический адрес" }
-                    },
-                    Color = "#F44336"
+                        new RelationProperty { Key = "date", Value = "05.07.2022" },
+                        new RelationProperty { Key = "Должность", Value = "Директор" }
+                    }
                 },
-                // Иван участвовал в событии
                 new GraphRelation
                 {
-                    Source = person1.Id,
-                    Target = event1.Id,
-                    RelationTypeId = participatedInRelation.Id,
+                    Source = nominee2.Id, Target = shell2.Id, RelationTypeId = ownsRelation.Id, Color = "#F44336",
                     Properties = new List<RelationProperty>
                     {
-                        new RelationProperty { Key = "Роль", Value = "Председатель" }
-                    },
-                    Color = "#9C27B0"
+                        new RelationProperty { Key = "date", Value = "18.11.2022" },
+                        new RelationProperty { Key = "Доля", Value = "100%" }
+                    }
                 },
-                // Алексей участвовал в событии
                 new GraphRelation
                 {
-                    Source = person3.Id,
-                    Target = event1.Id,
-                    RelationTypeId = participatedInRelation.Id,
+                    Source = mastermind.Id, Target = offshore.Id, RelationTypeId = controlsRelation.Id, Color = "#795548",
                     Properties = new List<RelationProperty>
                     {
-                        new RelationProperty { Key = "Роль", Value = "Участник" }
-                    },
-                    Color = "#9C27B0"
+                        new RelationProperty { Key = "date", Value = "23.01.2020" },
+                        new RelationProperty { Key = "Тип", Value = "Бенефициар" }
+                    }
+                },
+
+                // Компании и счета
+                new GraphRelation
+                {
+                    Source = mainCompany.Id, Target = account1.Id, RelationTypeId = hasAccountRelation.Id, Color = "#4CAF50",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "15.03.2021" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = shell1.Id, Target = account2.Id, RelationTypeId = hasAccountRelation.Id, Color = "#4CAF50",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "10.07.2022" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = shell2.Id, Target = account3.Id, RelationTypeId = hasAccountRelation.Id, Color = "#4CAF50",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "25.11.2022" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = offshore.Id, Target = offshoreAccount.Id, RelationTypeId = hasAccountRelation.Id, Color = "#FF9800",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "01.02.2020" }
+                    }
+                },
+
+                // Переводы средств (цепочка отмывания)
+                new GraphRelation
+                {
+                    Source = account1.Id, Target = tx1.Id, RelationTypeId = transferRelation.Id, Color = "#E91E63",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "20.04.2023" },
+                        new RelationProperty { Key = "Направление", Value = "Исходящий" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = tx1.Id, Target = account2.Id, RelationTypeId = transferRelation.Id, Color = "#E91E63",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "20.04.2023" },
+                        new RelationProperty { Key = "Направление", Value = "Входящий" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = account2.Id, Target = tx2.Id, RelationTypeId = transferRelation.Id, Color = "#E91E63",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "15.06.2023" },
+                        new RelationProperty { Key = "Направление", Value = "Исходящий" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = tx2.Id, Target = account3.Id, RelationTypeId = transferRelation.Id, Color = "#E91E63",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "15.06.2023" },
+                        new RelationProperty { Key = "Направление", Value = "Входящий" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = account3.Id, Target = tx3.Id, RelationTypeId = transferRelation.Id, Color = "#E91E63",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "03.09.2023" },
+                        new RelationProperty { Key = "Направление", Value = "Исходящий" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = tx3.Id, Target = offshoreAccount.Id, RelationTypeId = transferRelation.Id, Color = "#FF9800",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "03.09.2023" },
+                        new RelationProperty { Key = "Направление", Value = "Вывод в оффшор" }
+                    }
+                },
+
+                // Документы (фиктивные договоры)
+                new GraphRelation
+                {
+                    Source = nominee1.Id, Target = contract1.Id, RelationTypeId = signedRelation.Id, Color = "#FF9800",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "10.04.2023" },
+                        new RelationProperty { Key = "Роль", Value = "Исполнитель" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = accountant.Id, Target = contract1.Id, RelationTypeId = signedRelation.Id, Color = "#FF9800",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "10.04.2023" },
+                        new RelationProperty { Key = "Роль", Value = "Гл. бухгалтер" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = nominee1.Id, Target = contract2.Id, RelationTypeId = signedRelation.Id, Color = "#FF9800",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "01.06.2023" },
+                        new RelationProperty { Key = "Роль", Value = "Заказчик" }
+                    }
+                },
+
+                // Имущество (приобретённое на средства схемы)
+                new GraphRelation
+                {
+                    Source = relative.Id, Target = apartment.Id, RelationTypeId = ownsRelation.Id, Color = "#3F51B5",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "15.12.2023" },
+                        new RelationProperty { Key = "Основание", Value = "Договор купли-продажи" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = mastermind.Id, Target = car.Id, RelationTypeId = ownsRelation.Id, Color = "#607D8B",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "20.10.2023" },
+                        new RelationProperty { Key = "Основание", Value = "Договор лизинга" }
+                    }
+                },
+
+                // Юрист оформлял документы
+                new GraphRelation
+                {
+                    Source = lawyer.Id, Target = contract1.Id, RelationTypeId = signedRelation.Id, Color = "#9C27B0",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "10.04.2023" },
+                        new RelationProperty { Key = "Роль", Value = "Юридическая экспертиза" }
+                    }
+                },
+                new GraphRelation
+                {
+                    Source = lawyer.Id, Target = contract2.Id, RelationTypeId = signedRelation.Id, Color = "#9C27B0",
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "date", Value = "01.06.2023" },
+                        new RelationProperty { Key = "Роль", Value = "Юридическая экспертиза" }
+                    }
                 }
             };
 
             context.GraphRelations.AddRange(relations);
             await context.SaveChangesAsync();
 
-            Console.WriteLine($"Investigation template created (Belarus): {context.GraphObjects.Count()} objects, {context.GraphRelations.Count()} relations");
+            Console.WriteLine($"Fraud Investigation template created: {context.GraphObjects.Count()} objects, {context.GraphRelations.Count()} relations");
         }
 
         /// <summary>
