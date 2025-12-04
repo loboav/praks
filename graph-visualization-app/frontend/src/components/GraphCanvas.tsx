@@ -61,7 +61,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     edgeIds: number[];
     totalWeight?: number;
     names?: string[];
-    allPaths?: Array<{ nodeIds: number[]; names: string[]; weight?: number }>;
+    allPaths?: Array<{ nodeIds: number[]; names: string[]; weight?: number; edgeIds?: number[] }>;
   } | null>(null);
   const [findMessage, setFindMessage] = useState<string | null>(null);
   const [pathModalPos, setPathModalPos] = useState<{
@@ -92,6 +92,36 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   const [fallbackFindFirst, setFallbackFindFirst] = useState<number | null>(
     null,
   );
+
+  // 10 distinct colors for multi-path visualization
+  const PATH_COLORS = useMemo(() => [
+    '#E53935', // Red
+    '#1E88E5', // Blue
+    '#43A047', // Green
+    '#FB8C00', // Orange
+    '#8E24AA', // Purple
+    '#00ACC1', // Cyan
+    '#F4511E', // Deep Orange
+    '#3949AB', // Indigo
+    '#7CB342', // Light Green
+    '#D81B60', // Pink
+  ], []);
+
+  // Map edge ID to path index for coloring
+  const edgeToPathIndex = useMemo(() => {
+    const map = new Map<number, number>();
+    if (pathResult?.allPaths && pathResult.allPaths.length > 1) {
+      pathResult.allPaths.forEach((path, pathIdx) => {
+        path.edgeIds?.forEach(edgeId => {
+          // First path wins for overlapping edges
+          if (!map.has(edgeId)) {
+            map.set(edgeId, pathIdx);
+          }
+        });
+      });
+    }
+    return map;
+  }, [pathResult]);
 
   // Мемоизация выбранных узлов
   const combinedSelectedNodes = useMemo(() => {
@@ -203,11 +233,20 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     });
   }, [nodes, combinedSelectedNodes, initialRfNodes]);
 
-  // Мемоизация преобразования рёбер для ReactFlow
   const rfEdges = useMemo<Edge[]>(() => {
     return edges.map((edge) => {
       const isHighlighted =
         combinedSelectedEdges && combinedSelectedEdges.includes(edge.id);
+
+      // Determine color for highlighted edge
+      let highlightColor = '#d32f2f'; // Default red
+      if (isHighlighted && edgeToPathIndex.size > 0) {
+        const pathIdx = edgeToPathIndex.get(edge.id);
+        if (pathIdx !== undefined) {
+          highlightColor = PATH_COLORS[pathIdx % PATH_COLORS.length];
+        }
+      }
+
       return {
         id: edge.id.toString(),
         source: edge.source.toString(),
@@ -215,8 +254,8 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         label:
           relationTypes.find((rt) => rt.id === edge.relationTypeId)?.name || "",
         style: {
-          stroke: isHighlighted ? "#d32f2f" : edge.color || "#2196f3",
-          strokeWidth: isHighlighted ? 8 : 2,
+          stroke: isHighlighted ? highlightColor : edge.color || "#2196f3",
+          strokeWidth: isHighlighted ? 6 : 2,
           opacity: isHighlighted
             ? 1
             : combinedSelectedEdges && combinedSelectedEdges.length > 0
@@ -236,7 +275,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         animated: !isHighlighted,
       };
     });
-  }, [edges, relationTypes, combinedSelectedEdges]);
+  }, [edges, relationTypes, combinedSelectedEdges, edgeToPathIndex, PATH_COLORS]);
 
   // Debounced callback для обновления позиций
   const debouncedPositionUpdate = useCallback(
@@ -436,12 +475,20 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                     const allNodes = new Set<number>();
                     const allEdges = new Set<number>();
 
-                    // Store each path separately
-                    allPathsData = data.map((path: number[]) => ({
-                      nodeIds: path,
-                      names: path.map(id => nodes.find(n => n.id === id)?.name || String(id)),
-                      weight: path.length - 1
-                    }));
+                    // Store each path separately with its edgeIds
+                    allPathsData = data.map((path: number[]) => {
+                      const pathEdges: number[] = [];
+                      for (let i = 0; i < path.length - 1; i++) {
+                        const edgeId = findEdgeId(path[i], path[i + 1]);
+                        if (edgeId) pathEdges.push(edgeId);
+                      }
+                      return {
+                        nodeIds: path,
+                        names: path.map(id => nodes.find(n => n.id === id)?.name || String(id)),
+                        weight: path.length - 1,
+                        edgeIds: pathEdges
+                      };
+                    });
 
                     // Merge all paths for visualization
                     data.forEach((path: number[]) => {
@@ -475,12 +522,24 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                   const allNodes = new Set<number>();
                   const allEdges = new Set<number>();
 
-                  // Store each path separately
-                  allPathsData = data.paths.map((path: any) => ({
-                    nodeIds: path.nodeIds,
-                    names: path.nodeIds.map((id: number) => nodes.find(n => n.id === id)?.name || String(id)),
-                    weight: path.totalWeight
-                  }));
+                  // Store each path separately with edgeIds for coloring
+                  allPathsData = data.paths.map((path: any) => {
+                    // Calculate edgeIds if missing
+                    let pathEdges = path.edgeIds || [];
+                    if (pathEdges.length === 0 && path.nodeIds.length > 1) {
+                      pathEdges = [];
+                      for (let i = 0; i < path.nodeIds.length - 1; i++) {
+                        const edgeId = findEdgeId(path.nodeIds[i], path.nodeIds[i + 1]);
+                        if (edgeId) pathEdges.push(edgeId);
+                      }
+                    }
+                    return {
+                      nodeIds: path.nodeIds,
+                      names: path.nodeIds.map((id: number) => nodes.find(n => n.id === id)?.name || String(id)),
+                      weight: path.totalWeight,
+                      edgeIds: pathEdges
+                    };
+                  });
 
                   // Merge all paths for visualization
                   data.paths.forEach((path: any) => {
@@ -699,7 +758,15 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                       paddingBottom: 12,
                       borderBottom: pathIdx < pathResult.allPaths!.length - 1 ? '1px solid #eee' : 'none'
                     }}>
-                      <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#333" }}>
+                      <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#333", display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: '50%',
+                          backgroundColor: PATH_COLORS[pathIdx % PATH_COLORS.length],
+                          display: 'inline-block',
+                          flexShrink: 0
+                        }} />
                         Путь {pathIdx + 1} ({path.nodeIds.length} узлов
                         {path.weight !== undefined ? `, вес: ${path.weight}` : ''})
                       </p>
