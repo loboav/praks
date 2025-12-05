@@ -144,7 +144,9 @@ namespace GraphVisualizationApp.Data
                     new ObjectProperty { Key = "Возраст", Value = "54" },
                     new ObjectProperty { Key = "Роль", Value = "Организатор схемы" },
                     new ObjectProperty { Key = "Паспорт", Value = "MP3456789" },
-                    new ObjectProperty { Key = "Адрес", Value = "г. Минск, ул. Захарова, 15" }
+                    new ObjectProperty { Key = "Адрес", Value = "г. Минск, ул. Захарова, 15" },
+                    new ObjectProperty { Key = "latitude", Value = "53.9045" },
+                    new ObjectProperty { Key = "longitude", Value = "27.5615" }
                 },
                 Color = "#D32F2F", Icon = "🎯", PositionX = 500, PositionY = 100
             };
@@ -157,7 +159,9 @@ namespace GraphVisualizationApp.Data
                 {
                     new ObjectProperty { Key = "Возраст", Value = "32" },
                     new ObjectProperty { Key = "Роль", Value = "Номинальный директор" },
-                    new ObjectProperty { Key = "Паспорт", Value = "MP1234567" }
+                    new ObjectProperty { Key = "Паспорт", Value = "MP1234567" },
+                    new ObjectProperty { Key = "latitude", Value = "52.4345" },
+                    new ObjectProperty { Key = "longitude", Value = "30.9754" }
                 },
                 Color = "#FF5722", Icon = "👤", PositionX = 200, PositionY = 250
             };
@@ -170,7 +174,9 @@ namespace GraphVisualizationApp.Data
                 {
                     new ObjectProperty { Key = "Возраст", Value = "28" },
                     new ObjectProperty { Key = "Роль", Value = "Номинальный учредитель" },
-                    new ObjectProperty { Key = "Паспорт", Value = "MP7654321" }
+                    new ObjectProperty { Key = "Паспорт", Value = "MP7654321" },
+                    new ObjectProperty { Key = "latitude", Value = "52.0976" },
+                    new ObjectProperty { Key = "longitude", Value = "23.7341" }
                 },
                 Color = "#FF5722", Icon = "👤", PositionX = 800, PositionY = 250
             };
@@ -183,7 +189,9 @@ namespace GraphVisualizationApp.Data
                 {
                     new ObjectProperty { Key = "Возраст", Value = "41" },
                     new ObjectProperty { Key = "Роль", Value = "Главный бухгалтер" },
-                    new ObjectProperty { Key = "Образование", Value = "БГЭУ, 2005" }
+                    new ObjectProperty { Key = "Образование", Value = "БГЭУ, 2005" },
+                    new ObjectProperty { Key = "latitude", Value = "53.6693" },
+                    new ObjectProperty { Key = "longitude", Value = "23.8131" }
                 },
                 Color = "#FFC107", Icon = "👩‍💼", PositionX = 500, PositionY = 250
             };
@@ -196,7 +204,9 @@ namespace GraphVisualizationApp.Data
                 {
                     new ObjectProperty { Key = "Возраст", Value = "47" },
                     new ObjectProperty { Key = "Роль", Value = "Юридическое сопровождение" },
-                    new ObjectProperty { Key = "Лицензия", Value = "№ 02354/2010" }
+                    new ObjectProperty { Key = "Лицензия", Value = "№ 02354/2010" },
+                    new ObjectProperty { Key = "latitude", Value = "53.9022" },
+                    new ObjectProperty { Key = "longitude", Value = "30.3306" }
                 },
                 Color = "#9C27B0", Icon = "⚖️", PositionX = 350, PositionY = 100
             };
@@ -209,7 +219,9 @@ namespace GraphVisualizationApp.Data
                 {
                     new ObjectProperty { Key = "Возраст", Value = "48" },
                     new ObjectProperty { Key = "Роль", Value = "Супруга организатора" },
-                    new ObjectProperty { Key = "Связь", Value = "Родственная" }
+                    new ObjectProperty { Key = "Связь", Value = "Родственная" },
+                    new ObjectProperty { Key = "latitude", Value = "55.1904" },
+                    new ObjectProperty { Key = "longitude", Value = "30.2049" }
                 },
                 Color = "#E91E63", Icon = "👩", PositionX = 650, PositionY = 100
             };
@@ -224,7 +236,9 @@ namespace GraphVisualizationApp.Data
                     new ObjectProperty { Key = "УНП", Value = "192345678" },
                     new ObjectProperty { Key = "Дата регистрации", Value = "12.03.2021" },
                     new ObjectProperty { Key = "Уставной капитал", Value = "50 BYN" },
-                    new ObjectProperty { Key = "Статус", Value = "Действующая" }
+                    new ObjectProperty { Key = "Статус", Value = "Действующая" },
+                    new ObjectProperty { Key = "latitude", Value = "53.8963" },
+                    new ObjectProperty { Key = "longitude", Value = "27.5556" }
                 },
                 Color = "#1976D2", Icon = "🏢", PositionX = 200, PositionY = 450
             };
@@ -237,7 +251,9 @@ namespace GraphVisualizationApp.Data
                 {
                     new ObjectProperty { Key = "УНП", Value = "193456789" },
                     new ObjectProperty { Key = "Дата регистрации", Value = "05.07.2022" },
-                    new ObjectProperty { Key = "Статус", Value = "Фирма-однодневка" }
+                    new ObjectProperty { Key = "Статус", Value = "Фирма-однодневка" },
+                    new ObjectProperty { Key = "latitude", Value = "52.4248" },
+                    new ObjectProperty { Key = "longitude", Value = "31.0140" }
                 },
                 Color = "#F44336", Icon = "🏚️", PositionX = 400, PositionY = 450
             };

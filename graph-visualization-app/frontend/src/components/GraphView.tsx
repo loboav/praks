@@ -29,6 +29,7 @@ import { useGraphFilters } from "../hooks/useGraphFilters";
 import { useBulkOperations } from "../hooks/useBulkOperations";
 import { useTimelineFilter } from "../hooks/useTimelineFilter";
 import TimelinePanel from "./TimelinePanel";
+import GeoMapView from "./GeoMapView";
 
 export default function GraphView() {
   const { user, isAuthenticated } = useAuth();
@@ -54,6 +55,7 @@ export default function GraphView() {
   const [addObjectTypeOpen, setAddObjectTypeOpen] = useState(false);
   const [addRelationTypeOpen, setAddRelationTypeOpen] = useState(false);
   const [isTimelineVisible, setIsTimelineVisible] = useState(false);
+  const [viewMode, setViewMode] = useState<'graph' | 'map'>('graph');
 
   // Состояние выбранного алгоритма
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<PathAlgorithm>(() => {
@@ -336,25 +338,87 @@ export default function GraphView() {
               </div>
             ) : (
               <>
-                <GraphCanvas
-                  nodes={nodesWithPositions}
-                  edges={timelineFilteredEdges}
-                  relationTypes={relationTypes}
-                  onSelectNode={(node) => {
-                    const isShiftPressed = (window.event as KeyboardEvent)?.shiftKey;
-                    if (isShiftPressed) {
-                      toggleSelection(node.id, true);
-                    } else {
+                {/* View Mode Toggle */}
+                <div style={{
+                  position: 'absolute',
+                  top: 12,
+                  right: 12,
+                  zIndex: 1000,
+                  display: 'flex',
+                  background: '#fff',
+                  borderRadius: 8,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                  overflow: 'hidden',
+                }}>
+                  <button
+                    onClick={() => setViewMode('graph')}
+                    style={{
+                      padding: '8px 16px',
+                      border: 'none',
+                      background: viewMode === 'graph' ? '#2196f3' : '#fff',
+                      color: viewMode === 'graph' ? '#fff' : '#333',
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                      fontSize: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    📊 Граф
+                  </button>
+                  <button
+                    onClick={() => setViewMode('map')}
+                    style={{
+                      padding: '8px 16px',
+                      border: 'none',
+                      background: viewMode === 'map' ? '#2196f3' : '#fff',
+                      color: viewMode === 'map' ? '#fff' : '#333',
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                      fontSize: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    🗺️ Карта
+                  </button>
+                </div>
+
+                {viewMode === 'graph' ? (
+                  <GraphCanvas
+                    nodes={nodesWithPositions}
+                    edges={timelineFilteredEdges}
+                    relationTypes={relationTypes}
+                    onSelectNode={(node) => {
+                      const isShiftPressed = (window.event as KeyboardEvent)?.shiftKey;
+                      if (isShiftPressed) {
+                        toggleSelection(node.id, true);
+                      } else {
+                        handleSelectNode(node);
+                        clearSelection();
+                      }
+                    }}
+                    onSelectEdge={(edge) => setSelected({ type: "edge", data: edge })}
+                    onNodeAction={handleNodeAction}
+                    onNodesPositionChange={updateNodesPositions}
+                    selectedNodes={selectedIds}
+                    selectedAlgorithm={selectedAlgorithm}
+                  />
+                ) : (
+                  <GeoMapView
+                    nodes={nodesWithPositions}
+                    edges={timelineFilteredEdges}
+                    relationTypes={relationTypes}
+                    onSelectNode={(node) => {
                       handleSelectNode(node);
                       clearSelection();
-                    }
-                  }}
-                  onSelectEdge={(edge) => setSelected({ type: "edge", data: edge })}
-                  onNodeAction={handleNodeAction}
-                  onNodesPositionChange={updateNodesPositions}
-                  selectedNodes={selectedIds}
-                  selectedAlgorithm={selectedAlgorithm}
-                />
+                    }}
+                    onSelectEdge={(edge) => setSelected({ type: "edge", data: edge })}
+                    selectedNodes={selectedIds}
+                  />
+                )}
                 {selected?.type === "node" && <ObjectCard object={selected.data} />}
                 {selected?.type === "edge" && (
                   <RelationCard
