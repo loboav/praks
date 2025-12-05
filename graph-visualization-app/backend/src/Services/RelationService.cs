@@ -43,7 +43,7 @@ namespace GraphVisualizationApp.Services
             }) ?? new List<GraphRelation>();
         }
 
-        public async Task<GraphRelation> GetRelationAsync(int id)
+        public async Task<GraphRelation?> GetRelationAsync(int id)
         {
             return await _db.GraphRelations
                 .Include(r => r.Properties)

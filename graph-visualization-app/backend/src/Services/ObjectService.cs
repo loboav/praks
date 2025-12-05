@@ -43,7 +43,7 @@ namespace GraphVisualizationApp.Services
             }) ?? new List<GraphObject>();
         }
 
-        public async Task<GraphObject> GetObjectAsync(int id)
+        public async Task<GraphObject?> GetObjectAsync(int id)
         {
             return await _db.GraphObjects
                 .Include(o => o.Properties)

@@ -27,7 +27,7 @@ namespace GraphVisualizationApp.Services
                 obj.ObjectTypeId,
                 obj.Color,
                 obj.Icon,
-                Properties = obj.Properties?.ToDictionary(p => p.Key, p => p.Value) ?? new System.Collections.Generic.Dictionary<string, string>()
+                Properties = obj.Properties?.ToDictionary(p => p.Key!, p => p.Value ?? string.Empty) ?? new System.Collections.Generic.Dictionary<string, string>()
             };
         }
 
@@ -40,7 +40,7 @@ namespace GraphVisualizationApp.Services
                 rel.Target,
                 rel.RelationTypeId,
                 rel.Color,
-                Properties = rel.Properties?.ToDictionary(p => p.Key, p => p.Value) ?? new System.Collections.Generic.Dictionary<string, string>()
+                Properties = rel.Properties?.ToDictionary(p => p.Key!, p => p.Value ?? string.Empty) ?? new System.Collections.Generic.Dictionary<string, string>()
             };
         }
     }

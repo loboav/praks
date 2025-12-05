@@ -10,7 +10,7 @@ namespace GraphVisualizationApp.Services
     public interface IObjectService
     {
         Task<List<GraphObject>> GetObjectsAsync();
-        Task<GraphObject> GetObjectAsync(int id);
+        Task<GraphObject?> GetObjectAsync(int id);
         Task<GraphObject> CreateObjectAsync(GraphObject obj);
         Task<GraphObject> UpdateObjectAsync(GraphObject obj);
         Task<bool> DeleteObjectAsync(int id);

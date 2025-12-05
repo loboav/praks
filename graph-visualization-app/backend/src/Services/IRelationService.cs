@@ -10,7 +10,7 @@ namespace GraphVisualizationApp.Services
     public interface IRelationService
     {
         Task<List<GraphRelation>> GetRelationsAsync();
-        Task<GraphRelation> GetRelationAsync(int id);
+        Task<GraphRelation?> GetRelationAsync(int id);
         Task<GraphRelation> CreateRelationAsync(GraphRelation rel);
         Task<GraphRelation> UpdateRelationAsync(GraphRelation rel);
         Task<bool> DeleteRelationAsync(int id);
