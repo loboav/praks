@@ -32,6 +32,7 @@ interface GraphCanvasProps {
   onNodesPositionChange?: (
     positions: { id: number; x: number; y: number }[],
   ) => void;
+  onNodeDoubleClick?: (node: GraphObject) => void;
 }
 
 interface HighlightProps {
@@ -51,6 +52,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   panOnDrag = true,
   selectedAlgorithm = 'dijkstra',
   onNodesPositionChange,
+  onNodeDoubleClick,
 }) => {
   // Local highlighting for found path
   const [selectedNodesLocal, setSelectedNodesLocal] = useState<number[]>([]);
@@ -650,6 +652,16 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     setPathModalPos(null);
   }, []);
 
+  // Handle double click on node for Expand feature
+  const handleNodeDoubleClick = useCallback(
+    (_: React.MouseEvent, node: any) => {
+      if (onNodeDoubleClick && node.data?.orig) {
+        onNodeDoubleClick(node.data.orig);
+      }
+    },
+    [onNodeDoubleClick]
+  );
+
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <ReactFlow
@@ -657,6 +669,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         edges={rfEdges}
         onNodesChange={handleNodesChange}
         onNodeClick={handleNodeClick}
+        onNodeDoubleClick={handleNodeDoubleClick}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeClick={handleEdgeClick}
         panOnDrag={panOnDrag}
@@ -859,10 +872,16 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           >
             Создать связь
           </button>
+          <button style={menuBtn} onClick={() => handleMenuAction("expand")}>
+            Раскрыть связи
+          </button>
           <button style={menuBtn} onClick={() => handleMenuAction("edit")}>
             Редактировать
           </button>
-          <button style={menuBtn} onClick={() => handleMenuAction("delete")}>
+          <button style={menuBtn} onClick={() => handleMenuAction("hide")}>
+            Скрыть
+          </button>
+          <button style={{ ...menuBtn, color: "#f44336" }} onClick={() => handleMenuAction("delete")}>
             Удалить
           </button>
           <button style={menuBtn} onClick={() => handleMenuAction("find-path")}>

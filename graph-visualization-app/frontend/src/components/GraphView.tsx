@@ -94,6 +94,13 @@ export default function GraphView() {
     addRelationType,
     deleteRelationType,
     mergeNodesWithPositions,
+    // Expand feature functions
+    hideAll,
+    showAll,
+    expandNode,
+    addNodeToView,
+    isHiddenMode,
+    hideNode,
   } = useGraphData({ onAddHistoryAction: addAction });
 
   const {
@@ -163,6 +170,10 @@ export default function GraphView() {
       if (window.confirm("Удалить объект?")) {
         deleteObject(node);
       }
+    } else if (action === "hide") {
+      hideNode(node.id);
+    } else if (action === "expand") {
+      expandNode(node.id);
     }
   };
 
@@ -312,7 +323,7 @@ export default function GraphView() {
           />
           <div style={{ flex: 1, position: "relative", minWidth: 0, minHeight: 0 }}>
 
-            {nodes.length === 0 ? (
+            {objectTypes.length === 0 ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 20, fontFamily: "Segoe UI, sans-serif", color: "#5f6368" }}>
                 <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.3 }}>
                   <circle cx="12" cy="5" r="3" />
@@ -405,6 +416,7 @@ export default function GraphView() {
                     onNodesPositionChange={updateNodesPositions}
                     selectedNodes={selectedIds}
                     selectedAlgorithm={selectedAlgorithm}
+                    onNodeDoubleClick={(node) => expandNode(node.id)}
                   />
                 ) : (
                   <GeoMapView
@@ -483,6 +495,36 @@ export default function GraphView() {
               <span>📅</span>
               Timeline
               {isTimelineEnabled && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4caf50", display: "inline-block" }} />}
+            </button>
+
+            {/* Hide/Show All Toggle Button */}
+            <button
+              onClick={() => {
+                if (isHiddenMode()) {
+                  showAll();
+                } else {
+                  if (window.confirm("Скрыть все объекты? Вы сможете добавить их через поиск.")) {
+                    hideAll();
+                  }
+                }
+              }}
+              style={{
+                background: isHiddenMode() ? "rgba(76, 175, 80, 0.3)" : "transparent",
+                border: `1px solid ${isHiddenMode() ? "rgba(76, 175, 80, 0.5)" : "rgba(255,255,255,0.3)"}`,
+                borderRadius: 4,
+                color: "#fff",
+                padding: "4px 12px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                transition: "all 0.2s"
+              }}
+              title={isHiddenMode() ? "Показать весь граф" : "Скрыть все для расследования"}
+            >
+              <span>{isHiddenMode() ? "👁" : "🙈"}</span>
+              {isHiddenMode() ? "Показать все" : "Скрыть все"}
             </button>
           </div>
         </div>
@@ -623,12 +665,19 @@ export default function GraphView() {
           }}>
             <SearchPanel
               onClose={() => setSearchPanelOpen(false)}
-              onObjectSelect={(objectId) => {
+              onObjectSelect={async (objectId) => {
                 const node = nodes.find(n => n.id === objectId);
                 if (node) {
                   handleSelectNode(node);
                   clearSelection();
+                } else {
+                  // Node not on graph - add it via addNodeToView
+                  const addedNode = await addNodeToView(objectId);
+                  if (addedNode) {
+                    handleSelectNode(addedNode);
+                  }
                 }
+                setSearchPanelOpen(false);
               }}
               onRelationSelect={(relationId) => {
                 const relation = edges.find(e => e.id === relationId);

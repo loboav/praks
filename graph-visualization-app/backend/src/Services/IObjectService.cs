@@ -18,5 +18,9 @@ namespace GraphVisualizationApp.Services
 
         Task<List<ObjectProperty>> GetObjectPropertiesAsync(int objectId);
         Task<ObjectProperty> AddObjectPropertyAsync(ObjectProperty prop);
+
+        // Expand feature methods
+        Task<List<GraphRelation>> GetNeighborsAsync(int objectId);
+        Task<List<GraphObject>> GetObjectsByIdsAsync(List<int> ids);
     }
 }

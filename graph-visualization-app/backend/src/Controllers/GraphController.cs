@@ -293,6 +293,44 @@ namespace GraphVisualizationApp.Controllers
             return Ok(DtoMapper.ToDto(updated));
         }
 
+        /// <summary>
+        /// Get node neighbors for Expand feature
+        /// </summary>
+        [HttpGet("objects/{id}/neighbors")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetNodeNeighbors(int id)
+        {
+            var relations = await _objectService.GetNeighborsAsync(id);
+            
+            // Collect all unique node IDs from the relations
+            var nodeIds = new HashSet<int> { id }; // Include the center node itself
+            foreach (var rel in relations)
+            {
+                nodeIds.Add(rel.Source);
+                nodeIds.Add(rel.Target);
+            }
+
+            var nodes = await _objectService.GetObjectsByIdsAsync(nodeIds.ToList());
+
+            return Ok(new 
+            { 
+                nodes = nodes.Select(DtoMapper.ToDto), 
+                relations = relations.Select(DtoMapper.ToDto) 
+            });
+        }
+
+        /// <summary>
+        /// Get multiple objects by IDs (for loading saved view)
+        /// </summary>
+        [HttpPost("objects/batch")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetObjectsBatch([FromBody] List<int> ids)
+        {
+            var objects = await _objectService.GetObjectsByIdsAsync(ids ?? new List<int>());
+            var dtos = objects.Select(DtoMapper.ToDto).ToList();
+            return Ok(dtos);
+        }
+
         [HttpGet("relations")]
         [AllowAnonymous]
         public async Task<IActionResult> GetRelations()

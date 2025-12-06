@@ -161,5 +161,26 @@ namespace GraphVisualizationApp.Services
             await _db.SaveChangesAsync();
             return prop;
         }
+
+        public async Task<List<GraphRelation>> GetNeighborsAsync(int objectId)
+        {
+            return await _db.GraphRelations
+                .Include(r => r.Properties)
+                .AsNoTracking()
+                .Where(r => r.Source == objectId || r.Target == objectId)
+                .ToListAsync();
+        }
+
+        public async Task<List<GraphObject>> GetObjectsByIdsAsync(List<int> ids)
+        {
+            if (ids == null || ids.Count == 0)
+                return new List<GraphObject>();
+
+            return await _db.GraphObjects
+                .Include(o => o.Properties)
+                .AsNoTracking()
+                .Where(o => ids.Contains(o.Id))
+                .ToListAsync();
+        }
     }
 }
