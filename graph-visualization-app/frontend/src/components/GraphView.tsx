@@ -139,11 +139,14 @@ export default function GraphView() {
     setDateRange,
     isTimelineEnabled,
     toggleTimeline,
+    zoomLevel,
+    setZoomLevel,
     histogramData,
     dateBoundaries,
-    edgesWithDatesCount,
-    filterEdgesByTimeline
-  } = useTimelineFilter({ edges: filteredEdges });
+    stats: timelineStats,
+    filterEdgesByTimeline,
+    filterNodesByTimeline
+  } = useTimelineFilter({ edges: filteredEdges, nodes: filteredNodes });
 
   // Apply timeline filter to edges
   const timelineFilteredEdges = useMemo(() => {
@@ -451,7 +454,7 @@ export default function GraphView() {
             bottom: 48, // Height of status bar
             left: 0,
             right: 0,
-            zIndex: 100,
+            zIndex: 9999,
             boxShadow: "0 -2px 10px rgba(0,0,0,0.1)"
           }}>
             <TimelinePanel
@@ -460,9 +463,11 @@ export default function GraphView() {
               dateRange={dateRange}
               onDateRangeChange={setDateRange}
               isEnabled={isTimelineEnabled}
-              onToggle={toggleTimeline}
-              edgesWithDatesCount={edgesWithDatesCount}
-              totalEdgesCount={edges.length}
+              onToggleFilter={toggleTimeline}
+              onClose={() => setIsTimelineVisible(false)}
+              stats={timelineStats}
+              zoomLevel={zoomLevel}
+              onZoomChange={setZoomLevel}
             />
           </div>
         )}

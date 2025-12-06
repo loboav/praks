@@ -1,19 +1,14 @@
 import { useState, useMemo, useCallback } from 'react';
-import { GraphRelation } from '../types/graph';
+import { GraphRelation, GraphObject } from '../types/graph';
 
-// Ключи свойств, которые считаются временными
+// Keys considered as date properties
 const DATE_PROPERTY_KEYS = [
     'date', 'datetime', 'timestamp', 'time', 'created_at',
+    'openingdate', 'closedate', 'birthdate', 'startdate', 'enddate',
     'дата', 'время', 'создано', 'дата_создания'
 ];
 
-// Форматы дат для парсинга (приоритет: DD.MM.YYYY)
-const DATE_FORMATS = [
-    /^(\d{2})\.(\d{2})\.(\d{4})$/,           // DD.MM.YYYY
-    /^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})$/, // DD.MM.YYYY HH:mm
-    /^(\d{4})-(\d{2})-(\d{2})$/,             // YYYY-MM-DD
-    /^(\d{2})\/(\d{2})\/(\d{4})$/,           // DD/MM/YYYY
-];
+export type ZoomLevel = 'day' | 'month' | 'year';
 
 export interface DateRange {
     start: Date | null;
@@ -22,7 +17,17 @@ export interface DateRange {
 
 export interface TimelineDataPoint {
     date: Date;
+    label: string;
     count: number;
+    nodeCount: number;
+    edgeCount: number;
+}
+
+export interface TimelineStats {
+    totalEntities: number;
+    invalidValues: number;
+    missingValues: number;
+    visibleEntities: number;
 }
 
 const isDatePropertyKey = (key: string): boolean => {
@@ -35,7 +40,7 @@ const isDatePropertyKey = (key: string): boolean => {
 const parseDate = (value: string): Date | null => {
     if (!value) return null;
 
-    // Пробуем DD.MM.YYYY
+    // Try DD.MM.YYYY
     const ddmmyyyy = value.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
     if (ddmmyyyy) {
         const [, day, month, year] = ddmmyyyy;
@@ -43,7 +48,7 @@ const parseDate = (value: string): Date | null => {
         if (!isNaN(date.getTime())) return date;
     }
 
-    // Пробуем YYYY-MM-DD
+    // Try YYYY-MM-DD
     const yyyymmdd = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (yyyymmdd) {
         const [, year, month, day] = yyyymmdd;
@@ -51,134 +56,234 @@ const parseDate = (value: string): Date | null => {
         if (!isNaN(date.getTime())) return date;
     }
 
-    // Пробуем Unix timestamp
+    // Try Unix timestamp
     const timestamp = parseInt(value);
     if (!isNaN(timestamp) && timestamp > 1000000000) {
-        // Миллисекунды или секунды
         const ts = timestamp > 1000000000000 ? timestamp : timestamp * 1000;
         return new Date(ts);
     }
 
-    // Общий парсинг
+    // General parsing
     const parsed = new Date(value);
     return isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const getDateFromProperties = (properties: Record<string, string>): Date | null => {
-    if (!properties) return null;
+const getDateFromProperties = (properties: Record<string, string> | undefined): { date: Date | null; isValid: boolean } => {
+    if (!properties) return { date: null, isValid: false };
 
     for (const [key, value] of Object.entries(properties)) {
         if (isDatePropertyKey(key)) {
             const date = parseDate(String(value));
-            if (date) return date;
+            if (date) return { date, isValid: true };
+            // Has date property but invalid value
+            return { date: null, isValid: false };
         }
     }
-    return null;
+    // No date property found
+    return { date: null, isValid: true };
 };
 
 interface UseTimelineFilterProps {
     edges: GraphRelation[];
+    nodes: GraphObject[];
 }
 
-export const useTimelineFilter = ({ edges }: UseTimelineFilterProps) => {
+export const useTimelineFilter = ({ edges, nodes }: UseTimelineFilterProps) => {
     const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
     const [isTimelineEnabled, setIsTimelineEnabled] = useState(false);
+    const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('year');
 
-    // Извлекаем даты из всех связей
-    const edgesWithDates = useMemo(() => {
-        return edges
-            .map(edge => ({
-                edge,
-                date: getDateFromProperties(edge.properties)
-            }))
-            .filter((item): item is { edge: GraphRelation; date: Date } => item.date !== null);
-    }, [edges]);
+    // Extract dates from all items (nodes + edges)
+    const itemsWithDates = useMemo(() => {
+        const items: Array<{ id: number; type: 'node' | 'edge'; date: Date }> = [];
+        let invalidCount = 0;
+        let missingCount = 0;
 
-    // Вычисляем границы дат
+        // Process nodes
+        nodes.forEach(node => {
+            const { date, isValid } = getDateFromProperties(node.properties);
+            if (date) {
+                items.push({ id: node.id, type: 'node', date });
+            } else if (!isValid) {
+                invalidCount++;
+            } else {
+                missingCount++;
+            }
+        });
+
+        // Process edges
+        edges.forEach(edge => {
+            const { date, isValid } = getDateFromProperties(edge.properties);
+            if (date) {
+                items.push({ id: edge.id, type: 'edge', date });
+            } else if (!isValid) {
+                invalidCount++;
+            } else {
+                missingCount++;
+            }
+        });
+
+        return { items, invalidCount, missingCount };
+    }, [nodes, edges]);
+
+    // Calculate date boundaries
     const dateBoundaries = useMemo(() => {
-        if (edgesWithDates.length === 0) return { min: null, max: null };
+        if (itemsWithDates.items.length === 0) return { min: null, max: null };
 
-        const dates = edgesWithDates.map(e => e.date.getTime());
+        const dates = itemsWithDates.items.map(e => e.date.getTime());
         return {
             min: new Date(Math.min(...dates)),
             max: new Date(Math.max(...dates))
         };
-    }, [edgesWithDates]);
+    }, [itemsWithDates]);
 
-    // Группируем по дням для гистограммы
+    // Generate date key based on zoom level
+    const getDateKey = useCallback((date: Date, zoom: ZoomLevel): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+
+        switch (zoom) {
+            case 'day': return `${year}-${month}-${day}`;
+            case 'month': return `${year}-${month}`;
+            case 'year': return `${year}`;
+        }
+    }, []);
+
+    // Generate label for histogram bar
+    const getDateLabel = useCallback((dateStr: string, zoom: ZoomLevel): string => {
+        const parts = dateStr.split('-').map(Number);
+        switch (zoom) {
+            case 'day': return `${parts[2]}.${parts[1]}.${parts[0]}`;
+            case 'month': {
+                const months = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+                return `${months[parts[1] - 1]} ${parts[0]}`;
+            }
+            case 'year': return String(parts[0]);
+        }
+    }, []);
+
+    // Parse date key back to Date
+    const parseDateKey = useCallback((dateStr: string, zoom: ZoomLevel): Date => {
+        const parts = dateStr.split('-').map(Number);
+        switch (zoom) {
+            case 'day': return new Date(parts[0], parts[1] - 1, parts[2]);
+            case 'month': return new Date(parts[0], parts[1] - 1, 1);
+            case 'year': return new Date(parts[0], 0, 1);
+        }
+    }, []);
+
+    // Group by zoom level for histogram
     const histogramData = useMemo((): TimelineDataPoint[] => {
-        const groups = new Map<string, number>();
+        const groups = new Map<string, { nodeCount: number; edgeCount: number }>();
 
-        for (const { date } of edgesWithDates) {
-            // Используем локальные компоненты даты для ключа, чтобы избежать сдвига часовых поясов
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const key = `${year}-${month}-${day}`;
-
-            groups.set(key, (groups.get(key) || 0) + 1);
+        for (const { date, type } of itemsWithDates.items) {
+            const key = getDateKey(date, zoomLevel);
+            const current = groups.get(key) || { nodeCount: 0, edgeCount: 0 };
+            if (type === 'node') current.nodeCount++;
+            else current.edgeCount++;
+            groups.set(key, current);
         }
 
         return Array.from(groups.entries())
-            .map(([dateStr, count]) => {
-                const [y, m, d] = dateStr.split('-').map(Number);
-                return {
-                    date: new Date(y, m - 1, d), // Создаем дату в локальном времени 00:00:00
-                    count
-                };
-            })
+            .map(([dateStr, counts]) => ({
+                date: parseDateKey(dateStr, zoomLevel),
+                label: getDateLabel(dateStr, zoomLevel),
+                count: counts.nodeCount + counts.edgeCount,
+                nodeCount: counts.nodeCount,
+                edgeCount: counts.edgeCount
+            }))
             .sort((a, b) => a.date.getTime() - b.date.getTime());
-    }, [edgesWithDates]);
+    }, [itemsWithDates, zoomLevel, getDateKey, getDateLabel, parseDateKey]);
 
-    // Фильтруем связи по диапазону
-    const filteredEdgeIds = useMemo(() => {
-        // Если Timeline выключен или диапазон не выбран — вернём все edge IDs
+    // Filter items by date range
+    const filteredItemIds = useMemo(() => {
+        const nodeIds = new Set<number>();
+        const edgeIds = new Set<number>();
+
         if (!isTimelineEnabled || (!dateRange.start && !dateRange.end)) {
-            return new Set<number>(edgesWithDates.map(e => e.edge.id));
+            itemsWithDates.items.forEach(item => {
+                if (item.type === 'node') nodeIds.add(item.id);
+                else edgeIds.add(item.id);
+            });
+            return { nodeIds, edgeIds, visibleCount: itemsWithDates.items.length };
         }
 
-        const filtered = new Set<number>();
+        const start = dateRange.start;
+        const end = dateRange.end;
 
-        // Нормализуем границы к началу и концу дня
-        const startOfDay = dateRange.start
-            ? new Date(dateRange.start.getFullYear(), dateRange.start.getMonth(), dateRange.start.getDate(), 0, 0, 0, 0).getTime()
-            : -Infinity;
-        const endOfDay = dateRange.end
-            ? new Date(dateRange.end.getFullYear(), dateRange.end.getMonth(), dateRange.end.getDate(), 23, 59, 59, 999).getTime()
-            : Infinity;
+        const checkDate = (date: Date): boolean => {
+            if (!start || !end) return true;
 
-        for (const { edge, date } of edgesWithDates) {
-            const time = date.getTime();
+            const year = date.getFullYear();
+            const month = date.getMonth();
+            const day = date.getDate();
 
-            if (time >= startOfDay && time <= endOfDay) {
-                filtered.add(edge.id);
+            if (zoomLevel === 'year') {
+                // For year view: include everything from start year to end year (inclusive)
+                return year >= start.getFullYear() && year <= end.getFullYear();
+            } else if (zoomLevel === 'month') {
+                // For month view: include everything from start month to end month
+                // Convert to total months for easy comparison: year * 12 + month
+                const itemMonths = year * 12 + month;
+                const startMonths = start.getFullYear() * 12 + start.getMonth();
+                const endMonths = end.getFullYear() * 12 + end.getMonth();
+                return itemMonths >= startMonths && itemMonths <= endMonths;
+            } else {
+                // Day view: exact timestamp comparison
+                const time = date.getTime();
+                // Normalize boundaries to start/end of day
+                const startTime = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0).getTime();
+                const endTime = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59).getTime();
+                return time >= startTime && time <= endTime;
+            }
+        };
+
+        let visibleCount = 0;
+        for (const item of itemsWithDates.items) {
+            if (checkDate(item.date)) {
+                if (item.type === 'node') nodeIds.add(item.id);
+                else edgeIds.add(item.id);
+                visibleCount++;
             }
         }
 
-        return filtered;
-    }, [edgesWithDates, dateRange, isTimelineEnabled]);
+        return { nodeIds, edgeIds, visibleCount };
+    }, [itemsWithDates, dateRange, isTimelineEnabled, zoomLevel]);
+
+    // Statistics
+    const stats = useMemo((): TimelineStats => ({
+        totalEntities: itemsWithDates.items.length,
+        invalidValues: itemsWithDates.invalidCount,
+        missingValues: itemsWithDates.missingCount,
+        visibleEntities: filteredItemIds.visibleCount
+    }), [itemsWithDates, filteredItemIds]);
 
     const filterEdgesByTimeline = useCallback((edgesToFilter: GraphRelation[]): GraphRelation[] => {
-        // Если Timeline выключен — показать все
-        if (!isTimelineEnabled) {
-            return edgesToFilter;
-        }
-        // Если Timeline включён — показать только совпадающие (даже если их 0)
-        return edgesToFilter.filter(edge => filteredEdgeIds.has(edge.id));
-    }, [isTimelineEnabled, filteredEdgeIds]);
+        if (!isTimelineEnabled) return edgesToFilter;
+        return edgesToFilter.filter(edge => filteredItemIds.edgeIds.has(edge.id));
+    }, [isTimelineEnabled, filteredItemIds]);
+
+    const filterNodesByTimeline = useCallback((nodesToFilter: GraphObject[]): GraphObject[] => {
+        if (!isTimelineEnabled) return nodesToFilter;
+        // Keep nodes that are either in filtered set OR have no date property
+        return nodesToFilter.filter(node => {
+            const { date } = getDateFromProperties(node.properties);
+            if (!date) return true; // Keep nodes without dates
+            return filteredItemIds.nodeIds.has(node.id);
+        });
+    }, [isTimelineEnabled, filteredItemIds]);
 
     const toggleTimeline = useCallback(() => {
         const wasEnabled = isTimelineEnabled;
         setIsTimelineEnabled(prev => !prev);
 
-        // При включении — если диапазон не выбран, устанавливаем полный
         if (!wasEnabled && !dateRange.start && !dateRange.end) {
             setDateRange({
                 start: dateBoundaries.min,
                 end: dateBoundaries.max
             });
         }
-        // При включении с уже выбранным диапазоном — НЕ сбрасываем!
     }, [isTimelineEnabled, dateBoundaries, dateRange]);
 
     return {
@@ -186,10 +291,14 @@ export const useTimelineFilter = ({ edges }: UseTimelineFilterProps) => {
         setDateRange,
         isTimelineEnabled,
         toggleTimeline,
+        zoomLevel,
+        setZoomLevel,
         histogramData,
         dateBoundaries,
-        edgesWithDatesCount: edgesWithDates.length,
+        stats,
         filterEdgesByTimeline,
-        filteredEdgeIds
+        filterNodesByTimeline,
+        filteredItemIds
     };
 };
+
