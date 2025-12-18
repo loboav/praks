@@ -28,8 +28,10 @@ import { useGraphData } from "../hooks/useGraphData";
 import { useGraphFilters } from "../hooks/useGraphFilters";
 import { useBulkOperations } from "../hooks/useBulkOperations";
 import { useTimelineFilter } from "../hooks/useTimelineFilter";
+import { useNodeGrouping } from "../hooks/useNodeGrouping";
 import TimelinePanel from "./TimelinePanel";
 import GeoMapView from "./GeoMapView";
+import GroupInfoPanel from "./GroupInfoPanel";
 
 export default function GraphView() {
   const { user, isAuthenticated } = useAuth();
@@ -153,6 +155,21 @@ export default function GraphView() {
     return filterEdgesByTimeline(filteredEdges);
   }, [filteredEdges, filterEdgesByTimeline]);
 
+  // Node Grouping Hook (Linkurious-style)
+  const {
+    rules: groupingRules,
+    createRule: createGroupingRule,
+    deleteRule: deleteGroupingRule,
+    toggleRule: toggleGroupingRule,
+    activeRule: activeGroupingRule,
+    toggleGroupCollapse,
+    collapseAllGroups,
+    expandAllGroups,
+    transformedNodes: groupedTransformedNodes,
+    transformedEdges: groupedTransformedEdges,
+    availableProperties,
+  } = useNodeGrouping({ nodes: filteredNodes, edges: timelineFilteredEdges, objectTypes });
+
   // Load initial data
   useEffect(() => {
     loadInitialData(loadLayout);
@@ -177,11 +194,25 @@ export default function GraphView() {
       hideNode(node.id);
     } else if (action === "expand") {
       expandNode(node.id);
+    } else if (action === "expand-group") {
+      // Для мета-узлов — развернуть группу
+      if (node._collapsedGroupId) {
+        toggleGroupCollapse(node._collapsedGroupId);
+        toast.success('Группа развёрнута');
+      }
     }
   };
 
+  const [selectedGroup, setSelectedGroup] = useState<GraphObject | null>(null);
+
   const handleSelectNode = (node: GraphObject) => {
+    if (node.isCollapsedGroup) {
+      setSelectedGroup(node);
+      setSelected(null); // Скрываем карточку обычного объекта
+      return;
+    }
     setSelected({ type: "node", data: node });
+    setSelectedGroup(null);
   };
 
   const handleAddRelationSubmit = async (data: {
@@ -227,12 +258,12 @@ export default function GraphView() {
     : relationTypes;
 
   const nodesWithPositions = useMemo(() => {
-    return filteredNodes.map((node) => ({
+    return groupedTransformedNodes.map((node: GraphObject) => ({
       ...node,
       x: typeof node.PositionX === "number" ? node.PositionX : 0,
       y: typeof node.PositionY === "number" ? node.PositionY : 0,
     }));
-  }, [filteredNodes]);
+  }, [groupedTransformedNodes]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -323,6 +354,15 @@ export default function GraphView() {
             onDeleteRelationType={(id) => window.confirm("Удалить тип связи?") && deleteRelationType(id)}
             selectedAlgorithm={selectedAlgorithm}
             onAlgorithmChange={setSelectedAlgorithm}
+            // Grouping props
+            groupingRules={groupingRules}
+            activeGroupingRule={activeGroupingRule}
+            availableProperties={availableProperties}
+            onCreateGroupingRule={createGroupingRule}
+            onDeleteGroupingRule={deleteGroupingRule}
+            onToggleGroupingRule={toggleGroupingRule}
+            onCollapseAllGroups={collapseAllGroups}
+            onExpandAllGroups={expandAllGroups}
           />
           <div style={{ flex: 1, position: "relative", minWidth: 0, minHeight: 0 }}>
 
@@ -403,7 +443,7 @@ export default function GraphView() {
                 {viewMode === 'graph' ? (
                   <GraphCanvas
                     nodes={nodesWithPositions}
-                    edges={timelineFilteredEdges}
+                    edges={groupedTransformedEdges}
                     relationTypes={relationTypes}
                     onSelectNode={(node) => {
                       const isShiftPressed = (window.event as KeyboardEvent)?.shiftKey;
@@ -419,7 +459,18 @@ export default function GraphView() {
                     onNodesPositionChange={updateNodesPositions}
                     selectedNodes={selectedIds}
                     selectedAlgorithm={selectedAlgorithm}
-                    onNodeDoubleClick={(node) => expandNode(node.id)}
+                    onNodeDoubleClick={(node) => {
+                      if (node.isCollapsedGroup && node._collapsedGroupId) {
+                        toggleGroupCollapse(node._collapsedGroupId);
+                      } else {
+                        expandNode(node.id);
+                      }
+                    }}
+                    onPaneClick={() => {
+                      setSelected(null);
+                      setSelectedGroup(null);
+                      clearSelection();
+                    }}
                   />
                 ) : (
                   <GeoMapView
@@ -432,6 +483,30 @@ export default function GraphView() {
                     }}
                     onSelectEdge={(edge) => setSelected({ type: "edge", data: edge })}
                     selectedNodes={selectedIds}
+                  />
+                )}
+
+                {/* Панель информации о группе */}
+                {selectedGroup && selectedGroup._collapsedNodeIds && (
+                  <GroupInfoPanel
+                    groupNode={selectedGroup}
+                    nodesInGroup={nodes.filter(n => selectedGroup._collapsedNodeIds?.includes(n.id))}
+                    objectTypes={objectTypes}
+                    onNodeClick={(node) => {
+                      // При клике на узел в списке переходим к нему (разворачиваем группу)
+                      if (selectedGroup._collapsedGroupId) {
+                        toggleGroupCollapse(selectedGroup._collapsedGroupId);
+                        // Выбираем этот узел после разворачивания (с небольшой задержкой для рендера)
+                        setTimeout(() => handleSelectNode(node), 100);
+                      }
+                    }}
+                    onExpandGroup={() => {
+                      if (selectedGroup._collapsedGroupId) {
+                        toggleGroupCollapse(selectedGroup._collapsedGroupId);
+                        setSelectedGroup(null);
+                      }
+                    }}
+                    onClose={() => setSelectedGroup(null)}
                   />
                 )}
                 {selected?.type === "node" && <ObjectCard object={selected.data} />}

@@ -23,6 +23,13 @@ export interface GraphObject {
     PositionY?: number;
     color?: string; // HEX или CSS-цвет
     icon?: string;  // имя иконки или emoji
+    // Свойства для свёрнутых групп (мета-узлов)
+    isCollapsedGroup?: boolean;      // Это мета-узел?
+    _collapsedNodeIds?: number[];    // Узлы внутри группы
+    _collapsedCount?: number;        // Количество узлов
+    _collapsedGroupId?: string;      // ID группы для разворачивания
+    _groupPropertyValue?: string;    // Значение свойства группировки (напр. "Москва")
+    _groupNodeNames?: string[];      // Имена первых N узлов для tooltip
 }
 
 export interface GraphRelation {

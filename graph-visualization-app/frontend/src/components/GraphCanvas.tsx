@@ -33,6 +33,7 @@ interface GraphCanvasProps {
     positions: { id: number; x: number; y: number }[],
   ) => void;
   onNodeDoubleClick?: (node: GraphObject) => void;
+  onPaneClick?: () => void;
 }
 
 interface HighlightProps {
@@ -47,6 +48,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   onSelectNode,
   onSelectEdge,
   onNodeAction,
+  onPaneClick,
   selectedNodes: propsSelectedNodes,
   selectedEdges,
   panOnDrag = true,
@@ -140,31 +142,50 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
   // Мемоизация преобразования узлов для ReactFlow
   const initialRfNodes = useMemo<Node[]>(() => {
-    return nodes.map((node) => ({
-      id: node.id.toString(),
-      data: {
-        label: node.icon ? `${node.icon} ${node.name}` : node.name,
-        orig: node,
-      },
-      position: {
-        x: node.PositionX ?? 400,
-        y: node.PositionY ?? 300,
-      },
-      style: {
-        border:
-          combinedSelectedNodes && combinedSelectedNodes.includes(node.id)
+    return nodes.map((node) => {
+      const isSelected = combinedSelectedNodes && combinedSelectedNodes.includes(node.id);
+      const isCollapsedGroup = node.isCollapsedGroup === true;
+
+      // Специальный стиль для свёрнутых групп (мета-узлов)
+      const collapsedStyle: React.CSSProperties = isCollapsedGroup ? {
+        border: '3px dashed #9e9e9e',
+        borderRadius: '50%',
+        padding: 16,
+        background: 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        minWidth: 80,
+        minHeight: 80,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 600,
+        fontSize: 14,
+      } : {};
+
+      return {
+        id: node.id.toString(),
+        data: {
+          label: node.icon ? `${node.icon} ${node.name}` : node.name,
+          orig: node,
+        },
+        position: {
+          x: node.PositionX ?? 400,
+          y: node.PositionY ?? 300,
+        },
+        style: isCollapsedGroup ? collapsedStyle : {
+          border: isSelected
             ? "4px solid #1976d2"
             : `2px solid ${node.color || "#2196f3"}`,
-        borderRadius: 8,
-        padding: 8,
-        background: "#fff",
-        color: node.color || undefined,
-        boxShadow:
-          combinedSelectedNodes && combinedSelectedNodes.includes(node.id)
+          borderRadius: 8,
+          padding: 8,
+          background: "#fff",
+          color: node.color || undefined,
+          boxShadow: isSelected
             ? "0 0 0 6px rgba(25,118,210,0.12)"
             : undefined,
-      },
-    }));
+        },
+      };
+    });
   }, [nodes, combinedSelectedNodes]);
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState(initialRfNodes);
@@ -672,6 +693,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeClick={handleEdgeClick}
+        onPaneClick={onPaneClick}
         panOnDrag={panOnDrag}
         fitView
       >
@@ -866,27 +888,41 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
             minWidth: 160,
           }}
         >
-          <button
-            style={menuBtn}
-            onClick={() => handleMenuAction("create-relation")}
-          >
-            Создать связь
-          </button>
-          <button style={menuBtn} onClick={() => handleMenuAction("expand")}>
-            Раскрыть связи
-          </button>
-          <button style={menuBtn} onClick={() => handleMenuAction("edit")}>
-            Редактировать
-          </button>
-          <button style={menuBtn} onClick={() => handleMenuAction("hide")}>
-            Скрыть
-          </button>
-          <button style={{ ...menuBtn, color: "#f44336" }} onClick={() => handleMenuAction("delete")}>
-            Удалить
-          </button>
-          <button style={menuBtn} onClick={() => handleMenuAction("find-path")}>
-            Поиск пути
-          </button>
+          {/* Показываем разные действия для мета-узлов и обычных узлов */}
+          {menu.node.isCollapsedGroup ? (
+            <>
+              <button
+                style={{ ...menuBtn, color: '#4caf50', fontWeight: 600 }}
+                onClick={() => handleMenuAction("expand-group")}
+              >
+                🔓 Развернуть группу ({menu.node._collapsedCount} узлов)
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                style={menuBtn}
+                onClick={() => handleMenuAction("create-relation")}
+              >
+                Создать связь
+              </button>
+              <button style={menuBtn} onClick={() => handleMenuAction("expand")}>
+                Раскрыть связи
+              </button>
+              <button style={menuBtn} onClick={() => handleMenuAction("edit")}>
+                Редактировать
+              </button>
+              <button style={menuBtn} onClick={() => handleMenuAction("hide")}>
+                Скрыть
+              </button>
+              <button style={{ ...menuBtn, color: "#f44336" }} onClick={() => handleMenuAction("delete")}>
+                Удалить
+              </button>
+              <button style={menuBtn} onClick={() => handleMenuAction("find-path")}>
+                Поиск пути
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

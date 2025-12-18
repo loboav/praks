@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { ObjectType, RelationType, PathAlgorithm, AlgorithmOption } from "../types/graph";
 import { toast } from "react-toastify";
 import { useAuth } from "../contexts/AuthContext";
+import GroupingRulesPanel from "./GroupingRulesPanel";
+import { GroupingRule } from "../hooks/useNodeGrouping";
 
 interface SidebarProps {
   objectTypes: ObjectType[];
@@ -12,6 +14,15 @@ interface SidebarProps {
   onDeleteRelationType: (id: number) => void;
   selectedAlgorithm: PathAlgorithm;
   onAlgorithmChange: (algorithm: PathAlgorithm) => void;
+  // Grouping props (optional)
+  groupingRules?: GroupingRule[];
+  activeGroupingRule?: GroupingRule | null;
+  availableProperties?: string[];
+  onCreateGroupingRule?: (title: string, propertyKey: string, categoryIds?: number[]) => void;
+  onDeleteGroupingRule?: (ruleId: string) => void;
+  onToggleGroupingRule?: (ruleId: string) => void;
+  onCollapseAllGroups?: () => void;
+  onExpandAllGroups?: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -23,6 +34,15 @@ const Sidebar: React.FC<SidebarProps> = ({
   onDeleteRelationType,
   selectedAlgorithm,
   onAlgorithmChange,
+  // Grouping props
+  groupingRules,
+  activeGroupingRule,
+  availableProperties,
+  onCreateGroupingRule,
+  onDeleteGroupingRule,
+  onToggleGroupingRule,
+  onCollapseAllGroups,
+  onExpandAllGroups,
 }) => {
   const { user } = useAuth();
   const canManageTypes = user?.role === 'Admin' || user?.role === 'Editor';
@@ -418,6 +438,21 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Node Grouping Section */}
+      {groupingRules && onCreateGroupingRule && onDeleteGroupingRule && onToggleGroupingRule && (
+        <GroupingRulesPanel
+          rules={groupingRules}
+          activeRule={activeGroupingRule || null}
+          availableProperties={availableProperties || []}
+          objectTypes={objectTypes}
+          onCreateRule={onCreateGroupingRule}
+          onDeleteRule={onDeleteGroupingRule}
+          onToggleRule={onToggleGroupingRule}
+          onCollapseAll={onCollapseAllGroups || (() => { })}
+          onExpandAll={onExpandAllGroups || (() => { })}
+        />
+      )}
     </aside>
   );
 };
