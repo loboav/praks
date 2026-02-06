@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,93 +20,120 @@ namespace GraphVisualizationApp.Algorithms
         }
 
         public PathResult FindPath(
+            Dictionary<int, GraphObject> nodeMap,
+            Dictionary<int, List<GraphRelation>> adjacencyList,
+            int fromId,
+            int toId,
+            string heuristic = "euclidean")
+        {
+            // Проверка существования узлов
+            if (!nodeMap.ContainsKey(fromId) || !nodeMap.ContainsKey(toId))
+            {
+                return new PathResult { NodeIds = new List<int>(), EdgeIds = new List<int>(), TotalWeight = -1 };
+            }
+
+            // Проверка наличия координат для эвристики
+            bool hasCoordinates = nodeMap[fromId].PositionX.HasValue && 
+                                  nodeMap[fromId].PositionY.HasValue &&
+                                  nodeMap[toId].PositionX.HasValue && 
+                                  nodeMap[toId].PositionY.HasValue;
+
+            if (!hasCoordinates)
+            {
+                // Откат к алгоритму Дейкстры, если нет координат
+                // Повторно используем DijkstraPathFinder, но нужно передать все параметры корректно
+                var dijkstra = new DijkstraPathFinder();
+                // Создаем перечисление ID узлов, так как Дейкстре нужны ключи для инициализации (или проверки существования)
+                var dijkstraResult = dijkstra.FindShortestPath(nodeMap.Keys, adjacencyList, fromId, toId);
+                return new PathResult
+                {
+                    NodeIds = dijkstraResult.NodeIds,
+                    EdgeIds = dijkstraResult.EdgeIds,
+                    TotalWeight = dijkstraResult.TotalWeight,
+                    NodesVisited = 0 
+                };
+            }
+
+            var gScore = new Dictionary<int, double>();
+            var cameFrom = new Dictionary<int, int>();
+            var edgeFrom = new Dictionary<int, int>();
+            
+            // PriorityQueue хранит (nodeId, fScore)
+            var pq = new PriorityQueue<int, double>();
+            var visited = new HashSet<int>();
+
+            foreach (var nodeId in nodeMap.Keys)
+            {
+                gScore[nodeId] = double.MaxValue;
+            }
+
+            gScore[fromId] = 0;
+            double startFScore = Heuristic(nodeMap[fromId], nodeMap[toId], heuristic);
+            pq.Enqueue(fromId, startFScore);
+
+            int nodesVisited = 0;
+
+            while (pq.Count > 0)
+            {
+                if (!pq.TryDequeue(out int current, out double currentFScore))
+                    break;
+                
+                // Ленивая проверка удаления: если мы уже нашли лучший путь, пропускаем
+                // Примечание: fScore может измениться, но для A* строгая монотонность обрабатывает это. 
+                // Однако, стандартная PQ не поддерживает DecreaseKey, поэтому могут быть дубликаты.
+                // Мы проверяем visited для закрытого множества.
+                // A* с последовательной эвристикой не нуждается в повторном открытии узлов.
+                
+                if (current == toId)
+                {
+                    return ReconstructPath(cameFrom, edgeFrom, current, gScore, nodesVisited);
+                }
+                
+                // Реализация закрытого множества (Closed Set)
+                if (visited.Contains(current))
+                    continue;
+
+                visited.Add(current);
+                nodesVisited++;
+
+                if (adjacencyList.TryGetValue(current, out var edges))
+                {
+                     foreach (var edge in edges)
+                     {
+                        int neighbor = edge.Source == current ? edge.Target : edge.Source;
+                        if (visited.Contains(neighbor)) continue;
+
+                        int weight = GetEdgeWeight(edge);
+                        double tentativeGScore = gScore[current] + weight;
+
+                        if (tentativeGScore < gScore[neighbor])
+                        {
+                            cameFrom[neighbor] = current;
+                            edgeFrom[neighbor] = edge.Id;
+                            gScore[neighbor] = tentativeGScore;
+                            double fScore = tentativeGScore + Heuristic(nodeMap[neighbor], nodeMap[toId], heuristic);
+                            
+                            pq.Enqueue(neighbor, fScore);
+                        }
+                     }
+                }
+            }
+
+            // Путь не найден
+            return new PathResult { NodeIds = new List<int>(), EdgeIds = new List<int>(), TotalWeight = -1 };
+        }
+
+        // Backward compatibility overload
+        public PathResult FindPath(
             List<GraphObject> nodes,
             List<GraphRelation> edges,
             int fromId,
             int toId,
             string heuristic = "euclidean")
         {
-            var nodeDict = nodes.ToDictionary(n => n.Id);
-            
-            // Проверка существования узлов
-            if (!nodeDict.ContainsKey(fromId) || !nodeDict.ContainsKey(toId))
-            {
-                return new PathResult { NodeIds = new List<int>(), EdgeIds = new List<int>(), TotalWeight = -1 };
-            }
-
-            // Проверка наличия координат для эвристики
-            bool hasCoordinates = nodeDict[fromId].PositionX.HasValue && 
-                                  nodeDict[fromId].PositionY.HasValue &&
-                                  nodeDict[toId].PositionX.HasValue && 
-                                  nodeDict[toId].PositionY.HasValue;
-
-            if (!hasCoordinates)
-            {
-                // Fallback to Dijkstra если нет координат
-                var dijkstra = new DijkstraPathFinder();
-                var dijkstraResult = dijkstra.FindShortestPath(nodes, edges, fromId, toId);
-                return new PathResult
-                {
-                    NodeIds = dijkstraResult.NodeIds,
-                    EdgeIds = dijkstraResult.EdgeIds,
-                    TotalWeight = dijkstraResult.TotalWeight,
-                    NodesVisited = 0
-                };
-            }
-
-            var openSet = new HashSet<int> { fromId };
-            var cameFrom = new Dictionary<int, int>();
-            var edgeFrom = new Dictionary<int, int>();
-            var gScore = new Dictionary<int, double>();
-            var fScore = new Dictionary<int, double>();
-
-            foreach (var node in nodes)
-            {
-                gScore[node.Id] = double.MaxValue;
-                fScore[node.Id] = double.MaxValue;
-            }
-
-            gScore[fromId] = 0;
-            fScore[fromId] = Heuristic(nodeDict[fromId], nodeDict[toId], heuristic);
-
-            int nodesVisited = 0;
-
-            while (openSet.Count > 0)
-            {
-                // Найти узел с минимальным fScore
-                var current = openSet.OrderBy(id => fScore[id]).First();
-                nodesVisited++;
-
-                if (current == toId)
-                {
-                    return ReconstructPath(cameFrom, edgeFrom, current, gScore, nodesVisited);
-                }
-
-                openSet.Remove(current);
-
-                // Обработка соседей
-                foreach (var edge in edges.Where(e => e.Source == current || e.Target == current))
-                {
-                    int neighbor = edge.Source == current ? edge.Target : edge.Source;
-                    
-                    int weight = GetEdgeWeight(edge);
-                    double tentativeGScore = gScore[current] + weight;
-
-                    if (tentativeGScore < gScore[neighbor])
-                    {
-                        cameFrom[neighbor] = current;
-                        edgeFrom[neighbor] = edge.Id;
-                        gScore[neighbor] = tentativeGScore;
-                        fScore[neighbor] = gScore[neighbor] + Heuristic(nodeDict[neighbor], nodeDict[toId], heuristic);
-
-                        if (!openSet.Contains(neighbor))
-                            openSet.Add(neighbor);
-                    }
-                }
-            }
-
-            // Путь не найден
-            return new PathResult { NodeIds = new List<int>(), EdgeIds = new List<int>(), TotalWeight = -1 };
+            var nodeMap = nodes.ToDictionary(n => n.Id);
+            var adjList = GraphUtils.BuildAdjacencyList(edges);
+            return FindPath(nodeMap, adjList, fromId, toId, heuristic);
         }
 
         private double Heuristic(GraphObject from, GraphObject to, string type)

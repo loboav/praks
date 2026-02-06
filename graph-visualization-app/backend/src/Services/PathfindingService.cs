@@ -1,8 +1,9 @@
-using GraphVisualizationApp.Models;
-using GraphVisualizationApp.Algorithms;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using GraphVisualizationApp.Algorithms;
+using GraphVisualizationApp.Models;
 
 namespace GraphVisualizationApp.Services
 {
@@ -40,18 +41,12 @@ namespace GraphVisualizationApp.Services
                 Properties = e.Properties?.ToList() ?? new List<RelationProperty>()
             }).ToList();
             
-            var nodeList = nodes.Select(n => new GraphObject
-            {
-                Id = n.Id,
-                Name = n.Name,
-                ObjectTypeId = n.ObjectTypeId,
-                Color = n.Color,
-                Icon = n.Icon,
-                Properties = n.Properties?.ToList() ?? new List<ObjectProperty>()
-            }).ToList();
-            
+            // Эффективное построение списка смежности
+            var adjacencyList = GraphUtils.BuildAdjacencyList(edgeList);
+            var nodeIds = nodes.Select(n => n.Id);
+
             var finder = new DijkstraPathFinder();
-            return finder.FindShortestPath(nodeList, edgeList, fromId, toId);
+            return finder.FindShortestPath(nodeIds, adjacencyList, fromId, toId);
         }
 
         // A* алгоритм с эвристикой
@@ -60,7 +55,7 @@ namespace GraphVisualizationApp.Services
             var nodes = await _objectService.GetObjectsAsync();
             var edges = await _relationService.GetRelationsAsync();
             
-            var nodeList = nodes.Select(n => new GraphObject
+            var nodeMap = nodes.ToDictionary(n => n.Id, n => new GraphObject
             {
                 Id = n.Id,
                 Name = n.Name,
@@ -70,7 +65,7 @@ namespace GraphVisualizationApp.Services
                 Color = n.Color,
                 Icon = n.Icon,
                 Properties = n.Properties?.ToList() ?? new List<ObjectProperty>()
-            }).ToList();
+            });
             
             var edgeList = edges.Select(e => new GraphRelation
             {
@@ -82,8 +77,10 @@ namespace GraphVisualizationApp.Services
                 Properties = e.Properties?.ToList() ?? new List<RelationProperty>()
             }).ToList();
             
+            var adjacencyList = GraphUtils.BuildAdjacencyList(edgeList);
+            
             var finder = new AStarPathFinder();
-            return finder.FindPath(nodeList, edgeList, fromId, toId, heuristic);
+            return finder.FindPath(nodeMap, adjacencyList, fromId, toId, heuristic);
         }
 
         // Yen's K кратчайших путей
@@ -113,14 +110,21 @@ namespace GraphVisualizationApp.Services
             }).ToList();
             
             var finder = new YenKShortestPaths();
+            // Примечание: finder.FindKShortestPaths строит список смежности внутри.
+            // Мы могли бы оптимизировать, передавая список смежности, но сигнатура метода Yen's еще не изменена
             return finder.FindKShortestPaths(nodeList, edgeList, fromId, toId, k);
         }
 
-        // Legacy BFS метод (для обратной совместимости)
+        // Legacy BFS метод (Refactored for Performance)
         public async Task<List<GraphObject>> FindPathAsync(int startId, int endId)
         {
             var nodes = await _objectService.GetObjectsAsync();
             var edges = await _relationService.GetRelationsAsync();
+            
+            var adjacencyList = GraphUtils.BuildAdjacencyList(edges.Select(e => new GraphRelation 
+            { 
+                 Id = e.Id, Source = e.Source, Target = e.Target 
+            }));
             
             var visited = new HashSet<int>();
             var queue = new Queue<int>();
@@ -145,16 +149,17 @@ namespace GraphVisualizationApp.Services
                     return nodes.Where(n => path.Contains(n.Id)).OrderBy(n => path.IndexOf(n.Id)).ToList();
                 }
 
-                var neighbors = edges.Where(e => e.Source == current || e.Target == current)
-                    .Select(e => e.Source == current ? e.Target : e.Source);
-
-                foreach (var neighbor in neighbors)
+                if (adjacencyList.TryGetValue(current, out var neighbors))
                 {
-                    if (!visited.Contains(neighbor))
+                    foreach (var edge in neighbors)
                     {
-                        visited.Add(neighbor);
-                        prev[neighbor] = current;
-                        queue.Enqueue(neighbor);
+                        int neighbor = edge.Source == current ? edge.Target : edge.Source;
+                        if (!visited.Contains(neighbor))
+                        {
+                            visited.Add(neighbor);
+                            prev[neighbor] = current;
+                            queue.Enqueue(neighbor);
+                        }
                     }
                 }
             }
