@@ -48,6 +48,9 @@ namespace GraphVisualizationApp.Data
                 case "it":
                     await SeedITInfrastructureTemplateAsync(context);
                     break;
+                case "large":
+                    await SeedLargeTemplateAsync(context);
+                    break;
                 case "all":
                     await SeedInvestigationTemplateAsync(context);
                     break;
@@ -739,6 +742,262 @@ namespace GraphVisualizationApp.Data
             await context.SaveChangesAsync();
 
             Console.WriteLine("Business template created");
+        }
+
+        /// <summary>
+        /// Большой набор данных для тестирования (1000 объектов)
+        /// </summary>
+        private static async Task SeedLargeTemplateAsync(GraphDbContext context)
+        {
+            Console.WriteLine("Seeding large dataset with 1000 objects...");
+
+            var random = new Random(42); // Фиксированное seed для воспроизводимости
+
+            // 1. Создаем типы объектов
+            var personType = new ObjectType { Name = "Персона", Description = "Человек" };
+            var companyType = new ObjectType { Name = "Компания", Description = "Организация" };
+            var projectType = new ObjectType { Name = "Проект", Description = "Проект" };
+            var assetType = new ObjectType { Name = "Актив", Description = "Ресурс/Актив" };
+
+            context.ObjectTypes.AddRange(personType, companyType, projectType, assetType);
+            await context.SaveChangesAsync();
+
+            // 2. Создаем типы связей
+            var worksAtRelation = new RelationType { Name = "Работает в", Description = "", ObjectTypeId = personType.Id };
+            var ownedByRelation = new RelationType { Name = "Владеет", Description = "", ObjectTypeId = personType.Id };
+            var managesRelation = new RelationType { Name = "Управляет", Description = "", ObjectTypeId = personType.Id };
+            var partOfRelation = new RelationType { Name = "Часть от", Description = "", ObjectTypeId = companyType.Id };
+            var relatedToRelation = new RelationType { Name = "Связан с", Description = "", ObjectTypeId = personType.Id };
+
+            context.RelationTypes.AddRange(worksAtRelation, ownedByRelation, managesRelation, partOfRelation, relatedToRelation);
+            await context.SaveChangesAsync();
+
+            // 3. Создаем объекты
+            var objects = new List<GraphObject>();
+
+            // Создаем компании (~100 компаний)
+            var companies = new List<GraphObject>();
+            string[] companyNames = new[] { "TechCorp", "DataFlow", "CloudVision", "NetMatic", "ByteHub", "InfoSys", "DevWorks", "AutoTrack", "MegaBuild", "QuickScale" };
+            string[] companySuffixes = new[] { "Inc.", "LLC", "Ltd", "Corp", "Systems" };
+
+            for (int i = 0; i < 100; i++)
+            {
+                var company = new GraphObject
+                {
+                    Name = $"{companyNames[i % 10]} {companySuffixes[i % 5]} #{i}",
+                    ObjectTypeId = companyType.Id,
+                    Color = $"#{random.Next(256):X2}{random.Next(256):X2}{random.Next(256):X2}",
+                    Icon = "🏢",
+                    PositionX = random.Next(0, 1000),
+                    PositionY = random.Next(0, 800),
+                    Properties = new List<ObjectProperty>
+                    {
+                        new ObjectProperty { Key = "Founded", Value = (2010 + random.Next(15)).ToString() },
+                        new ObjectProperty { Key = "Size", Value = new[] { "Small", "Medium", "Large", "Enterprise" }[random.Next(4)] }
+                    }
+                };
+                companies.Add(company);
+                objects.Add(company);
+            }
+
+            // Создаем людей (~650 людей)
+            var people = new List<GraphObject>();
+            string[] firstNames = new[] { "Александр", "Виктор", "Данила", "Евгений", "Федор", "Геор", "Иван", "Константин", "Лев", "Максим", "Николай", "Павел"};
+            string[] lastNames = new[] { "Иванов", "Петров", "Сидоров", "Смирнов", "Кузнецов", "Волков", "Соколов", "Лебедев", "Козлов", "Новиков", "Морозов", "Павлов" };
+            string[] roles = new[] { "Developer", "Manager", "Analyst", "Architect", "Director", "Lead", "Specialist", "Consultant" };
+
+            for (int i = 0; i < 650; i++)
+            {
+                var person = new GraphObject
+                {
+                    Name = $"{firstNames[random.Next(firstNames.Length)]} {lastNames[random.Next(lastNames.Length)]}",
+                    ObjectTypeId = personType.Id,
+                    Color = $"#{random.Next(256):X2}{random.Next(256):X2}{random.Next(256):X2}",
+                    Icon = random.Next(2) == 0 ? "👤" : "👨",
+                    PositionX = random.Next(0, 1000),
+                    PositionY = random.Next(0, 800),
+                    Properties = new List<ObjectProperty>
+                    {
+                        new ObjectProperty { Key = "Role", Value = roles[random.Next(roles.Length)] },
+                        new ObjectProperty { Key = "YearsExp", Value = random.Next(1, 25).ToString() }
+                    }
+                };
+                people.Add(person);
+                objects.Add(person);
+            }
+
+            // Создаем проекты (~100 проектов)
+            var projects = new List<GraphObject>();
+            string[] projectNames = new[] { "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Sigma", "Omega", "Phoenix", "Atlas", "Horizon" };
+
+            for (int i = 0; i < 100; i++)
+            {
+                var project = new GraphObject
+                {
+                    Name = $"{projectNames[i % 10]} Project #{i}",
+                    ObjectTypeId = projectType.Id,
+                    Color = $"#{random.Next(100, 200):X2}{random.Next(100, 200):X2}{random.Next(100, 200):X2}",
+                    Icon = "📋",
+                    PositionX = random.Next(0, 1000),
+                    PositionY = random.Next(0, 800),
+                    Properties = new List<ObjectProperty>
+                    {
+                        new ObjectProperty { Key = "Status", Value = new[] { "Planning", "Active", "Review", "Completed" }[random.Next(4)] },
+                        new ObjectProperty { Key = "Budget", Value = $"{random.Next(10, 1000)}k" }
+                    }
+                };
+                projects.Add(project);
+                objects.Add(project);
+            }
+
+            // Создаем активы (~50 активов)
+            var assets = new List<GraphObject>();
+            string[] assetTypes = new[] { "Server", "License", "Database", "API", "Tool", "Library", "Storage", "Network" };
+
+            for (int i = 0; i < 50; i++)
+            {
+                var asset = new GraphObject
+                {
+                    Name = $"{assetTypes[i % assetTypes.Length]} #{i}",
+                    ObjectTypeId = assetType.Id,
+                    Color = "#FFB300",
+                    Icon = "💾",
+                    PositionX = random.Next(0, 1000),
+                    PositionY = random.Next(0, 800),
+                    Properties = new List<ObjectProperty>
+                    {
+                        new ObjectProperty { Key = "Type", Value = assetTypes[random.Next(assetTypes.Length)] },
+                        new ObjectProperty { Key = "Cost", Value = $"${random.Next(100, 100000)}" }
+                    }
+                };
+                assets.Add(asset);
+                objects.Add(asset);
+            }
+
+            context.GraphObjects.AddRange(objects);
+            await context.SaveChangesAsync();
+
+            // 4. Создаем связи
+            var relations = new List<GraphRelation>();
+
+            // Люди работают в компаниях
+            for (int i = 0; i < 500; i++)
+            {
+                var person = people[random.Next(people.Count)];
+                var company = companies[random.Next(companies.Count)];
+
+                relations.Add(new GraphRelation
+                {
+                    Source = person.Id,
+                    Target = company.Id,
+                    RelationTypeId = worksAtRelation.Id,
+                    Properties = random.Next(100) > 70 ? new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "Since", Value = (2020 + random.Next(5)).ToString() }
+                    } : new List<RelationProperty>()
+                });
+            }
+
+            // Люди управляют компаниями
+            for (int i = 0; i < 80; i++)
+            {
+                var person = people[random.Next(people.Count)];
+                var company = companies[random.Next(companies.Count)];
+
+                relations.Add(new GraphRelation
+                {
+                    Source = person.Id,
+                    Target = company.Id,
+                    RelationTypeId = managesRelation.Id,
+                    Properties = new List<RelationProperty>()
+                });
+            }
+
+            // Люди владеют активами
+            for (int i = 0; i < 100; i++)
+            {
+                var person = people[random.Next(people.Count)];
+                var asset = assets[random.Next(assets.Count)];
+
+                relations.Add(new GraphRelation
+                {
+                    Source = person.Id,
+                    Target = asset.Id,
+                    RelationTypeId = ownedByRelation.Id,
+                    Properties = new List<RelationProperty>()
+                });
+            }
+
+            // Компании связаны между собой
+            for (int i = 0; i < 120; i++)
+            {
+                var company1 = companies[random.Next(companies.Count)];
+                var company2 = companies[random.Next(companies.Count)];
+
+                if (company1.Id != company2.Id)
+                {
+                    relations.Add(new GraphRelation
+                    {
+                        Source = company1.Id,
+                        Target = company2.Id,
+                        RelationTypeId = partOfRelation.Id,
+                        Properties = new List<RelationProperty>()
+                    });
+                }
+            }
+
+            // Люди связаны между собой
+            for (int i = 0; i < 200; i++)
+            {
+                var person1 = people[random.Next(people.Count)];
+                var person2 = people[random.Next(people.Count)];
+
+                if (person1.Id != person2.Id)
+                {
+                    relations.Add(new GraphRelation
+                    {
+                        Source = person1.Id,
+                        Target = person2.Id,
+                        RelationTypeId = relatedToRelation.Id,
+                        Properties = new List<RelationProperty>()
+                    });
+                }
+            }
+
+            // Проекты связаны с компаниями
+            for (int i = 0; i < 80; i++)
+            {
+                var project = projects[random.Next(projects.Count)];
+                var company = companies[random.Next(companies.Count)];
+
+                relations.Add(new GraphRelation
+                {
+                    Source = company.Id,
+                    Target = project.Id,
+                    RelationTypeId = managesRelation.Id,
+                    Properties = new List<RelationProperty>()
+                });
+            }
+
+            // Проекты использют активы
+            for (int i = 0; i < 60; i++)
+            {
+                var project = projects[random.Next(projects.Count)];
+                var asset = assets[random.Next(assets.Count)];
+
+                relations.Add(new GraphRelation
+                {
+                    Source = project.Id,
+                    Target = asset.Id,
+                    RelationTypeId = partOfRelation.Id,
+                    Properties = new List<RelationProperty>()
+                });
+            }
+
+            context.GraphRelations.AddRange(relations);
+            await context.SaveChangesAsync();
+
+            Console.WriteLine($"Large template created: {objects.Count} objects, {relations.Count} relations");
         }
 
         /// <summary>
