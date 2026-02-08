@@ -19,7 +19,7 @@ export const useGraphFilters = ({
   nodes,
   edges,
   objectTypes,
-  relationTypes
+  relationTypes,
 }: UseGraphFiltersProps) => {
   const [filters, setFilters] = useState<FilterState>({
     selectedObjectTypes: [],
@@ -30,28 +30,33 @@ export const useGraphFilters = ({
   // Auto-initialize filters when types are loaded
   useEffect(() => {
     if (objectTypes.length > 0 && filters.selectedObjectTypes.length === 0) {
-      setFilters((prev) => ({
+      setFilters(prev => ({
         ...prev,
-        selectedObjectTypes: objectTypes.map((t) => t.id),
+        selectedObjectTypes: objectTypes.map(t => t.id),
       }));
     }
     if (relationTypes.length > 0 && filters.selectedRelationTypes.length === 0) {
-      setFilters((prev) => ({
+      setFilters(prev => ({
         ...prev,
-        selectedRelationTypes: relationTypes.map((t) => t.id),
+        selectedRelationTypes: relationTypes.map(t => t.id),
       }));
     }
-  }, [objectTypes, relationTypes, filters.selectedObjectTypes.length, filters.selectedRelationTypes.length]);
+  }, [
+    objectTypes,
+    relationTypes,
+    filters.selectedObjectTypes.length,
+    filters.selectedRelationTypes.length,
+  ]);
 
   const filteredNodes = useMemo(() => {
-    return nodes.filter((node) => {
+    return nodes.filter(node => {
       if (!filters.selectedObjectTypes.includes(node.objectTypeId)) {
         return false;
       }
 
       if (!filters.showIsolatedNodes) {
         const hasConnections = edges.some(
-          (edge) => edge.source === node.id || edge.target === node.id
+          edge => edge.source === node.id || edge.target === node.id
         );
         if (!hasConnections) {
           return false;
@@ -63,15 +68,17 @@ export const useGraphFilters = ({
   }, [nodes, filters.selectedObjectTypes, filters.showIsolatedNodes, edges]);
 
   const filteredEdges = useMemo(() => {
-    return edges.filter((edge) => {
-      if (!filters.selectedRelationTypes.includes(edge.relationTypeId)) {
+    // O(1) Set lookup вместо O(n) .some() на каждое ребро
+    // При 1000 узлах и 2000 рёбрах: было O(E×N) = 2M операций, стало O(E) = 2K операций
+    const visibleNodeIds = new Set(filteredNodes.map(n => n.id));
+    const allowedRelationTypes = new Set(filters.selectedRelationTypes);
+
+    return edges.filter(edge => {
+      if (!allowedRelationTypes.has(edge.relationTypeId)) {
         return false;
       }
 
-      const sourceVisible = filteredNodes.some((n) => n.id === edge.source);
-      const targetVisible = filteredNodes.some((n) => n.id === edge.target);
-
-      return sourceVisible && targetVisible;
+      return visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target);
     });
   }, [edges, filters.selectedRelationTypes, filteredNodes]);
 
@@ -82,7 +89,7 @@ export const useGraphFilters = ({
     );
   };
 
-  const hasActiveFilters = 
+  const hasActiveFilters =
     filters.selectedObjectTypes.length < objectTypes.length ||
     filters.selectedRelationTypes.length < relationTypes.length ||
     !filters.showIsolatedNodes;

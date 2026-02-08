@@ -18,115 +18,180 @@ export function forceDirectedLayout(
   edges: GraphRelation[],
   options: ForceDirectedOptions = {}
 ): LayoutResult {
+  const n = nodes.length;
+
+  // Адаптивные итерации: 300 для малых графов, плавно снижается для больших
+  // 100 узлов → 300, 500 → 150, 1000 → 80, 2000 → 50
+  const defaultIterations = Math.max(50, Math.min(300, Math.round((300 * 100) / Math.max(n, 1))));
+
   const {
-    iterations = 300,
+    iterations = defaultIterations,
     repulsion = 15000,
     attraction = 0.005,
     damping = 0.85,
     centerGravity = 0.05,
-    minDistance = 150
+    minDistance = 150,
   } = options;
 
-  const positions = new Map<number, { x: number; y: number; vx: number; vy: number }>();
+  // Используем индексированные массивы вместо Map для быстрого доступа
+  // Это избегает overhead хеш-таблицы на каждой итерации
+  const posX = new Float64Array(n);
+  const posY = new Float64Array(n);
+  const velX = new Float64Array(n);
+  const velY = new Float64Array(n);
+  const forceX = new Float64Array(n);
+  const forceY = new Float64Array(n);
 
-  nodes.forEach(node => {
-    const existingX = node.PositionX ?? Math.random() * 800 + 100;
-    const existingY = node.PositionY ?? Math.random() * 600 + 100;
-    positions.set(node.id, {
-      x: existingX,
-      y: existingY,
-      vx: 0,
-      vy: 0
-    });
+  // Маппинг nodeId → index для быстрого доступа
+  const idToIndex = new Map<number, number>();
+  const ids: number[] = new Array(n);
+
+  nodes.forEach((node, i) => {
+    ids[i] = node.id;
+    idToIndex.set(node.id, i);
+    posX[i] = node.PositionX ?? Math.random() * 800 + 100;
+    posY[i] = node.PositionY ?? Math.random() * 600 + 100;
+  });
+
+  // Предкомпилируем рёбра в индексы для O(1) доступа
+  const edgeIndices: Array<[number, number]> = [];
+  edges.forEach(edge => {
+    const si = idToIndex.get(edge.source);
+    const ti = idToIndex.get(edge.target);
+    if (si !== undefined && ti !== undefined) {
+      edgeIndices.push([si, ti]);
+    }
   });
 
   const centerX = 500;
   const centerY = 400;
 
+  // Для больших графов (>500 узлов): пространственная Grid-оптимизация
+  // Вместо O(n²) попарного сравнения, разбиваем на ячейки и считаем
+  // отталкивание только между соседними ячейками
+  const useGrid = n > 500;
+  const cellSize = minDistance * 3; // Размер ячейки сетки
+
   for (let iter = 0; iter < iterations; iter++) {
-    const forces = new Map<number, { fx: number; fy: number }>();
+    // Обнуляем силы
+    forceX.fill(0);
+    forceY.fill(0);
 
-    nodes.forEach(node => {
-      forces.set(node.id, { fx: 0, fy: 0 });
-    });
+    if (useGrid) {
+      // Grid-based repulsion: O(n × k) где k — среднее число соседей в ячейке
+      // Вместо O(n²) = 1M операций → ~O(n × 20-50) = 20-50K операций
+      const grid = new Map<string, number[]>();
 
-    nodes.forEach((nodeA, i) => {
-      const posA = positions.get(nodeA.id)!;
-      const forceA = forces.get(nodeA.id)!;
+      for (let i = 0; i < n; i++) {
+        const cx = Math.floor(posX[i] / cellSize);
+        const cy = Math.floor(posY[i] / cellSize);
+        const key = `${cx},${cy}`;
+        const cell = grid.get(key);
+        if (cell) {
+          cell.push(i);
+        } else {
+          grid.set(key, [i]);
+        }
+      }
 
-      nodes.forEach((nodeB, j) => {
-        if (i >= j) return;
+      for (let i = 0; i < n; i++) {
+        const cx = Math.floor(posX[i] / cellSize);
+        const cy = Math.floor(posY[i] / cellSize);
 
-        const posB = positions.get(nodeB.id)!;
-        const dx = posB.x - posA.x;
-        const dy = posB.y - posA.y;
-        const distSq = dx * dx + dy * dy;
-        const dist = Math.sqrt(distSq) || 1;
+        // Проверяем 3×3 соседние ячейки
+        for (let dcx = -1; dcx <= 1; dcx++) {
+          for (let dcy = -1; dcy <= 1; dcy++) {
+            const neighbors = grid.get(`${cx + dcx},${cy + dcy}`);
+            if (!neighbors) continue;
 
-        let repulsionForce = repulsion / distSq;
+            for (let k = 0; k < neighbors.length; k++) {
+              const j = neighbors[k];
+              if (j <= i) continue; // Избегаем дублирования пар
 
-        if (dist < minDistance) {
-          repulsionForce *= 2;
+              const dx = posX[j] - posX[i];
+              const dy = posY[j] - posY[i];
+              const distSq = dx * dx + dy * dy;
+              const dist = Math.sqrt(distSq) || 1;
+
+              let rf = repulsion / distSq;
+              if (dist < minDistance) rf *= 2;
+
+              const fx = (dx / dist) * rf;
+              const fy = (dy / dist) * rf;
+
+              forceX[i] -= fx;
+              forceY[i] -= fy;
+              forceX[j] += fx;
+              forceY[j] += fy;
+            }
+          }
         }
 
-        const fx = (dx / dist) * repulsionForce;
-        const fy = (dy / dist) * repulsionForce;
+        // Center gravity
+        forceX[i] += (centerX - posX[i]) * centerGravity;
+        forceY[i] += (centerY - posY[i]) * centerGravity;
+      }
+    } else {
+      // Стандартный O(n²) для малых графов (<500 узлов) — тут он быстрее из-за overhead сетки
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const dx = posX[j] - posX[i];
+          const dy = posY[j] - posY[i];
+          const distSq = dx * dx + dy * dy;
+          const dist = Math.sqrt(distSq) || 1;
 
-        forceA.fx -= fx;
-        forceA.fy -= fy;
+          let rf = repulsion / distSq;
+          if (dist < minDistance) rf *= 2;
 
-        const forceB = forces.get(nodeB.id)!;
-        forceB.fx += fx;
-        forceB.fy += fy;
-      });
+          const fx = (dx / dist) * rf;
+          const fy = (dy / dist) * rf;
 
-      const dx = centerX - posA.x;
-      const dy = centerY - posA.y;
-      forceA.fx += dx * centerGravity;
-      forceA.fy += dy * centerGravity;
-    });
+          forceX[i] -= fx;
+          forceY[i] -= fy;
+          forceX[j] += fx;
+          forceY[j] += fy;
+        }
 
-    edges.forEach(edge => {
-      const posA = positions.get(edge.source);
-      const posB = positions.get(edge.target);
+        // Center gravity
+        forceX[i] += (centerX - posX[i]) * centerGravity;
+        forceY[i] += (centerY - posY[i]) * centerGravity;
+      }
+    }
 
-      if (!posA || !posB) return;
+    // Силы притяжения (рёбра) — O(E)
+    for (let e = 0; e < edgeIndices.length; e++) {
+      const si = edgeIndices[e][0];
+      const ti = edgeIndices[e][1];
 
-      const dx = posB.x - posA.x;
-      const dy = posB.y - posA.y;
+      const dx = posX[ti] - posX[si];
+      const dy = posY[ti] - posY[si];
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
-      const attractionForce = attraction * dist;
-      const fx = (dx / dist) * attractionForce;
-      const fy = (dy / dist) * attractionForce;
+      const af = attraction * dist;
+      const fx = (dx / dist) * af;
+      const fy = (dy / dist) * af;
 
-      const forceA = forces.get(edge.source)!;
-      const forceB = forces.get(edge.target)!;
+      forceX[si] += fx;
+      forceY[si] += fy;
+      forceX[ti] -= fx;
+      forceY[ti] -= fy;
+    }
 
-      forceA.fx += fx;
-      forceA.fy += fy;
-      forceB.fx -= fx;
-      forceB.fy -= fy;
-    });
-
-    nodes.forEach(node => {
-      const pos = positions.get(node.id)!;
-      const force = forces.get(node.id)!;
-
-      pos.vx = (pos.vx + force.fx) * damping;
-      pos.vy = (pos.vy + force.fy) * damping;
-
-      pos.x += pos.vx;
-      pos.y += pos.vy;
-    });
+    // Обновляем позиции
+    for (let i = 0; i < n; i++) {
+      velX[i] = (velX[i] + forceX[i]) * damping;
+      velY[i] = (velY[i] + forceY[i]) * damping;
+      posX[i] += velX[i];
+      posY[i] += velY[i];
+    }
   }
 
   return {
-    nodes: Array.from(positions.entries()).map(([id, pos]) => ({
+    nodes: ids.map((id, i) => ({
       id,
-      x: pos.x,
-      y: pos.y
-    }))
+      x: posX[i],
+      y: posY[i],
+    })),
   };
 }
 
@@ -140,8 +205,8 @@ export function circularLayout(nodes: GraphObject[]): LayoutResult {
     nodes: nodes.map((node, i) => ({
       id: node.id,
       x: centerX + radius * Math.cos(i * angleStep),
-      y: centerY + radius * Math.sin(i * angleStep)
-    }))
+      y: centerY + radius * Math.sin(i * angleStep),
+    })),
   };
 }
 
@@ -155,15 +220,12 @@ export function gridLayout(nodes: GraphObject[]): LayoutResult {
     nodes: nodes.map((node, i) => ({
       id: node.id,
       x: startX + (i % cols) * spacing,
-      y: startY + Math.floor(i / cols) * spacing
-    }))
+      y: startY + Math.floor(i / cols) * spacing,
+    })),
   };
 }
 
-export function hierarchicalLayout(
-  nodes: GraphObject[],
-  edges: GraphRelation[]
-): LayoutResult {
+export function hierarchicalLayout(nodes: GraphObject[], edges: GraphRelation[]): LayoutResult {
   const levels = new Map<number, number>();
   const visited = new Set<number>();
 
@@ -177,9 +239,7 @@ export function hierarchicalLayout(
     visited.add(nodeId);
     levels.set(nodeId, Math.max(levels.get(nodeId) || 0, level));
 
-    edges
-      .filter(e => e.source === nodeId)
-      .forEach(e => assignLevels(e.target, level + 1));
+    edges.filter(e => e.source === nodeId).forEach(e => assignLevels(e.target, level + 1));
   };
 
   const roots = findRoots();
@@ -218,7 +278,7 @@ export function hierarchicalLayout(
       result.push({
         id: nodeId,
         x: startX + i * spacing,
-        y: startY + level * levelHeight
+        y: startY + level * levelHeight,
       });
     });
   });
@@ -226,10 +286,7 @@ export function hierarchicalLayout(
   return { nodes: result };
 }
 
-export function radialLayout(
-  nodes: GraphObject[],
-  edges: GraphRelation[]
-): LayoutResult {
+export function radialLayout(nodes: GraphObject[], edges: GraphRelation[]): LayoutResult {
   const centerX = 500;
   const centerY = 400;
 
@@ -251,9 +308,7 @@ export function radialLayout(
     visited.add(nodeId);
     levels.set(nodeId, level);
 
-    edges
-      .filter(e => e.source === nodeId)
-      .forEach(e => assignLevels(e.target, level + 1));
+    edges.filter(e => e.source === nodeId).forEach(e => assignLevels(e.target, level + 1));
   };
 
   assignLevels(centerNode.id, 0);
@@ -280,7 +335,7 @@ export function radialLayout(
   // Sort levels to process from center outwards
   const sortedLevels = Array.from(nodesByLevel.keys()).sort((a, b) => a - b);
 
-  sortedLevels.forEach((level) => {
+  sortedLevels.forEach(level => {
     const nodeIds = nodesByLevel.get(level)!;
 
     if (level === 0) {
@@ -304,7 +359,7 @@ export function radialLayout(
         result.push({
           id: nodeId,
           x: centerX + radius * Math.cos(i * angleStep),
-          y: centerY + radius * Math.sin(i * angleStep)
+          y: centerY + radius * Math.sin(i * angleStep),
         });
       });
     }

@@ -6,12 +6,20 @@ import {
   circularLayout,
   gridLayout,
   hierarchicalLayout,
-  radialLayout
+  radialLayout,
 } from '../utils/layoutAlgorithms';
 import { elkLayout } from '../utils/elkLayout';
 
-export type LayoutType = 'force' | 'circular' | 'hierarchical' | 'radial' | 'grid' | 'manual' | 'elk-layered' | 'elk-radial' | 'elk-force';
-
+export type LayoutType =
+  | 'force'
+  | 'circular'
+  | 'hierarchical'
+  | 'radial'
+  | 'grid'
+  | 'manual'
+  | 'elk-layered'
+  | 'elk-radial'
+  | 'elk-force';
 
 interface LayoutPosition {
   id: number;
@@ -30,7 +38,7 @@ export const useLayoutManager = ({
   nodes,
   edges,
   onNodesUpdate,
-  onAddHistoryAction
+  onAddHistoryAction,
 }: UseLayoutManagerProps) => {
   const [currentLayoutType, setCurrentLayoutType] = useState<LayoutType>('manual');
   const [isApplyingLayout, setIsApplyingLayout] = useState(false);
@@ -60,7 +68,13 @@ export const useLayoutManager = ({
           break;
         case 'elk-layered':
           toast.info('Применяется расширенная иерархия...');
-          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'layered', layerSpacing: 150, nodeSpacing: 100 }) };
+          layoutResult = {
+            nodes: await elkLayout(nodes, edges, {
+              algorithm: 'layered',
+              layerSpacing: 150,
+              nodeSpacing: 100,
+            }),
+          };
           break;
         case 'elk-radial':
           toast.info('Применяется радиальный layout...');
@@ -84,8 +98,12 @@ export const useLayoutManager = ({
           return;
       }
 
+      // O(1) Map lookup вместо O(n²) .find() в цикле
+      const newPosMap = new Map<number, { x: number; y: number }>();
+      layoutResult.nodes.forEach((n: any) => newPosMap.set(n.id, { x: n.x, y: n.y }));
+
       const updatedNodes = nodes.map(node => {
-        const newPos = layoutResult.nodes.find((n: any) => n.id === node.id);
+        const newPos = newPosMap.get(node.id);
         if (newPos) {
           return { ...node, PositionX: newPos.x, PositionY: newPos.y };
         }
@@ -100,8 +118,12 @@ export const useLayoutManager = ({
           type: 'layout',
           description: `Применён layout "${currentLayoutType}"`,
           undo: async () => {
+            // O(1) Map lookup вместо O(n²) .find() в цикле
+            const oldPosMap = new Map<number, { x: number; y: number }>();
+            oldPositions.forEach(p => oldPosMap.set(p.id, { x: p.x, y: p.y }));
+
             const restoredNodes = nodes.map(node => {
-              const oldPos = oldPositions.find(p => p.id === node.id);
+              const oldPos = oldPosMap.get(node.id);
               if (oldPos) {
                 return { ...node, PositionX: oldPos.x, PositionY: oldPos.y };
               }
@@ -123,25 +145,25 @@ export const useLayoutManager = ({
 
   const saveLayout = useCallback(async () => {
     const layoutObj = {
-      nodes: nodes.map((n) => ({
+      nodes: nodes.map(n => ({
         id: n.id,
         x: n.PositionX ?? 0,
         y: n.PositionY ?? 0,
-      }))
+      })),
     };
 
-    const res = await apiClient.post("/api/layout", { layoutJson: JSON.stringify(layoutObj) });
+    const res = await apiClient.post('/api/layout', { layoutJson: JSON.stringify(layoutObj) });
 
     if (res.ok) {
-      toast.success("Сетка успешно сохранена!");
+      toast.success('Сетка успешно сохранена!');
     } else {
-      toast.error("Ошибка сохранения layout");
+      toast.error('Ошибка сохранения layout');
     }
   }, [nodes]);
 
   const loadLayout = useCallback(async () => {
     try {
-      const response = await apiClient.get("/api/layout");
+      const response = await apiClient.get('/api/layout');
       if (!response.ok) return null;
 
       const layoutData = await response.json();

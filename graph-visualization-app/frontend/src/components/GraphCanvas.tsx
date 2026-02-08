@@ -1,21 +1,8 @@
-import React, {
-  useEffect,
-  useState,
-  useMemo,
-  useCallback,
-  useRef,
-} from "react";
-import ReactFlow, {
-  Controls,
-  Background,
-  useNodesState,
-  NodeChange,
-  Node,
-  Edge,
-} from "reactflow";
-import "reactflow/dist/style.css";
-import { GraphObject, GraphRelation, RelationType, PathAlgorithm } from "../types/graph";
-import { apiClient } from "../utils/apiClient";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import ReactFlow, { Controls, Background, useNodesState, NodeChange, Node, Edge } from 'reactflow';
+import 'reactflow/dist/style.css';
+import { GraphObject, GraphRelation, RelationType, PathAlgorithm } from '../types/graph';
+import { apiClient } from '../utils/apiClient';
 
 interface GraphCanvasProps {
   nodes: GraphObject[];
@@ -29,9 +16,7 @@ interface GraphCanvasProps {
   selectedNodes?: number[];
   panOnDrag?: boolean;
   selectedAlgorithm?: PathAlgorithm;
-  onNodesPositionChange?: (
-    positions: { id: number; x: number; y: number }[],
-  ) => void;
+  onNodesPositionChange?: (positions: { id: number; x: number; y: number }[]) => void;
   onNodeDoubleClick?: (node: GraphObject) => void;
   onPaneClick?: () => void;
 }
@@ -93,23 +78,24 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   } | null>(null);
 
   // Fallback state for find-path flow when parent handler doesn't implement it
-  const [fallbackFindFirst, setFallbackFindFirst] = useState<number | null>(
-    null,
-  );
+  const [fallbackFindFirst, setFallbackFindFirst] = useState<number | null>(null);
 
   // 10 distinct colors for multi-path visualization
-  const PATH_COLORS = useMemo(() => [
-    '#E53935', // Red
-    '#1E88E5', // Blue
-    '#43A047', // Green
-    '#FB8C00', // Orange
-    '#8E24AA', // Purple
-    '#00ACC1', // Cyan
-    '#F4511E', // Deep Orange
-    '#3949AB', // Indigo
-    '#7CB342', // Light Green
-    '#D81B60', // Pink
-  ], []);
+  const PATH_COLORS = useMemo(
+    () => [
+      '#E53935', // Red
+      '#1E88E5', // Blue
+      '#43A047', // Green
+      '#FB8C00', // Orange
+      '#8E24AA', // Purple
+      '#00ACC1', // Cyan
+      '#F4511E', // Deep Orange
+      '#3949AB', // Indigo
+      '#7CB342', // Light Green
+      '#D81B60', // Pink
+    ],
+    []
+  );
 
   // Map edge ID to path index for coloring
   const edgeToPathIndex = useMemo(() => {
@@ -135,32 +121,36 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   }, [propsSelectedNodes, selectedNodesLocal]);
 
   const combinedSelectedEdges = useMemo(() => {
-    return selectedEdges && selectedEdges.length > 0
-      ? selectedEdges
-      : selectedEdgesLocal;
+    return selectedEdges && selectedEdges.length > 0 ? selectedEdges : selectedEdgesLocal;
   }, [selectedEdges, selectedEdgesLocal]);
+
+  // Set для быстрого O(1) поиска выбранных узлов вместо O(n) .includes()
+  const selectedNodesSet = useMemo(() => new Set(combinedSelectedNodes), [combinedSelectedNodes]);
+  const selectedEdgesSet = useMemo(() => new Set(combinedSelectedEdges), [combinedSelectedEdges]);
 
   // Мемоизация преобразования узлов для ReactFlow
   const initialRfNodes = useMemo<Node[]>(() => {
-    return nodes.map((node) => {
-      const isSelected = combinedSelectedNodes && combinedSelectedNodes.includes(node.id);
+    return nodes.map(node => {
+      const isSelected = selectedNodesSet.has(node.id);
       const isCollapsedGroup = node.isCollapsedGroup === true;
 
       // Специальный стиль для свёрнутых групп (мета-узлов)
-      const collapsedStyle: React.CSSProperties = isCollapsedGroup ? {
-        border: '3px dashed #9e9e9e',
-        borderRadius: '50%',
-        padding: 16,
-        background: 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        minWidth: 80,
-        minHeight: 80,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: 600,
-        fontSize: 14,
-      } : {};
+      const collapsedStyle: React.CSSProperties = isCollapsedGroup
+        ? {
+            border: '3px dashed #9e9e9e',
+            borderRadius: '50%',
+            padding: 16,
+            background: 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            minWidth: 80,
+            minHeight: 80,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 600,
+            fontSize: 14,
+          }
+        : {};
 
       return {
         id: node.id.toString(),
@@ -172,18 +162,16 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           x: node.PositionX ?? 400,
           y: node.PositionY ?? 300,
         },
-        style: isCollapsedGroup ? collapsedStyle : {
-          border: isSelected
-            ? "4px solid #1976d2"
-            : `2px solid ${node.color || "#2196f3"}`,
-          borderRadius: 8,
-          padding: 8,
-          background: "#fff",
-          color: node.color || undefined,
-          boxShadow: isSelected
-            ? "0 0 0 6px rgba(25,118,210,0.12)"
-            : undefined,
-        },
+        style: isCollapsedGroup
+          ? collapsedStyle
+          : {
+              border: isSelected ? '4px solid #1976d2' : `2px solid ${node.color || '#2196f3'}`,
+              borderRadius: 8,
+              padding: 8,
+              background: '#fff',
+              color: node.color || undefined,
+              boxShadow: isSelected ? '0 0 0 6px rgba(25,118,210,0.12)' : undefined,
+            },
       };
     });
   }, [nodes, combinedSelectedNodes]);
@@ -193,14 +181,16 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   // Синхронизация узлов только при изменении nodes или selection
   // Но НЕ при перемещении (это важно для устранения мигания)
   useEffect(() => {
-    setRfNodes((currentNodes) => {
+    setRfNodes(currentNodes => {
+      // O(n) Map lookup вместо O(n²) .find() в цикле
+      const currentNodesMap = new Map<string, Node>();
+      currentNodes.forEach(n => currentNodesMap.set(n.id, n));
+
       // Проверяем, действительно ли изменились данные или позиции из props
       const hasDataChanges =
         nodes.length !== currentNodes.length ||
-        nodes.some((node) => {
-          const currentNode = currentNodes.find(
-            (n) => n.id === node.id.toString(),
-          );
+        nodes.some(node => {
+          const currentNode = currentNodesMap.get(node.id.toString());
           if (!currentNode) return true;
 
           const newLabel = node.icon ? `${node.icon} ${node.name}` : node.name;
@@ -214,8 +204,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           const positionChanged =
             (node.PositionX !== undefined &&
               Math.abs(currentNode.position.x - node.PositionX) > 1) ||
-            (node.PositionY !== undefined &&
-              Math.abs(currentNode.position.y - node.PositionY) > 1);
+            (node.PositionY !== undefined && Math.abs(currentNode.position.y - node.PositionY) > 1);
 
           return dataChanged || positionChanged;
         });
@@ -230,36 +219,40 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         return initialRfNodes;
       }
 
+      // O(n) Map lookup для nodes вместо O(n²) .find() в цикле
+      const nodesMap = new Map<string, (typeof nodes)[0]>();
+      nodes.forEach(n => nodesMap.set(n.id.toString(), n));
+
       // Обновляем только стили (для selection), сохраняя позиции
-      return currentNodes.map((currentNode) => {
-        const node = nodes.find((n) => n.id.toString() === currentNode.id);
+      return currentNodes.map(currentNode => {
+        const node = nodesMap.get(currentNode.id);
         if (!node) return currentNode;
 
-        const isSelected =
-          combinedSelectedNodes && combinedSelectedNodes.includes(node.id);
+        const isSelected = selectedNodesSet.has(node.id);
         return {
           ...currentNode,
           style: {
-            border: isSelected
-              ? "4px solid #1976d2"
-              : `2px solid ${node.color || "#2196f3"}`,
+            border: isSelected ? '4px solid #1976d2' : `2px solid ${node.color || '#2196f3'}`,
             borderRadius: 8,
             padding: 8,
-            background: "#fff",
+            background: '#fff',
             color: node.color || undefined,
-            boxShadow: isSelected
-              ? "0 0 0 6px rgba(25,118,210,0.12)"
-              : undefined,
+            boxShadow: isSelected ? '0 0 0 6px rgba(25,118,210,0.12)' : undefined,
           },
         };
       });
     });
-  }, [nodes, combinedSelectedNodes, initialRfNodes]);
+  }, [nodes, combinedSelectedNodes, initialRfNodes, selectedNodesSet]);
 
   const rfEdges = useMemo<Edge[]>(() => {
-    return edges.map((edge) => {
-      const isHighlighted =
-        combinedSelectedEdges && combinedSelectedEdges.includes(edge.id);
+    // O(1) Map lookup вместо O(n) .find() на каждое ребро
+    const relationTypesMap = new Map<number, string>();
+    relationTypes.forEach(rt => relationTypesMap.set(rt.id, rt.name));
+
+    const hasHighlightedEdges = selectedEdgesSet.size > 0;
+
+    return edges.map(edge => {
+      const isHighlighted = selectedEdgesSet.has(edge.id);
 
       // Determine color for highlighted edge
       let highlightColor = '#d32f2f'; // Default red
@@ -274,31 +267,34 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         id: edge.id.toString(),
         source: edge.source.toString(),
         target: edge.target.toString(),
-        label:
-          relationTypes.find((rt) => rt.id === edge.relationTypeId)?.name || "",
+        // Показываем label только на highlighted рёбрах (тысячи SVG text элементов = дорого)
+        label: isHighlighted ? relationTypesMap.get(edge.relationTypeId) || '' : undefined,
         style: {
-          stroke: isHighlighted ? highlightColor : edge.color || "#2196f3",
+          stroke: isHighlighted ? highlightColor : edge.color || '#2196f3',
           strokeWidth: isHighlighted ? 6 : 2,
-          opacity: isHighlighted
-            ? 1
-            : combinedSelectedEdges && combinedSelectedEdges.length > 0
-              ? 0.18
-              : 1,
-          strokeDasharray: isHighlighted ? undefined : "6 6",
+          opacity: isHighlighted ? 1 : hasHighlightedEdges ? 0.18 : 1,
+          // strokeDasharray ТОЛЬКО на highlighted (SVG dash = дорогая операция при тысячах рёбер)
+          strokeDasharray: isHighlighted ? '6 6' : undefined,
         },
-        labelStyle: {
-          fontSize: 11,
-          fontWeight: 500,
-          fill: '#555',
-        },
-        labelBgStyle: {
-          fill: '#fff',
-          fillOpacity: 0.7,
-        },
-        animated: !isHighlighted,
+        labelStyle: isHighlighted
+          ? {
+              fontSize: 11,
+              fontWeight: 500,
+              fill: '#555',
+            }
+          : undefined,
+        labelBgStyle: isHighlighted
+          ? {
+              fill: '#fff',
+              fillOpacity: 0.7,
+            }
+          : undefined,
+        // animated: false по умолчанию — CSS анимация на тысячах рёбер = #1 убийца производительности
+        // Анимируем ТОЛЬКО highlighted рёбра (их обычно 5-20 штук)
+        animated: isHighlighted,
       };
     });
-  }, [edges, relationTypes, combinedSelectedEdges, edgeToPathIndex, PATH_COLORS]);
+  }, [edges, relationTypes, selectedEdgesSet, edgeToPathIndex, PATH_COLORS]);
 
   // Debounced callback для обновления позиций
   const debouncedPositionUpdate = useCallback(
@@ -313,7 +309,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         }
       }, 300); // 300ms debounce
     },
-    [onNodesPositionChange],
+    [onNodesPositionChange]
   );
 
   // Очистка debounce таймера при размонтировании
@@ -339,12 +335,12 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
       // Фильтруем только изменения позиций от пользователя
       const positionChanges = changes.filter(
-        (change) => change.type === "position" && change.dragging === false,
+        change => change.type === 'position' && change.dragging === false
       );
 
       if (positionChanges.length > 0 && onNodesPositionChange) {
         // Получаем текущие позиции после изменений
-        setRfNodes((currentNodes) => {
+        setRfNodes(currentNodes => {
           const positions = currentNodes.map((n: Node) => ({
             id: Number(n.id),
             x: n.position.x,
@@ -358,35 +354,39 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         });
       }
     },
-    [onNodesChange, onNodesPositionChange, debouncedPositionUpdate, setRfNodes],
+    [onNodesChange, onNodesPositionChange, debouncedPositionUpdate, setRfNodes]
   );
 
   // Контекстное меню по правому клику
-  const onNodeContextMenu = useCallback(
-    (event: React.MouseEvent, node: any) => {
-      event.preventDefault();
-      setMenu({ x: event.clientX, y: event.clientY, node: node.data.orig });
-    },
-    [],
-  );
+  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: any) => {
+    event.preventDefault();
+    setMenu({ x: event.clientX, y: event.clientY, node: node.data.orig });
+  }, []);
 
   // Обработка клика по узлу
   const handleNodeClick = useCallback(
     (_: any, node: any) => {
       onSelectNode(node.data.orig);
     },
-    [onSelectNode],
+    [onSelectNode]
   );
+
+  // O(1) Map для поиска рёбер по клику вместо O(n) .find()
+  const edgesMap = useMemo(() => {
+    const map = new Map<string, GraphRelation>();
+    edges.forEach(e => map.set(e.id.toString(), e));
+    return map;
+  }, [edges]);
 
   // Обработка клика по рёбру
   const handleEdgeClick = useCallback(
     (_: any, edge: any) => {
-      const foundEdge = edges.find((e) => e.id.toString() === edge.id);
+      const foundEdge = edgesMap.get(edge.id);
       if (foundEdge) {
         onSelectEdge(foundEdge);
       }
     },
-    [edges, onSelectEdge],
+    [edgesMap, onSelectEdge]
   );
 
   // Действия из меню
@@ -398,20 +398,17 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
       }
 
       // Fallback: if action is 'find-path' and parent handler doesn't support it, handle here
-      if (action === "find-path") {
+      if (action === 'find-path') {
         const parentStr =
-          onNodeAction && (onNodeAction as any).toString
-            ? (onNodeAction as any).toString()
-            : "";
-        const parentHasFind = parentStr.includes("find-path");
+          onNodeAction && (onNodeAction as any).toString ? (onNodeAction as any).toString() : '';
+        const parentHasFind = parentStr.includes('find-path');
 
         if (!parentHasFind) {
           // First click: store origin; second click: call backend
           if (!fallbackFindFirst) {
             setFallbackFindFirst(menu.node.id);
             setFindMessage(
-              "Первый узел для поиска пути выбран: " +
-              (menu.node.name || menu.node.id),
+              'Первый узел для поиска пути выбран: ' + (menu.node.name || menu.node.id)
             );
             setTimeout(() => setFindMessage(null), 2200);
             setMenu(null);
@@ -419,7 +416,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           } else if (fallbackFindFirst && fallbackFindFirst !== menu.node.id) {
             const from = fallbackFindFirst;
             const to = menu.node.id;
-            const base = (window as any).__API_BASE || "";
+            const base = (window as any).__API_BASE || '';
 
             // Выбираем endpoint в зависимости от алгоритма
             let endpoint = '';
@@ -440,7 +437,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                 endpoint = `${base}/api/dijkstra-path?fromId=${from}&toId=${to}`;
             }
 
-            const url = endpoint.replace(/([^:]?)\/\//g, "$1//");
+            const url = endpoint.replace(/([^:]?)\/\//g, '$1//');
 
             const tryPrimary = async () => {
               try {
@@ -449,7 +446,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                   return null;
                 }
                 if (!r.ok) {
-                  throw new Error("server error " + r.status);
+                  throw new Error('server error ' + r.status);
                 }
                 return await r.json();
               } catch (e) {
@@ -462,14 +459,14 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
               if (!data) {
                 try {
                   const r2 = await apiClient.get(
-                    `http://localhost:5000/api/dijkstra-path?fromId=${from}&toId=${to}`,
+                    `http://localhost:5000/api/dijkstra-path?fromId=${from}&toId=${to}`
                   );
                   if (r2.ok) data = await r2.json();
-                } catch (e) { }
+                } catch (e) {}
               }
 
               if (!data) {
-                setFindMessage("Ошибка при поиске пути на сервере");
+                setFindMessage('Ошибка при поиске пути на сервере');
                 setTimeout(() => setFindMessage(null), 2500);
                 setFallbackFindFirst(null);
                 return;
@@ -481,14 +478,19 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
               let pathsCount = 0;
               let allPathsData: Array<{ nodeIds: number[]; names: string[]; weight?: number }> = [];
 
-              // Helper to find edge between two nodes
+              // O(1) Map для поиска ребра между двумя узлами вместо O(n) .find() в цикле
+              const edgeLookup = new Map<string, number>();
+              edges.forEach(e => {
+                edgeLookup.set(`${e.source}-${e.target}`, e.id);
+                edgeLookup.set(`${e.target}-${e.source}`, e.id); // undirected
+              });
               const findEdgeId = (source: number, target: number) => {
-                const edge = edges.find(e =>
-                  (e.source === source && e.target === target) ||
-                  (e.source === target && e.target === source) // Assuming undirected for visualization
-                );
-                return edge ? edge.id : null;
+                return edgeLookup.get(`${source}-${target}`) ?? null;
               };
+
+              // O(1) Map для имён узлов вместо O(n) .find() в цикле
+              const nodeNameMap = new Map<number, string>();
+              nodes.forEach(n => nodeNameMap.set(n.id, n.name));
 
               // Handle different response formats
               if (Array.isArray(data)) {
@@ -507,9 +509,9 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                       }
                       return {
                         nodeIds: path,
-                        names: path.map(id => nodes.find(n => n.id === id)?.name || String(id)),
+                        names: path.map(id => nodeNameMap.get(id) || String(id)),
                         weight: path.length - 1,
-                        edgeIds: pathEdges
+                        edgeIds: pathEdges,
                       };
                     });
 
@@ -558,9 +560,9 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                     }
                     return {
                       nodeIds: path.nodeIds,
-                      names: path.nodeIds.map((id: number) => nodes.find(n => n.id === id)?.name || String(id)),
+                      names: path.nodeIds.map((id: number) => nodeNameMap.get(id) || String(id)),
                       weight: path.totalWeight,
-                      edgeIds: pathEdges
+                      edgeIds: pathEdges,
                     };
                   });
 
@@ -600,13 +602,11 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
               }
 
               if (pathNodeIds.length > 0) {
-                const names = pathNodeIds.map(
-                  (id: number) =>
-                    nodes.find((n) => n.id === id)?.name || String(id),
-                );
+                // Используем уже созданный nodeNameMap для O(1) lookup
+                const names = pathNodeIds.map((id: number) => nodeNameMap.get(id) || String(id));
 
                 // Custom message for multiple paths
-                let modalTitle = "Найденный путь";
+                let modalTitle = 'Найденный путь';
                 if (pathsCount > 1) {
                   modalTitle = `Найдено путей: ${pathsCount} (показаны все)`;
                 }
@@ -616,7 +616,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                   edgeIds: pathEdgeIds,
                   totalWeight: totalWeight,
                   names,
-                  allPaths: allPathsData.length > 0 ? allPathsData : undefined
+                  allPaths: allPathsData.length > 0 ? allPathsData : undefined,
                 });
 
                 // Update selection to highlight EVERYTHING
@@ -631,7 +631,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
                 setPathModalOpen(true);
               } else {
-                setFindMessage("Путь не найден");
+                setFindMessage('Путь не найден');
                 setTimeout(() => setFindMessage(null), 2200);
               }
               setFallbackFindFirst(null);
@@ -643,25 +643,25 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         }
       }
 
-      if (onNodeAction && typeof onNodeAction === "function") {
+      if (onNodeAction && typeof onNodeAction === 'function') {
         try {
           onNodeAction(action, menu.node);
         } catch (err) {
-          console.error("GraphCanvas: ошибка при вызове onNodeAction", err);
+          console.error('GraphCanvas: ошибка при вызове onNodeAction', err);
         }
       }
 
       setMenu(null);
     },
-    [menu, onNodeAction, fallbackFindFirst, nodes],
+    [menu, onNodeAction, fallbackFindFirst, nodes]
   );
 
   // Закрыть меню при клике вне
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
   }, [menu]);
 
   // Обработчик закрытия модального окна пути
@@ -684,7 +684,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   );
 
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -696,6 +696,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         onPaneClick={onPaneClick}
         panOnDrag={panOnDrag}
         fitView
+        onlyRenderVisibleElements
       >
         <Background />
         <Controls />
@@ -705,13 +706,13 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
       {findMessage && (
         <div
           style={{
-            position: "fixed",
+            position: 'fixed',
             bottom: 24,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "#323232",
-            color: "#fff",
-            padding: "10px 16px",
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#323232',
+            color: '#fff',
+            padding: '10px 16px',
             borderRadius: 8,
             zIndex: 1200,
           }}
@@ -724,17 +725,17 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
       {pathModalOpen && pathResult && (
         <div
           style={{
-            position: "fixed",
+            position: 'fixed',
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            background: "rgba(0,0,0,0.12)",
+            background: 'rgba(0,0,0,0.12)',
             zIndex: 2000,
           }}
         >
           <div
-            onMouseDown={(e) => {
+            onMouseDown={e => {
               dragRef.current = {
                 startX: e.clientX,
                 startY: e.clientY,
@@ -743,7 +744,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
               };
               e.stopPropagation();
             }}
-            onMouseMove={(e) => {
+            onMouseMove={e => {
               if (dragRef.current) {
                 const dx = e.clientX - dragRef.current.startX;
                 const dy = e.clientY - dragRef.current.startY;
@@ -758,7 +759,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
               dragRef.current = null;
             }}
             style={{
-              position: "absolute",
+              position: 'absolute',
               left: 0,
               top: 0,
               right: 0,
@@ -767,49 +768,63 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           >
             <div
               style={{
-                position: "absolute",
+                position: 'absolute',
                 left: pathModalPos?.x ?? window.innerWidth / 2 - 180,
                 top: pathModalPos?.y ?? window.innerHeight / 2 - 120,
-                background: "#fff",
+                background: '#fff',
                 padding: 20,
                 borderRadius: 10,
                 minWidth: 360,
-                maxWidth: "90%",
-                boxShadow: "0 12px 40px rgba(0,0,0,0.28)",
-                cursor: "move",
+                maxWidth: '90%',
+                boxShadow: '0 12px 40px rgba(0,0,0,0.28)',
+                cursor: 'move',
               }}
             >
               <h3 style={{ marginTop: 0, marginBottom: 6 }}>
                 {pathResult.allPaths && pathResult.allPaths.length > 1
                   ? `Найдено путей: ${pathResult.allPaths.length}`
-                  : "Найденный путь"}
+                  : 'Найденный путь'}
               </h3>
 
               {pathResult.allPaths && pathResult.allPaths.length > 0 ? (
                 <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                   {pathResult.allPaths.map((path, pathIdx) => (
-                    <div key={pathIdx} style={{
-                      marginBottom: 16,
-                      paddingBottom: 12,
-                      borderBottom: pathIdx < pathResult.allPaths!.length - 1 ? '1px solid #eee' : 'none'
-                    }}>
-                      <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#333", display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: '50%',
-                          backgroundColor: PATH_COLORS[pathIdx % PATH_COLORS.length],
-                          display: 'inline-block',
-                          flexShrink: 0
-                        }} />
+                    <div
+                      key={pathIdx}
+                      style={{
+                        marginBottom: 16,
+                        paddingBottom: 12,
+                        borderBottom:
+                          pathIdx < pathResult.allPaths!.length - 1 ? '1px solid #eee' : 'none',
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: '0 0 8px 0',
+                          fontWeight: 600,
+                          color: '#333',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: '50%',
+                            backgroundColor: PATH_COLORS[pathIdx % PATH_COLORS.length],
+                            display: 'inline-block',
+                            flexShrink: 0,
+                          }}
+                        />
                         Путь {pathIdx + 1} ({path.nodeIds.length} узлов
                         {path.weight !== undefined ? `, вес: ${path.weight}` : ''})
                       </p>
                       <ol style={{ paddingLeft: 18, margin: 0 }}>
                         {path.names.map((name, idx) => (
                           <li key={idx} style={{ marginBottom: 4, fontSize: '14px' }}>
-                            {name}{" "}
-                            <small style={{ color: "#999" }}>#{path.nodeIds[idx]}</small>
+                            {name} <small style={{ color: '#999' }}>#{path.nodeIds[idx]}</small>
                           </li>
                         ))}
                       </ol>
@@ -818,17 +833,14 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                 </div>
               ) : (
                 <>
-                  <p style={{ margin: "6px 0 12px 0", color: "#666" }}>
-                    Вес: {pathResult.totalWeight ?? "N/A"}
+                  <p style={{ margin: '6px 0 12px 0', color: '#666' }}>
+                    Вес: {pathResult.totalWeight ?? 'N/A'}
                   </p>
                   <ol style={{ paddingLeft: 18 }}>
                     {pathResult.names &&
                       pathResult.names.map((n, idx) => (
                         <li key={idx} style={{ marginBottom: 6 }}>
-                          {n}{" "}
-                          <small style={{ color: "#999" }}>
-                            #{pathResult.nodeIds[idx]}
-                          </small>
+                          {n} <small style={{ color: '#999' }}>#{pathResult.nodeIds[idx]}</small>
                         </li>
                       ))}
                   </ol>
@@ -836,8 +848,8 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
               )}
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
+                  display: 'flex',
+                  justifyContent: 'flex-end',
                   gap: 8,
                   marginTop: 12,
                 }}
@@ -845,11 +857,11 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                 <button
                   onClick={handleClosePathModal}
                   style={{
-                    background: "#e0e0e0",
-                    border: "none",
-                    padding: "8px 12px",
+                    background: '#e0e0e0',
+                    border: 'none',
+                    padding: '8px 12px',
                     borderRadius: 6,
-                    cursor: "pointer",
+                    cursor: 'pointer',
                   }}
                 >
                   Закрыть
@@ -857,12 +869,12 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                 <button
                   onClick={handleClosePathModal}
                   style={{
-                    background: "#1976d2",
-                    color: "#fff",
-                    border: "none",
-                    padding: "8px 12px",
+                    background: '#1976d2',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '8px 12px',
                     borderRadius: 6,
-                    cursor: "pointer",
+                    cursor: 'pointer',
                   }}
                 >
                   ОК
@@ -877,13 +889,13 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
       {menu && (
         <div
           style={{
-            position: "fixed",
+            position: 'fixed',
             top: menu.y,
             left: menu.x,
-            background: "#fff",
-            border: "1px solid #ddd",
+            background: '#fff',
+            border: '1px solid #ddd',
             borderRadius: 8,
-            boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
             zIndex: 1001,
             minWidth: 160,
           }}
@@ -893,32 +905,32 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
             <>
               <button
                 style={{ ...menuBtn, color: '#4caf50', fontWeight: 600 }}
-                onClick={() => handleMenuAction("expand-group")}
+                onClick={() => handleMenuAction('expand-group')}
               >
                 🔓 Развернуть группу ({menu.node._collapsedCount} узлов)
               </button>
             </>
           ) : (
             <>
-              <button
-                style={menuBtn}
-                onClick={() => handleMenuAction("create-relation")}
-              >
+              <button style={menuBtn} onClick={() => handleMenuAction('create-relation')}>
                 Создать связь
               </button>
-              <button style={menuBtn} onClick={() => handleMenuAction("expand")}>
+              <button style={menuBtn} onClick={() => handleMenuAction('expand')}>
                 Раскрыть связи
               </button>
-              <button style={menuBtn} onClick={() => handleMenuAction("edit")}>
+              <button style={menuBtn} onClick={() => handleMenuAction('edit')}>
                 Редактировать
               </button>
-              <button style={menuBtn} onClick={() => handleMenuAction("hide")}>
+              <button style={menuBtn} onClick={() => handleMenuAction('hide')}>
                 Скрыть
               </button>
-              <button style={{ ...menuBtn, color: "#f44336" }} onClick={() => handleMenuAction("delete")}>
+              <button
+                style={{ ...menuBtn, color: '#f44336' }}
+                onClick={() => handleMenuAction('delete')}
+              >
                 Удалить
               </button>
-              <button style={menuBtn} onClick={() => handleMenuAction("find-path")}>
+              <button style={menuBtn} onClick={() => handleMenuAction('find-path')}>
                 Поиск пути
               </button>
             </>
@@ -930,16 +942,16 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 };
 
 const menuBtn: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  padding: "10px 18px",
-  background: "none",
-  border: "none",
-  textAlign: "left",
+  display: 'block',
+  width: '100%',
+  padding: '10px 18px',
+  background: 'none',
+  border: 'none',
+  textAlign: 'left',
   fontSize: 16,
-  cursor: "pointer",
-  color: "#23272f",
-  borderBottom: "1px solid #eee",
+  cursor: 'pointer',
+  color: '#23272f',
+  borderBottom: '1px solid #eee',
 };
 
 export default GraphCanvas;
