@@ -39,12 +39,13 @@ describe('circularLayout', () => {
     const nodes = Array.from({ length: 6 }, (_, i) => makeNode(i + 1));
     const result = circularLayout(nodes);
 
-    const centerX = 500;
-    const centerY = 400;
+    // Center is dynamic based on radius, so compute it from the average of all positions
+    const avgX = result.nodes.reduce((s, n) => s + n.x, 0) / result.nodes.length;
+    const avgY = result.nodes.reduce((s, n) => s + n.y, 0) / result.nodes.length;
 
     const distances = result.nodes.map(n => {
-      const dx = n.x - centerX;
-      const dy = n.y - centerY;
+      const dx = n.x - avgX;
+      const dy = n.y - avgY;
       return Math.sqrt(dx * dx + dy * dy);
     });
 
@@ -79,8 +80,18 @@ describe('circularLayout', () => {
     const small = circularLayout(Array.from({ length: 5 }, (_, i) => makeNode(i)));
     const large = circularLayout(Array.from({ length: 50 }, (_, i) => makeNode(i)));
 
-    const distSmall = Math.sqrt((small.nodes[0].x - 500) ** 2 + (small.nodes[0].y - 400) ** 2);
-    const distLarge = Math.sqrt((large.nodes[0].x - 500) ** 2 + (large.nodes[0].y - 400) ** 2);
+    // Compute center from average (center is dynamic)
+    const avgSmallX = small.nodes.reduce((s, n) => s + n.x, 0) / small.nodes.length;
+    const avgSmallY = small.nodes.reduce((s, n) => s + n.y, 0) / small.nodes.length;
+    const avgLargeX = large.nodes.reduce((s, n) => s + n.x, 0) / large.nodes.length;
+    const avgLargeY = large.nodes.reduce((s, n) => s + n.y, 0) / large.nodes.length;
+
+    const distSmall = Math.sqrt(
+      (small.nodes[0].x - avgSmallX) ** 2 + (small.nodes[0].y - avgSmallY) ** 2
+    );
+    const distLarge = Math.sqrt(
+      (large.nodes[0].x - avgLargeX) ** 2 + (large.nodes[0].y - avgLargeY) ** 2
+    );
 
     expect(distLarge).toBeGreaterThanOrEqual(distSmall);
   });

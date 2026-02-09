@@ -196,18 +196,77 @@ export function forceDirectedLayout(
 }
 
 export function circularLayout(nodes: GraphObject[]): LayoutResult {
-  const centerX = 500;
-  const centerY = 400;
-  const radius = Math.max(250, Math.min(400, 100 + nodes.length * 20));
-  const angleStep = (2 * Math.PI) / nodes.length;
+  const n = nodes.length;
+  if (n === 0) return { nodes: [] };
 
-  return {
-    nodes: nodes.map((node, i) => ({
-      id: node.id,
-      x: centerX + radius * Math.cos(i * angleStep),
-      y: centerY + radius * Math.sin(i * angleStep),
-    })),
-  };
+  const nodeWidth = 200; // Ширина узла + отступ между узлами
+
+  // Для малых графов (≤50) — один круг
+  if (n <= 50) {
+    const radius = Math.max(250, (n * nodeWidth) / (2 * Math.PI));
+    const centerX = radius + 100;
+    const centerY = radius + 100;
+    const angleStep = (2 * Math.PI) / n;
+
+    return {
+      nodes: nodes.map((node, i) => ({
+        id: node.id,
+        x: centerX + radius * Math.cos(i * angleStep),
+        y: centerY + radius * Math.sin(i * angleStep),
+      })),
+    };
+  }
+
+  // Для больших графов — концентрические кольца
+  // Каждое кольцо вмещает столько узлов, сколько влезает по окружности без перекрытий
+  const ringGap = 120; // Расстояние между кольцами
+  const firstRadius = 300;
+  const result: Array<{ id: number; x: number; y: number }> = [];
+
+  // Распределяем узлы по кольцам
+  const rings: number[][] = []; // индексы узлов в каждом кольце
+  let remaining = n;
+  let idx = 0;
+  let ringIdx = 0;
+
+  while (remaining > 0) {
+    const radius = firstRadius + ringIdx * ringGap;
+    const circumference = 2 * Math.PI * radius;
+    const capacity = Math.max(1, Math.floor(circumference / nodeWidth));
+    const count = Math.min(capacity, remaining);
+
+    const ring: number[] = [];
+    for (let i = 0; i < count; i++) {
+      ring.push(idx++);
+    }
+    rings.push(ring);
+    remaining -= count;
+    ringIdx++;
+  }
+
+  // Вычисляем максимальный радиус для позиционирования центра
+  const maxRadius = firstRadius + (rings.length - 1) * ringGap;
+  const centerX = maxRadius + 200;
+  const centerY = maxRadius + 200;
+
+  // Расставляем узлы по кольцам
+  rings.forEach((ring, rIdx) => {
+    const radius = firstRadius + rIdx * ringGap;
+    const angleStep = (2 * Math.PI) / ring.length;
+    // Сдвигаем каждое чётное кольцо на пол-шага чтобы узлы не были на одной линии
+    const angleOffset = rIdx % 2 === 0 ? 0 : angleStep / 2;
+
+    ring.forEach((nodeIdx, i) => {
+      const angle = i * angleStep + angleOffset;
+      result.push({
+        id: nodes[nodeIdx].id,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle),
+      });
+    });
+  });
+
+  return { nodes: result };
 }
 
 export function gridLayout(nodes: GraphObject[]): LayoutResult {
@@ -269,15 +328,19 @@ export function hierarchicalLayout(nodes: GraphObject[], edges: GraphRelation[])
 
   const result: Array<{ id: number; x: number; y: number }> = [];
 
+  // Адаптивный spacing: минимум 200px (ширина узла + отступ)
+  // Узлы никогда не перекрываются, layout растягивается горизонтально
+  const nodeSpacing = 200;
+
   nodesByLevel.forEach((nodeIds, level) => {
     const count = nodeIds.length;
-    const spacing = Math.min(200, 800 / (count + 1));
-    const startX = centerX - ((count - 1) * spacing) / 2;
+    const totalWidth = (count - 1) * nodeSpacing;
+    const startX = centerX - totalWidth / 2;
 
     nodeIds.forEach((nodeId, i) => {
       result.push({
         id: nodeId,
-        x: startX + i * spacing,
+        x: startX + i * nodeSpacing,
         y: startY + level * levelHeight,
       });
     });
