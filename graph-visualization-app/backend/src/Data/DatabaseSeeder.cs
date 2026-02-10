@@ -26,6 +26,12 @@ namespace GraphVisualizationApp.Data
             if (!autoReseed && await context.ObjectTypes.AnyAsync())
             {
                 Console.WriteLine("Database already contains data. Skipping seed.");
+                // Но проверяем, есть ли схемы свойств — если нет, досыпаем
+                if (!await context.PropertySchemas.AnyAsync())
+                {
+                    Console.WriteLine("PropertySchemas table is empty. Seeding schemas for existing types...");
+                    await SeedPropertySchemasForExistingTypesAsync(context);
+                }
                 return;
             }
 
@@ -64,12 +70,146 @@ namespace GraphVisualizationApp.Data
         }
 
         /// <summary>
+        /// Досыпать схемы свойств для уже существующих типов (без пересоздания данных)
+        /// </summary>
+        private static async Task SeedPropertySchemasForExistingTypesAsync(GraphDbContext context)
+        {
+            var objectTypes = await context.ObjectTypes.ToListAsync();
+            var relationTypes = await context.RelationTypes.ToListAsync();
+
+            // Helper: найти тип по имени
+            int? ot(string name) => objectTypes.FirstOrDefault(t => t.Name == name)?.Id;
+            int? rt(string name) => relationTypes.FirstOrDefault(t => t.Name == name)?.Id;
+
+            var schemas = new List<PropertySchema>();
+
+            // Персона
+            if (ot("Персона") is int personId)
+            {
+                schemas.Add(new PropertySchema { ObjectTypeId = personId, Key = "Возраст", PropertyType = "number" });
+                schemas.Add(new PropertySchema { ObjectTypeId = personId, Key = "Роль", PropertyType = "enum", Options = "[\"Организатор\",\"Номинальный директор\",\"Бухгалтер\",\"Юрист\",\"Свидетель\"]" });
+                schemas.Add(new PropertySchema { ObjectTypeId = personId, Key = "Паспорт", PropertyType = "string" });
+                schemas.Add(new PropertySchema { ObjectTypeId = personId, Key = "latitude", PropertyType = "number" });
+                schemas.Add(new PropertySchema { ObjectTypeId = personId, Key = "longitude", PropertyType = "number" });
+            }
+
+            // Компания
+            if (ot("Компания") is int companyId)
+            {
+                schemas.Add(new PropertySchema { ObjectTypeId = companyId, Key = "УНП", PropertyType = "string", Required = true });
+                schemas.Add(new PropertySchema { ObjectTypeId = companyId, Key = "Дата регистрации", PropertyType = "date" });
+                schemas.Add(new PropertySchema { ObjectTypeId = companyId, Key = "Статус", PropertyType = "enum", Options = "[\"Действующая\",\"Ликвидирована\",\"В процессе ликвидации\"]" });
+                schemas.Add(new PropertySchema { ObjectTypeId = companyId, Key = "latitude", PropertyType = "number" });
+                schemas.Add(new PropertySchema { ObjectTypeId = companyId, Key = "longitude", PropertyType = "number" });
+            }
+
+            // Банковский счёт
+            if (ot("Банковский счёт") is int bankId)
+            {
+                schemas.Add(new PropertySchema { ObjectTypeId = bankId, Key = "Банк", PropertyType = "string" });
+                schemas.Add(new PropertySchema { ObjectTypeId = bankId, Key = "Валюта", PropertyType = "enum", Options = "[\"BYN\",\"USD\",\"EUR\",\"RUB\"]" });
+            }
+
+            // Транзакция
+            if (ot("Транзакция") is int txId)
+            {
+                schemas.Add(new PropertySchema { ObjectTypeId = txId, Key = "Сумма", PropertyType = "string", Required = true });
+                schemas.Add(new PropertySchema { ObjectTypeId = txId, Key = "Дата", PropertyType = "date", Required = true });
+                schemas.Add(new PropertySchema { ObjectTypeId = txId, Key = "Назначение", PropertyType = "string" });
+            }
+
+            // Документ
+            if (ot("Документ") is int docId)
+            {
+                schemas.Add(new PropertySchema { ObjectTypeId = docId, Key = "Дата", PropertyType = "date" });
+                schemas.Add(new PropertySchema { ObjectTypeId = docId, Key = "Предмет", PropertyType = "string" });
+                schemas.Add(new PropertySchema { ObjectTypeId = docId, Key = "Сумма", PropertyType = "string" });
+                schemas.Add(new PropertySchema { ObjectTypeId = docId, Key = "Статус", PropertyType = "enum", Options = "[\"Действующий\",\"Фиктивный\",\"Расторгнут\"]" });
+            }
+
+            // Имущество
+            if (ot("Имущество") is int propId)
+            {
+                schemas.Add(new PropertySchema { ObjectTypeId = propId, Key = "Стоимость", PropertyType = "string" });
+                schemas.Add(new PropertySchema { ObjectTypeId = propId, Key = "Дата покупки", PropertyType = "date" });
+            }
+
+            // --- Типы связей ---
+
+            // Перевод средств
+            if (rt("Перевод средств") is int transferId)
+            {
+                schemas.Add(new PropertySchema { RelationTypeId = transferId, Key = "weight", PropertyType = "number", DefaultValue = "1" });
+                schemas.Add(new PropertySchema { RelationTypeId = transferId, Key = "date", PropertyType = "date" });
+            }
+
+            // Владеет
+            if (rt("Владеет") is int ownsId)
+            {
+                schemas.Add(new PropertySchema { RelationTypeId = ownsId, Key = "weight", PropertyType = "number", DefaultValue = "1" });
+                schemas.Add(new PropertySchema { RelationTypeId = ownsId, Key = "date", PropertyType = "date" });
+                schemas.Add(new PropertySchema { RelationTypeId = ownsId, Key = "Доля", PropertyType = "string" });
+            }
+
+            // Контролирует
+            if (rt("Контролирует") is int ctrlId)
+            {
+                schemas.Add(new PropertySchema { RelationTypeId = ctrlId, Key = "weight", PropertyType = "number", DefaultValue = "1" });
+                schemas.Add(new PropertySchema { RelationTypeId = ctrlId, Key = "date", PropertyType = "date" });
+                schemas.Add(new PropertySchema { RelationTypeId = ctrlId, Key = "Тип", PropertyType = "enum", Options = "[\"Теневой контроль\",\"Бенефициар\",\"Прямой\"]" });
+            }
+
+            // Работает в
+            if (rt("Работает в") is int worksId)
+            {
+                schemas.Add(new PropertySchema { RelationTypeId = worksId, Key = "weight", PropertyType = "number", DefaultValue = "1" });
+                schemas.Add(new PropertySchema { RelationTypeId = worksId, Key = "date", PropertyType = "date" });
+                schemas.Add(new PropertySchema { RelationTypeId = worksId, Key = "Должность", PropertyType = "string" });
+            }
+
+            // Связан с
+            if (rt("Связан с") is int relatedId)
+            {
+                schemas.Add(new PropertySchema { RelationTypeId = relatedId, Key = "weight", PropertyType = "number", DefaultValue = "1" });
+                schemas.Add(new PropertySchema { RelationTypeId = relatedId, Key = "date", PropertyType = "date" });
+                schemas.Add(new PropertySchema { RelationTypeId = relatedId, Key = "Связь", PropertyType = "string" });
+            }
+
+            // Имеет счёт
+            if (rt("Имеет счёт") is int accId)
+            {
+                schemas.Add(new PropertySchema { RelationTypeId = accId, Key = "date", PropertyType = "date" });
+            }
+
+            // Подписал
+            if (rt("Подписал") is int signId)
+            {
+                schemas.Add(new PropertySchema { RelationTypeId = signId, Key = "date", PropertyType = "date" });
+            }
+
+            // Получил
+            if (rt("Получил") is int recvId)
+            {
+                schemas.Add(new PropertySchema { RelationTypeId = recvId, Key = "date", PropertyType = "date" });
+                schemas.Add(new PropertySchema { RelationTypeId = recvId, Key = "weight", PropertyType = "number", DefaultValue = "1" });
+            }
+
+            if (schemas.Count > 0)
+            {
+                context.PropertySchemas.AddRange(schemas);
+                await context.SaveChangesAsync();
+                Console.WriteLine($"Added {schemas.Count} property schemas for existing types.");
+            }
+        }
+
+        /// <summary>
         /// Очистить все данные из БД
         /// </summary>
         private static async Task ClearAllDataAsync(GraphDbContext context)
         {
             Console.WriteLine("Clearing existing data...");
 
+            context.PropertySchemas.RemoveRange(context.PropertySchemas);
             context.RelationProperties.RemoveRange(context.RelationProperties);
             context.GraphRelations.RemoveRange(context.GraphRelations);
             context.ObjectProperties.RemoveRange(context.ObjectProperties);
@@ -124,6 +264,32 @@ namespace GraphVisualizationApp.Data
             context.ObjectTypes.AddRange(personType, companyType, bankAccountType, transactionType, documentType, propertyType);
             await context.SaveChangesAsync();
 
+            // 1.5. Схемы свойств для типов объектов
+            context.PropertySchemas.AddRange(
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "Возраст", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "Роль", PropertyType = "enum", Options = "[\"Организатор\",\"Номинальный директор\",\"Бухгалтер\",\"Юрист\",\"Свидетель\"]" },
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "Паспорт", PropertyType = "string" },
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "latitude", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "longitude", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "УНП", PropertyType = "string", Required = true },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "Дата регистрации", PropertyType = "date" },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "Статус", PropertyType = "enum", Options = "[\"Действующая\",\"Ликвидирована\",\"В процессе ликвидации\"]" },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "latitude", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "longitude", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = bankAccountType.Id, Key = "Банк", PropertyType = "string" },
+                new PropertySchema { ObjectTypeId = bankAccountType.Id, Key = "Валюта", PropertyType = "enum", Options = "[\"BYN\",\"USD\",\"EUR\",\"RUB\"]" },
+                new PropertySchema { ObjectTypeId = transactionType.Id, Key = "Сумма", PropertyType = "string", Required = true },
+                new PropertySchema { ObjectTypeId = transactionType.Id, Key = "Дата", PropertyType = "date", Required = true },
+                new PropertySchema { ObjectTypeId = transactionType.Id, Key = "Назначение", PropertyType = "string" },
+                new PropertySchema { ObjectTypeId = documentType.Id, Key = "Дата", PropertyType = "date" },
+                new PropertySchema { ObjectTypeId = documentType.Id, Key = "Предмет", PropertyType = "string" },
+                new PropertySchema { ObjectTypeId = documentType.Id, Key = "Сумма", PropertyType = "string" },
+                new PropertySchema { ObjectTypeId = documentType.Id, Key = "Статус", PropertyType = "enum", Options = "[\"Действующий\",\"Фиктивный\",\"Расторгнут\"]" },
+                new PropertySchema { ObjectTypeId = propertyType.Id, Key = "Стоимость", PropertyType = "string" },
+                new PropertySchema { ObjectTypeId = propertyType.Id, Key = "Дата покупки", PropertyType = "date" }
+            );
+            await context.SaveChangesAsync();
+
             // 2. Создаем типы связей
             var ownsRelation = new RelationType { Name = "Владеет", Description = "Отношения владения", ObjectTypeId = personType.Id };
             var controlsRelation = new RelationType { Name = "Контролирует", Description = "Теневой контроль", ObjectTypeId = personType.Id };
@@ -135,6 +301,29 @@ namespace GraphVisualizationApp.Data
             var hasAccountRelation = new RelationType { Name = "Имеет счёт", Description = "Владелец банковского счёта", ObjectTypeId = companyType.Id };
 
             context.RelationTypes.AddRange(ownsRelation, controlsRelation, transferRelation, signedRelation, receivedRelation, worksForRelation, relatedToRelation, hasAccountRelation);
+            await context.SaveChangesAsync();
+
+            // 2.5. Схемы свойств для типов связей
+            context.PropertySchemas.AddRange(
+                new PropertySchema { RelationTypeId = transferRelation.Id, Key = "weight", PropertyType = "number", DefaultValue = "1" },
+                new PropertySchema { RelationTypeId = transferRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = ownsRelation.Id, Key = "weight", PropertyType = "number", DefaultValue = "1" },
+                new PropertySchema { RelationTypeId = ownsRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = ownsRelation.Id, Key = "Доля", PropertyType = "string" },
+                new PropertySchema { RelationTypeId = controlsRelation.Id, Key = "weight", PropertyType = "number", DefaultValue = "1" },
+                new PropertySchema { RelationTypeId = controlsRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = controlsRelation.Id, Key = "Тип", PropertyType = "enum", Options = "[\"Теневой контроль\",\"Бенефициар\",\"Прямой\"]" },
+                new PropertySchema { RelationTypeId = worksForRelation.Id, Key = "weight", PropertyType = "number", DefaultValue = "1" },
+                new PropertySchema { RelationTypeId = worksForRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = worksForRelation.Id, Key = "Должность", PropertyType = "string" },
+                new PropertySchema { RelationTypeId = relatedToRelation.Id, Key = "weight", PropertyType = "number", DefaultValue = "1" },
+                new PropertySchema { RelationTypeId = relatedToRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = relatedToRelation.Id, Key = "Связь", PropertyType = "string" },
+                new PropertySchema { RelationTypeId = hasAccountRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = signedRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = receivedRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = receivedRelation.Id, Key = "weight", PropertyType = "number", DefaultValue = "1" }
+            );
             await context.SaveChangesAsync();
 
             // 3. ПЕРСОНЫ (подозреваемые и их окружение)

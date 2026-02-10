@@ -15,6 +15,7 @@ namespace GraphVisualizationApp
         public DbSet<RelationProperty> RelationProperties { get; set; }
         public DbSet<GraphLayout> GraphLayouts { get; set; }
         public DbSet<User> Users { get; set; }
+        public DbSet<PropertySchema> PropertySchemas { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -28,6 +29,18 @@ namespace GraphVisualizationApp
                 .HasMany(o => o.IncomingRelations)
                 .WithOne(r => r.TargetObject)
                 .HasForeignKey(r => r.Target)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PropertySchema>()
+                .HasOne(ps => ps.ObjectType)
+                .WithMany(ot => ot.PropertySchemas)
+                .HasForeignKey(ps => ps.ObjectTypeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PropertySchema>()
+                .HasOne(ps => ps.RelationType)
+                .WithMany(rt => rt.PropertySchemas)
+                .HasForeignKey(ps => ps.RelationTypeId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

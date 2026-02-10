@@ -10,12 +10,30 @@ namespace GraphVisualizationApp.Services
     {
         public static object ToDto(ObjectType type)
         {
-            return new { type.Id, type.Name, type.Description, type.Color, type.Icon };
+            return new
+            {
+                type.Id,
+                type.Name,
+                type.Description,
+                type.Color,
+                type.Icon,
+                PropertySchemas = type.PropertySchemas?.Select(SchemaToDto).ToList()
+                    ?? new List<object>()
+            };
         }
 
         public static object ToDto(RelationType type)
         {
-            return new { type.Id, type.Name, type.Description, type.Color, type.ObjectTypeId };
+            return new
+            {
+                type.Id,
+                type.Name,
+                type.Description,
+                type.Color,
+                type.ObjectTypeId,
+                PropertySchemas = type.PropertySchemas?.Select(SchemaToDto).ToList()
+                    ?? new List<object>()
+            };
         }
 
         public static object ToDto(GraphObject obj)
@@ -27,7 +45,8 @@ namespace GraphVisualizationApp.Services
                 obj.ObjectTypeId,
                 obj.Color,
                 obj.Icon,
-                Properties = obj.Properties?.ToDictionary(p => p.Key!, p => p.Value ?? string.Empty) ?? new System.Collections.Generic.Dictionary<string, string>()
+                Properties = obj.Properties?.ToDictionary(p => p.Key!, p => p.Value ?? string.Empty)
+                    ?? new System.Collections.Generic.Dictionary<string, string>()
             };
         }
 
@@ -40,7 +59,21 @@ namespace GraphVisualizationApp.Services
                 rel.Target,
                 rel.RelationTypeId,
                 rel.Color,
-                Properties = rel.Properties?.ToDictionary(p => p.Key!, p => p.Value ?? string.Empty) ?? new System.Collections.Generic.Dictionary<string, string>()
+                Properties = rel.Properties?.ToDictionary(p => p.Key!, p => p.Value ?? string.Empty)
+                    ?? new System.Collections.Generic.Dictionary<string, string>()
+            };
+        }
+
+        private static object SchemaToDto(PropertySchema ps)
+        {
+            return new
+            {
+                ps.Id,
+                ps.Key,
+                ps.PropertyType,
+                ps.Required,
+                ps.DefaultValue,
+                ps.Options
             };
         }
     }

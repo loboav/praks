@@ -351,13 +351,21 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
   );
 
   const updateRelation = useCallback(
-    async (data: { id: number; relationTypeId: number; properties: Record<string, string> }) => {
+    async (data: {
+      id: number;
+      source: number;
+      target: number;
+      relationTypeId: number;
+      properties: Record<string, string>;
+    }) => {
       const propertiesArr = Object.entries(data.properties).map(([key, value]) => ({
         Key: key,
         Value: value,
       }));
       const payload = {
         Id: data.id,
+        Source: data.source,
+        Target: data.target,
         RelationTypeId: data.relationTypeId,
         Properties: propertiesArr,
       };
@@ -441,24 +449,65 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
     });
   }, []);
 
-  const addObjectType = useCallback(async (data: { name: string; description?: string }) => {
-    const payload: any = { Name: data.name, Objects: [], RelationTypes: [] };
-    if (data.description && data.description.trim() !== '') {
-      payload.Description = data.description;
-    }
+  const addObjectType = useCallback(
+    async (data: {
+      name: string;
+      description?: string;
+      schemas?: {
+        key: string;
+        propertyType: string;
+        required: boolean;
+        defaultValue: string;
+        options: string;
+      }[];
+    }) => {
+      const payload: any = { Name: data.name, Objects: [], RelationTypes: [] };
+      if (data.description && data.description.trim() !== '') {
+        payload.Description = data.description;
+      }
 
-    const res = await apiClient.post('/api/object-types', payload);
+      const res = await apiClient.post('/api/object-types', payload);
 
-    if (!res.ok) {
-      const text = await res.text();
-      toast.error('Ошибка создания типа объекта: ' + text);
-      return;
-    }
+      if (!res.ok) {
+        const text = await res.text();
+        toast.error('Ошибка создания типа объекта: ' + text);
+        return;
+      }
 
-    toast.success('Тип объекта создан');
-    const types = await api('/object-types');
-    setObjectTypes(types);
-  }, []);
+      // Получаем ID созданного типа и сохраняем схемы
+      if (data.schemas && data.schemas.length > 0) {
+        const types = await api('/object-types');
+        const created = types.find((t: any) => t.name === data.name);
+        if (created) {
+          for (const s of data.schemas) {
+            await apiClient.post('/api/property-schemas', {
+              ObjectTypeId: created.id,
+              RelationTypeId: null,
+              Key: s.key.trim(),
+              PropertyType: s.propertyType,
+              Required: s.required,
+              DefaultValue: s.defaultValue || null,
+              Options:
+                s.propertyType === 'enum' && s.options
+                  ? JSON.stringify(
+                      s.options
+                        .split(',')
+                        .map(o => o.trim())
+                        .filter(Boolean)
+                    )
+                  : null,
+            });
+          }
+        }
+      }
+
+      toast.success('Тип объекта создан');
+      // Перезагружаем типы уже со схемами
+      const types = await api('/object-types');
+      setObjectTypes(types);
+    },
+    []
+  );
 
   const deleteObjectType = useCallback(
     async (id: number) => {
@@ -469,8 +518,48 @@ export const useGraphData = ({ onAddHistoryAction }: UseGraphDataProps = {}) => 
   );
 
   const addRelationType = useCallback(
-    async (data: { name: string; description?: string; objectTypeId: number }) => {
+    async (data: {
+      name: string;
+      description?: string;
+      objectTypeId: number;
+      schemas?: {
+        key: string;
+        propertyType: string;
+        required: boolean;
+        defaultValue: string;
+        options: string;
+      }[];
+    }) => {
       await apiClient.post('/api/relation-types', data);
+
+      // Получаем ID созданного типа и сохраняем схемы
+      if (data.schemas && data.schemas.length > 0) {
+        const types = await api('/relation-types');
+        const created = types.find((t: any) => t.name === data.name);
+        if (created) {
+          for (const s of data.schemas) {
+            await apiClient.post('/api/property-schemas', {
+              ObjectTypeId: null,
+              RelationTypeId: created.id,
+              Key: s.key.trim(),
+              PropertyType: s.propertyType,
+              Required: s.required,
+              DefaultValue: s.defaultValue || null,
+              Options:
+                s.propertyType === 'enum' && s.options
+                  ? JSON.stringify(
+                      s.options
+                        .split(',')
+                        .map(o => o.trim())
+                        .filter(Boolean)
+                    )
+                  : null,
+            });
+          }
+        }
+      }
+
+      // Перезагружаем типы уже со схемами
       const relTypes = await api('/relation-types');
       setRelationTypes(relTypes);
     },

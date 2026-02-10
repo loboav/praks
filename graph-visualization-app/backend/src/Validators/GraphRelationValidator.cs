@@ -21,7 +21,8 @@ namespace GraphVisualizationApp.Validators
                 .WithMessage("Необходимо указать корректный целевой объект");
 
             RuleFor(x => x)
-                .Must(x => x.Source != x.Target) // Всегда запрещать самоссылки
+                .Must(x => x.Source != x.Target) // Запрещать самоссылки
+                .When(x => x.Source > 0 && x.Target > 0) // Только когда оба значения заданы
                 .WithMessage("Объект не может быть связан сам с собой");
 
             RuleFor(x => x.RelationTypeId)

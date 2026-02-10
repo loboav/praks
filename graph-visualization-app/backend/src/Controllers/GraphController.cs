@@ -3,6 +3,8 @@ using GraphVisualizationApp.Models;
 using GraphVisualizationApp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -18,16 +20,22 @@ namespace GraphVisualizationApp.Controllers
         private readonly IRelationService _relationService;
         private readonly ITypeService _typeService;
         private readonly IPathfindingService _pathfindingService;
+        private readonly GraphDbContext _db;
+        private readonly IMemoryCache _cache;
 
         public GraphController(
             IObjectService objectService,
             IRelationService relationService,
             ITypeService typeService,
-            IPathfindingService pathfindingService)
+            IPathfindingService pathfindingService,
+            GraphDbContext db,
+            IMemoryCache cache)
         {
             _objectService = objectService;
             _relationService = relationService;
             _typeService = typeService;
+            _db = db;
+            _cache = cache;
             _pathfindingService = pathfindingService;
         }
 
@@ -60,7 +68,7 @@ namespace GraphVisualizationApp.Controllers
 
         [HttpGet("astar-path")]
         public async Task<IActionResult> FindPathAStar(
-            [FromQuery] int fromId, 
+            [FromQuery] int fromId,
             [FromQuery] int toId,
             [FromQuery] string heuristic = "euclidean")
         {
@@ -81,7 +89,7 @@ namespace GraphVisualizationApp.Controllers
                 var rels = await _relationService.GetRelationsAsync();
                 return NotFound(new { reason = "no_path", fromId, toId, nodes = allObjects.Count, relations = rels.Count });
             }
-            
+
             return Ok(new
             {
                 nodeIds = result.NodeIds,
@@ -119,7 +127,7 @@ namespace GraphVisualizationApp.Controllers
                 var rels = await _relationService.GetRelationsAsync();
                 return NotFound(new { reason = "no_path", fromId, toId, nodes = allObjects.Count, relations = rels.Count });
             }
-            
+
             return Ok(new
             {
                 paths = result.Paths,
@@ -250,6 +258,38 @@ namespace GraphVisualizationApp.Controllers
             return NoContent();
         }
 
+        // ============================================
+        // PROPERTY SCHEMAS
+        // ============================================
+
+        [HttpPost("property-schemas")]
+        [Authorize(Roles = "Editor,Admin")]
+        public async Task<IActionResult> CreatePropertySchema([FromBody] PropertySchema schema)
+        {
+            if (schema.ObjectTypeId == null && schema.RelationTypeId == null)
+                return BadRequest("Укажите ObjectTypeId или RelationTypeId");
+            _db.PropertySchemas.Add(schema);
+            await _db.SaveChangesAsync();
+            // Сбрасываем кэш типов, чтобы схемы подтянулись при следующем GET
+            _cache.Remove("object_types");
+            _cache.Remove("relation_types");
+            return Ok(new { schema.Id, schema.Key, schema.PropertyType, schema.Required, schema.DefaultValue, schema.Options });
+        }
+
+        [HttpDelete("property-schemas/{id}")]
+        [Authorize(Roles = "Editor,Admin")]
+        public async Task<IActionResult> DeletePropertySchema(int id)
+        {
+            var schema = await _db.PropertySchemas.FindAsync(id);
+            if (schema == null) return NotFound();
+            _db.PropertySchemas.Remove(schema);
+            await _db.SaveChangesAsync();
+            // Сбрасываем кэш типов
+            _cache.Remove("object_types");
+            _cache.Remove("relation_types");
+            return NoContent();
+        }
+
         [HttpGet("objects")]
         [AllowAnonymous]
         public async Task<IActionResult> GetObjects()
@@ -276,7 +316,7 @@ namespace GraphVisualizationApp.Controllers
                     Value = p.Value
                 }).ToList() ?? new List<ObjectProperty>()
             };
-            
+
             var created = await _objectService.CreateObjectAsync(obj);
             return Ok(DtoMapper.ToDto(created));
         }
@@ -301,7 +341,7 @@ namespace GraphVisualizationApp.Controllers
         public async Task<IActionResult> GetNodeNeighbors(int id)
         {
             var relations = await _objectService.GetNeighborsAsync(id);
-            
+
             // Collect all unique node IDs from the relations
             var nodeIds = new HashSet<int> { id }; // Include the center node itself
             foreach (var rel in relations)
@@ -312,10 +352,10 @@ namespace GraphVisualizationApp.Controllers
 
             var nodes = await _objectService.GetObjectsByIdsAsync(nodeIds.ToList());
 
-            return Ok(new 
-            { 
-                nodes = nodes.Select(DtoMapper.ToDto), 
-                relations = relations.Select(DtoMapper.ToDto) 
+            return Ok(new
+            {
+                nodes = nodes.Select(DtoMapper.ToDto),
+                relations = relations.Select(DtoMapper.ToDto)
             });
         }
 

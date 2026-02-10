@@ -39,7 +39,7 @@ namespace GraphVisualizationApp.Services
             return await _cache.GetOrCreateAsync(CACHE_KEY_OBJECT_TYPES, async entry =>
             {
                 entry.AbsoluteExpirationRelativeToNow = _cacheSettings.ObjectTypesCacheDuration;
-                return await _db.ObjectTypes.AsNoTracking().ToListAsync();
+                return await _db.ObjectTypes.Include(ot => ot.PropertySchemas).AsNoTracking().ToListAsync();
             }) ?? new List<ObjectType>();
         }
 
@@ -76,7 +76,7 @@ namespace GraphVisualizationApp.Services
             return await _cache.GetOrCreateAsync(CACHE_KEY_RELATION_TYPES, async entry =>
             {
                 entry.AbsoluteExpirationRelativeToNow = _cacheSettings.RelationTypesCacheDuration;
-                return await _db.RelationTypes.AsNoTracking().ToListAsync();
+                return await _db.RelationTypes.Include(rt => rt.PropertySchemas).AsNoTracking().ToListAsync();
             }) ?? new List<RelationType>();
         }
 
