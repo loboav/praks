@@ -250,6 +250,8 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     relationTypes.forEach(rt => relationTypesMap.set(rt.id, rt.name));
 
     const hasHighlightedEdges = selectedEdgesSet.size > 0;
+    // Если рёбер мало — показываем label на всех, если много — только на highlighted (производительность)
+    const showAllLabels = edges.length < 200;
 
     return edges.map(edge => {
       const isHighlighted = selectedEdgesSet.has(edge.id);
@@ -263,12 +265,14 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         }
       }
 
+      // Label: всегда на highlighted, на остальных только если граф небольшой
+      const showLabel = isHighlighted || showAllLabels;
+
       return {
         id: edge.id.toString(),
         source: edge.source.toString(),
         target: edge.target.toString(),
-        // Показываем label только на highlighted рёбрах (тысячи SVG text элементов = дорого)
-        label: isHighlighted ? relationTypesMap.get(edge.relationTypeId) || '' : undefined,
+        label: showLabel ? relationTypesMap.get(edge.relationTypeId) || '' : undefined,
         style: {
           stroke: isHighlighted ? highlightColor : edge.color || '#2196f3',
           strokeWidth: isHighlighted ? 6 : 2,
@@ -276,17 +280,17 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           // strokeDasharray ТОЛЬКО на highlighted (SVG dash = дорогая операция при тысячах рёбер)
           strokeDasharray: isHighlighted ? '6 6' : undefined,
         },
-        labelStyle: isHighlighted
+        labelStyle: showLabel
           ? {
-              fontSize: 11,
-              fontWeight: 500,
-              fill: '#555',
+              fontSize: isHighlighted ? 11 : 10,
+              fontWeight: isHighlighted ? 500 : 400,
+              fill: isHighlighted ? '#555' : '#666',
             }
           : undefined,
-        labelBgStyle: isHighlighted
+        labelBgStyle: showLabel
           ? {
               fill: '#fff',
-              fillOpacity: 0.7,
+              fillOpacity: isHighlighted ? 0.7 : 0.5,
             }
           : undefined,
         // animated: false по умолчанию — CSS анимация на тысячах рёбер = #1 убийца производительности

@@ -5,6 +5,8 @@ using Moq;
 using GraphVisualizationApp.Controllers;
 using GraphVisualizationApp.Models;
 using GraphVisualizationApp.Services;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -16,6 +18,8 @@ namespace GraphVisualizationApp.Tests.Controllers
         private readonly Mock<IRelationService> _mockRelationService;
         private readonly Mock<ITypeService> _mockTypeService;
         private readonly Mock<IPathfindingService> _mockPathfindingService;
+        private readonly Mock<GraphDbContext> _mockDbContext;
+        private readonly Mock<IMemoryCache> _mockCache;
         private readonly GraphController _controller;
 
         public GraphControllerTests()
@@ -24,12 +28,23 @@ namespace GraphVisualizationApp.Tests.Controllers
             _mockRelationService = new Mock<IRelationService>();
             _mockTypeService = new Mock<ITypeService>();
             _mockPathfindingService = new Mock<IPathfindingService>();
-            
+
+            // Mock GraphDbContext
+            var options = new DbContextOptionsBuilder<GraphDbContext>()
+                .UseInMemoryDatabase(databaseName: "TestDatabase")
+                .Options;
+            _mockDbContext = new Mock<GraphDbContext>(options);
+
+            // Mock IMemoryCache
+            _mockCache = new Mock<IMemoryCache>();
+
             _controller = new GraphController(
                 _mockObjectService.Object,
                 _mockRelationService.Object,
                 _mockTypeService.Object,
-                _mockPathfindingService.Object
+                _mockPathfindingService.Object,
+                _mockDbContext.Object,
+                _mockCache.Object
             );
         }
 
