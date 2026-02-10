@@ -951,6 +951,23 @@ namespace GraphVisualizationApp.Data
             context.ObjectTypes.AddRange(personType, companyType, projectType, assetType);
             await context.SaveChangesAsync();
 
+            // 1.5. Схемы свойств для типов объектов
+            context.PropertySchemas.AddRange(
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "Возраст", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "Роль", PropertyType = "enum", Options = "[\"Developer\",\"Manager\",\"Analyst\",\"Architect\",\"Director\"]" },
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "Паспорт", PropertyType = "string" },
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "Опыт (лет)", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "УНП", PropertyType = "string", Required = true },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "Дата регистрации", PropertyType = "date" },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "Размер", PropertyType = "enum", Options = "[\"Small\",\"Medium\",\"Large\",\"Enterprise\"]" },
+                new PropertySchema { ObjectTypeId = projectType.Id, Key = "Статус", PropertyType = "enum", Options = "[\"Planning\",\"Active\",\"Review\",\"Completed\"]" },
+                new PropertySchema { ObjectTypeId = projectType.Id, Key = "Бюджет", PropertyType = "string" },
+                new PropertySchema { ObjectTypeId = projectType.Id, Key = "Дата старта", PropertyType = "date" },
+                new PropertySchema { ObjectTypeId = assetType.Id, Key = "Тип", PropertyType = "enum", Options = "[\"Server\",\"License\",\"Database\",\"API\",\"Tool\"]" },
+                new PropertySchema { ObjectTypeId = assetType.Id, Key = "Стоимость", PropertyType = "string" }
+            );
+            await context.SaveChangesAsync();
+
             // 2. Создаем типы связей
             var worksAtRelation = new RelationType { Name = "Работает в", Description = "", ObjectTypeId = personType.Id };
             var ownedByRelation = new RelationType { Name = "Владеет", Description = "", ObjectTypeId = personType.Id };
@@ -959,6 +976,24 @@ namespace GraphVisualizationApp.Data
             var relatedToRelation = new RelationType { Name = "Связан с", Description = "", ObjectTypeId = personType.Id };
 
             context.RelationTypes.AddRange(worksAtRelation, ownedByRelation, managesRelation, partOfRelation, relatedToRelation);
+            await context.SaveChangesAsync();
+
+            // 2.5. Схемы свойств для типов связей
+            context.PropertySchemas.AddRange(
+                new PropertySchema { RelationTypeId = worksAtRelation.Id, Key = "weight", PropertyType = "number", DefaultValue = "1" },
+                new PropertySchema { RelationTypeId = worksAtRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = worksAtRelation.Id, Key = "Должность", PropertyType = "string" },
+                new PropertySchema { RelationTypeId = ownedByRelation.Id, Key = "weight", PropertyType = "number", DefaultValue = "1" },
+                new PropertySchema { RelationTypeId = ownedByRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = ownedByRelation.Id, Key = "Доля", PropertyType = "string" },
+                new PropertySchema { RelationTypeId = managesRelation.Id, Key = "weight", PropertyType = "number", DefaultValue = "1" },
+                new PropertySchema { RelationTypeId = managesRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = partOfRelation.Id, Key = "weight", PropertyType = "number", DefaultValue = "1" },
+                new PropertySchema { RelationTypeId = partOfRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = relatedToRelation.Id, Key = "weight", PropertyType = "number", DefaultValue = "1" },
+                new PropertySchema { RelationTypeId = relatedToRelation.Id, Key = "date", PropertyType = "date" },
+                new PropertySchema { RelationTypeId = relatedToRelation.Id, Key = "Тип связи", PropertyType = "enum", Options = "[\"Коллега\",\"Друг\",\"Партнер\",\"Знакомый\"]" }
+            );
             await context.SaveChangesAsync();
 
             // 3. Создаем объекты
@@ -981,8 +1016,9 @@ namespace GraphVisualizationApp.Data
                     PositionY = random.Next(0, 800),
                     Properties = new List<ObjectProperty>
                     {
-                        new ObjectProperty { Key = "Founded", Value = (2010 + random.Next(15)).ToString() },
-                        new ObjectProperty { Key = "Size", Value = new[] { "Small", "Medium", "Large", "Enterprise" }[random.Next(4)] }
+                        new ObjectProperty { Key = "УНП", Value = $"{random.Next(100000000, 999999999)}" },
+                        new ObjectProperty { Key = "Дата регистрации", Value = $"{2010 + random.Next(15)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" },
+                        new ObjectProperty { Key = "Размер", Value = new[] { "Small", "Medium", "Large", "Enterprise" }[random.Next(4)] }
                     }
                 };
                 companies.Add(company);
@@ -1007,8 +1043,10 @@ namespace GraphVisualizationApp.Data
                     PositionY = random.Next(0, 800),
                     Properties = new List<ObjectProperty>
                     {
-                        new ObjectProperty { Key = "Role", Value = roles[random.Next(roles.Length)] },
-                        new ObjectProperty { Key = "YearsExp", Value = random.Next(1, 25).ToString() }
+                        new ObjectProperty { Key = "Возраст", Value = random.Next(22, 65).ToString() },
+                        new ObjectProperty { Key = "Роль", Value = roles[random.Next(roles.Length)] },
+                        new ObjectProperty { Key = "Паспорт", Value = $"MP{random.Next(1000000, 9999999)}" },
+                        new ObjectProperty { Key = "Опыт (лет)", Value = random.Next(1, 25).ToString() }
                     }
                 };
                 people.Add(person);
@@ -1031,8 +1069,9 @@ namespace GraphVisualizationApp.Data
                     PositionY = random.Next(0, 800),
                     Properties = new List<ObjectProperty>
                     {
-                        new ObjectProperty { Key = "Status", Value = new[] { "Planning", "Active", "Review", "Completed" }[random.Next(4)] },
-                        new ObjectProperty { Key = "Budget", Value = $"{random.Next(10, 1000)}k" }
+                        new ObjectProperty { Key = "Статус", Value = new[] { "Planning", "Active", "Review", "Completed" }[random.Next(4)] },
+                        new ObjectProperty { Key = "Бюджет", Value = $"{random.Next(10, 1000)}k USD" },
+                        new ObjectProperty { Key = "Дата старта", Value = $"{2020 + random.Next(5)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" }
                     }
                 };
                 projects.Add(project);
@@ -1055,8 +1094,8 @@ namespace GraphVisualizationApp.Data
                     PositionY = random.Next(0, 800),
                     Properties = new List<ObjectProperty>
                     {
-                        new ObjectProperty { Key = "Type", Value = assetTypes[random.Next(assetTypes.Length)] },
-                        new ObjectProperty { Key = "Cost", Value = $"${random.Next(100, 100000)}" }
+                        new ObjectProperty { Key = "Тип", Value = assetTypes[random.Next(assetTypes.Length)] },
+                        new ObjectProperty { Key = "Стоимость", Value = $"${random.Next(100, 100000)}" }
                     }
                 };
                 assets.Add(asset);
@@ -1080,10 +1119,12 @@ namespace GraphVisualizationApp.Data
                     Source = person.Id,
                     Target = company.Id,
                     RelationTypeId = worksAtRelation.Id,
-                    Properties = random.Next(100) > 70 ? new List<RelationProperty>
+                    Properties = new List<RelationProperty>
                     {
-                        new RelationProperty { Key = "Since", Value = (2020 + random.Next(5)).ToString() }
-                    } : new List<RelationProperty>()
+                        new RelationProperty { Key = "weight", Value = random.Next(1, 5).ToString() },
+                        new RelationProperty { Key = "date", Value = $"{2015 + random.Next(10)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" },
+                        new RelationProperty { Key = "Должность", Value = new[] { "Developer", "Manager", "Analyst", "Engineer" }[random.Next(4)] }
+                    }
                 });
             }
 
@@ -1098,7 +1139,11 @@ namespace GraphVisualizationApp.Data
                     Source = person.Id,
                     Target = company.Id,
                     RelationTypeId = managesRelation.Id,
-                    Properties = new List<RelationProperty>()
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "weight", Value = random.Next(3, 10).ToString() },
+                        new RelationProperty { Key = "date", Value = $"{2018 + random.Next(7)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" }
+                    }
                 });
             }
 
@@ -1113,7 +1158,12 @@ namespace GraphVisualizationApp.Data
                     Source = person.Id,
                     Target = asset.Id,
                     RelationTypeId = ownedByRelation.Id,
-                    Properties = new List<RelationProperty>()
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "weight", Value = random.Next(1, 8).ToString() },
+                        new RelationProperty { Key = "date", Value = $"{2019 + random.Next(6)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" },
+                        new RelationProperty { Key = "Доля", Value = $"{random.Next(10, 100)}%" }
+                    }
                 });
             }
 
@@ -1130,7 +1180,11 @@ namespace GraphVisualizationApp.Data
                         Source = company1.Id,
                         Target = company2.Id,
                         RelationTypeId = partOfRelation.Id,
-                        Properties = new List<RelationProperty>()
+                        Properties = new List<RelationProperty>
+                        {
+                            new RelationProperty { Key = "weight", Value = random.Next(2, 15).ToString() },
+                            new RelationProperty { Key = "date", Value = $"{2017 + random.Next(8)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" }
+                        }
                     });
                 }
             }
@@ -1148,7 +1202,12 @@ namespace GraphVisualizationApp.Data
                         Source = person1.Id,
                         Target = person2.Id,
                         RelationTypeId = relatedToRelation.Id,
-                        Properties = new List<RelationProperty>()
+                        Properties = new List<RelationProperty>
+                        {
+                            new RelationProperty { Key = "weight", Value = random.Next(1, 5).ToString() },
+                            new RelationProperty { Key = "date", Value = $"{2016 + random.Next(9)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" },
+                            new RelationProperty { Key = "Тип связи", Value = new[] { "Коллега", "Друг", "Партнер", "Знакомый" }[random.Next(4)] }
+                        }
                     });
                 }
             }
@@ -1164,11 +1223,15 @@ namespace GraphVisualizationApp.Data
                     Source = company.Id,
                     Target = project.Id,
                     RelationTypeId = managesRelation.Id,
-                    Properties = new List<RelationProperty>()
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "weight", Value = random.Next(2, 12).ToString() },
+                        new RelationProperty { Key = "date", Value = $"{2020 + random.Next(5)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" }
+                    }
                 });
             }
 
-            // Проекты использют активы
+            // Проекты используют активы
             for (int i = 0; i < 60; i++)
             {
                 var project = projects[random.Next(projects.Count)];
@@ -1179,7 +1242,11 @@ namespace GraphVisualizationApp.Data
                     Source = project.Id,
                     Target = asset.Id,
                     RelationTypeId = partOfRelation.Id,
-                    Properties = new List<RelationProperty>()
+                    Properties = new List<RelationProperty>
+                    {
+                        new RelationProperty { Key = "weight", Value = random.Next(1, 6).ToString() },
+                        new RelationProperty { Key = "date", Value = $"{2021 + random.Next(4)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" }
+                    }
                 });
             }
 
