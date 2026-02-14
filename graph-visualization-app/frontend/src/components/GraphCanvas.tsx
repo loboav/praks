@@ -20,6 +20,8 @@ interface GraphCanvasProps {
   onNodesPositionChange?: (positions: { id: number; x: number; y: number }[]) => void;
   onNodeDoubleClick?: (node: GraphObject) => void;
   onPaneClick?: () => void;
+  onCollapseAllGroups?: () => void;
+  onExpandAllGroups?: () => void;
 }
 
 interface HighlightProps {
@@ -41,6 +43,8 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   selectedAlgorithm = 'dijkstra',
   onNodesPositionChange,
   onNodeDoubleClick,
+  onCollapseAllGroups,
+  onExpandAllGroups,
 }) => {
   // Local highlighting for found path
   const [selectedNodesLocal, setSelectedNodesLocal] = useState<number[]>([]);
@@ -150,6 +154,9 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
             color: node.color,
             icon: node.icon,
             orig: node,
+            nodeNames: (node as any)._groupNodeNames || [], // Имена узлов для tooltip
+            edgeCount: (node as any)._groupEdgeCount || 0, // Количество связей наружу
+            isMixed: (node as any)._groupIsMixed || false, // Флаг смешанных категорий
           },
           position: {
             x: node.PositionX ?? 400,
@@ -185,6 +192,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           justifyContent: 'center',
           fontWeight: 600,
           fontSize: 14,
+          opacity: 1, // Всегда яркие узлы при любом зуме
         },
       };
     });
@@ -246,17 +254,17 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
         // Для групповых узлов обновляем selected prop и data (если нужно), но не style
         if (currentNode.type === 'group') {
+          // Обновляем данные мета-узла (nodeNames, edgeCount, isMixed могли измениться)
+          const updatedData = { ...currentNode.data };
+          if (node.isCollapsedGroup) {
+            updatedData.nodeNames = (node as any)._groupNodeNames || [];
+            updatedData.edgeCount = (node as any)._groupEdgeCount || 0;
+            updatedData.isMixed = (node as any)._groupIsMixed || false;
+          }
           return {
             ...currentNode,
             selected: isSelected,
-            data: {
-              ...currentNode.data,
-              // Обновляем данные, если они изменились (хотя это делает setRfNodes выше,
-              // но здесь мы идем по currentNodes, которые могут быть старыми в плане data,
-              // если мы попали в ветку без hasDataChanges. Но ветку без hasDataChanges
-              // мы используем только для обновления selection/style.
-              // Так что просто обновляем selection.
-            }
+            data: updatedData,
           };
         }
 
@@ -277,20 +285,51 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
             justifyContent: 'center',
             fontWeight: 600,
             fontSize: 14,
+            opacity: 1, // Всегда яркие узлы при любом зуме
           },
         };
       });
     });
   }, [nodes, combinedSelectedNodes, initialRfNodes, selectedNodesSet]);
 
-  const rfEdges = useMemo<Edge[]>(() => {
-    // O(1) Map lookup вместо O(n) .find() на каждое ребро
-    const relationTypesMap = new Map<number, string>();
-    relationTypes.forEach(rt => relationTypesMap.set(rt.id, rt.name));
+  // Мемоизация relationTypesMap для оптимизации (не пересоздаём на каждом рендере)
+  const relationTypesMap = useMemo(() => {
+    const map = new Map<number, string>();
+    relationTypes.forEach(rt => map.set(rt.id, rt.name));
+    return map;
+  }, [relationTypes]);
 
+  const rfEdges = useMemo<Edge[]>(() => {
     const hasHighlightedEdges = selectedEdgesSet.size > 0;
-    // Если рёбер мало — показываем label на всех, если много — только на highlighted (производительность)
-    const showAllLabels = edges.length < 200;
+
+    // Адаптивный размер шрифта в зависимости от количества рёбер
+    // Чем больше рёбер, тем меньше шрифт для оптимизации читаемости
+    const baseFontSize =
+      edges.length < 100
+        ? 11 // Маленький граф
+        : edges.length < 500
+          ? 10 // Средний граф
+          : edges.length < 1000
+            ? 9 // Большой граф
+            : edges.length < 2000
+              ? 8 // Очень большой граф
+              : 7; // Экстремально большой граф (>2000)
+
+    // ВСЕГДА показываем label на всех рёбрах!
+    // ReactFlow автоматически оптимизирует рендеринг благодаря:
+    // 1. onlyRenderVisibleElements - рендерит только видимые элементы
+    // 2. Виртуализация - не рисует то, что за пределами экрана
+    // 3. Canvas-based optimization - для тысяч элементов
+    const showLabelsOnAll = true;
+
+    // Цвета для разных типов связей (можно кастомизировать)
+    const getEdgeColor = (edge: GraphRelation): string => {
+      // Если у связи уже есть цвет - используем его
+      if (edge.color) return edge.color;
+
+      // Иначе используем цвет по умолчанию
+      return '#90caf9'; // Светло-голубой для лучшей видимости
+    };
 
     return edges.map(edge => {
       const isHighlighted = selectedEdgesSet.has(edge.id);
@@ -304,40 +343,53 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         }
       }
 
-      // Label: всегда на highlighted, на остальных только если граф небольшой
-      const showLabel = isHighlighted || showAllLabels;
+      // Получаем название типа связи
+      const edgeLabel = relationTypesMap.get(edge.relationTypeId) || '';
 
       return {
         id: edge.id.toString(),
         source: edge.source.toString(),
         target: edge.target.toString(),
-        label: showLabel ? relationTypesMap.get(edge.relationTypeId) || '' : undefined,
+        // Показываем label: всегда на highlighted, на остальных - если граф не очень большой
+        // ВСЕГДА показываем label (оптимизация через onlyRenderVisibleElements)
+        label: edgeLabel,
         style: {
-          stroke: isHighlighted ? highlightColor : edge.color || '#2196f3',
+          stroke: isHighlighted ? highlightColor : getEdgeColor(edge),
           strokeWidth: isHighlighted ? 6 : 2,
-          opacity: isHighlighted ? 1 : hasHighlightedEdges ? 0.18 : 1,
+          opacity: isHighlighted ? 1 : hasHighlightedEdges ? 0.18 : 1, // Всегда яркие связи
           // strokeDasharray ТОЛЬКО на highlighted (SVG dash = дорогая операция при тысячах рёбер)
           strokeDasharray: isHighlighted ? '6 6' : undefined,
         },
-        labelStyle: showLabel
-          ? {
-            fontSize: isHighlighted ? 11 : 10,
-            fontWeight: isHighlighted ? 500 : 400,
-            fill: isHighlighted ? '#555' : '#666',
-          }
-          : undefined,
-        labelBgStyle: showLabel
-          ? {
-            fill: '#fff',
-            fillOpacity: isHighlighted ? 0.7 : 0.5,
-          }
-          : undefined,
+        markerEnd: {
+          type: 'arrowclosed',
+          color: isHighlighted ? highlightColor : getEdgeColor(edge),
+          width: 20,
+          height: 20,
+        },
+        // ВСЕГДА показываем стили для label
+        labelStyle: {
+          fontSize: isHighlighted ? baseFontSize + 2 : baseFontSize,
+          fontWeight: isHighlighted ? 700 : 500,
+          fill: isHighlighted ? '#000' : '#424242',
+          fontFamily: 'Segoe UI, Tahoma, system-ui, sans-serif',
+          letterSpacing: '0.3px',
+        },
+        labelBgStyle: {
+          fill: isHighlighted ? '#fffde7' : '#ffffff',
+          fillOpacity: isHighlighted ? 1 : 0.85,
+          rx: 4,
+          ry: 4,
+          stroke: isHighlighted ? highlightColor : '#e0e0e0',
+          strokeWidth: isHighlighted ? 1.5 : 0.5,
+        },
+        labelBgPadding: [5, 8] as [number, number],
+        labelBgBorderRadius: 4,
         // animated: false по умолчанию — CSS анимация на тысячах рёбер = #1 убийца производительности
         // Анимируем ТОЛЬКО highlighted рёбра (их обычно 5-20 штук)
         animated: isHighlighted,
       };
     });
-  }, [edges, relationTypes, selectedEdgesSet, edgeToPathIndex, PATH_COLORS]);
+  }, [edges, relationTypesMap, selectedEdgesSet, edgeToPathIndex, PATH_COLORS]);
 
   // Debounced callback для обновления позиций
   const debouncedPositionUpdate = useCallback(
@@ -400,10 +452,10 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     [onNodesChange, onNodesPositionChange, debouncedPositionUpdate, setRfNodes]
   );
 
-  // Контекстное меню по правому клику
+  // Контекстное меню по правому клику на узел
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: any) => {
     event.preventDefault();
-    setMenu({ x: event.clientX, y: event.clientY, node: node.data.orig });
+    setMenu({ x: event.clientX, y: event.clientY, type: 'node', node: node.data.orig });
   }, []);
 
   // Контекстное меню по правому клику на фон
@@ -411,6 +463,11 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     event.preventDefault();
     setMenu({ x: event.clientX, y: event.clientY, type: 'pane', node: null });
   }, []);
+
+  // Проверяем есть ли активные группы
+  const hasActiveGroups = useMemo(() => {
+    return nodes.some(n => n.isCollapsedGroup);
+  }, [nodes]);
 
   // Обработка клика по узлу
   const handleNodeClick = useCallback(
@@ -466,12 +523,16 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
       // Глобальные действия (не требуют node)
       if (action === 'expand-all') {
-        if (onNodeAction) (onNodeAction as any)('expand-all', null);
+        if (onExpandAllGroups) {
+          onExpandAllGroups();
+        }
         setMenu(null);
         return;
       }
       if (action === 'collapse-all') {
-        if (onNodeAction) (onNodeAction as any)('collapse-all', null);
+        if (onCollapseAllGroups) {
+          onCollapseAllGroups();
+        }
         setMenu(null);
         return;
       }
@@ -554,7 +615,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                     `http://localhost:5000/api/dijkstra-path?fromId=${from}&toId=${to}`
                   );
                   if (r2.ok) data = await r2.json();
-                } catch (e) { }
+                } catch (e) {}
               }
 
               if (!data) {
@@ -767,8 +828,6 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     setPathModalPos(null);
   }, []);
 
-
-
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <ReactFlow
@@ -785,6 +844,23 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         panOnDrag={panOnDrag}
         fitView
         onlyRenderVisibleElements
+        minZoom={0.1}
+        maxZoom={4}
+        defaultEdgeOptions={{
+          type: 'default',
+          style: { strokeWidth: 2 },
+        }}
+        // Оптимизации для больших графов (>1000 элементов)
+        elevateEdgesOnSelect={false}
+        selectNodesOnDrag={false}
+        panOnScroll={false}
+        zoomOnScroll={true}
+        zoomOnDoubleClick={false}
+        preventScrolling={true}
+        // Отключаем интерполяцию при перемещении для лучшей производительности
+        nodesDraggable={true}
+        nodesConnectable={false}
+        elementsSelectable={true}
       >
         <Background />
         <Controls />
@@ -991,15 +1067,19 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           {/* Глобальное меню (клик по фону) */}
           {menu.type === 'pane' ? (
             <>
-              <button style={menuBtn} onClick={() => handleMenuAction('expand-all')}>
-                Развернуть все группы
-              </button>
-              <button style={menuBtn} onClick={() => handleMenuAction('collapse-all')}>
-                Свернуть все группы
-              </button>
-              <div style={{ height: 1, background: '#eee', margin: '4px 0' }} />
+              {hasActiveGroups && (
+                <>
+                  <button style={menuBtn} onClick={() => handleMenuAction('expand-all')}>
+                    🔓 Развернуть все группы
+                  </button>
+                  <button style={menuBtn} onClick={() => handleMenuAction('collapse-all')}>
+                    🔒 Свернуть все группы
+                  </button>
+                  <div style={{ height: 1, background: '#eee', margin: '4px 0' }} />
+                </>
+              )}
               <button style={menuBtn} onClick={() => handleMenuAction('fit-view')}>
-                Показать всё
+                📐 Показать всё
               </button>
             </>
           ) : menu.node && menu.node.isCollapsedGroup ? (

@@ -1,37 +1,37 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { GraphObject, GraphRelation, PathAlgorithm } from "../types/graph";
-import GraphCanvas from "./GraphCanvas";
-import ObjectCard from "./ObjectCard";
-import RelationCard from "./RelationCard";
-import AddObjectModal from "./modals/AddObjectModal";
-import AddRelationModal from "./modals/AddRelationModal";
-import AddObjectTypeModal from "./modals/AddObjectTypeModal";
-import AddRelationTypeModal from "./modals/AddRelationTypeModal";
-import FilterModal from "./modals/FilterModal";
-import SettingsModal from "./modals/SettingsModal";
-import Sidebar from "./Sidebar";
-import LayoutSelector from "./LayoutSelector";
-import BulkActionsPanel from "./BulkActionsPanel";
-import BulkChangeTypeModal from "./modals/BulkChangeTypeModal";
-import HistoryPanel from "./HistoryPanel";
-import SettingsButton from "./SettingsButton";
-import SearchPanel from "./SearchPanel";
-import AnalyticsDashboard from "./AnalyticsDashboard";
-import TopToolbar from "./TopToolbar";
-import { toast } from "react-toastify";
-import { useAuth } from "../contexts/AuthContext";
-import { useMultiSelection } from "../hooks/useMultiSelection";
-import { useHistory } from "../hooks/useHistory";
-import { useLayoutManager } from "../hooks/useLayoutManager";
-import { usePathFinding } from "../hooks/usePathFinding";
-import { useGraphData } from "../hooks/useGraphData";
-import { useGraphFilters } from "../hooks/useGraphFilters";
-import { useBulkOperations } from "../hooks/useBulkOperations";
-import { useTimelineFilter } from "../hooks/useTimelineFilter";
-import { useNodeGrouping } from "../hooks/useNodeGrouping";
-import TimelinePanel from "./TimelinePanel";
-import GeoMapView from "./GeoMapView";
-import GroupInfoPanel from "./GroupInfoPanel";
+import React, { useEffect, useState, useMemo } from 'react';
+import { GraphObject, GraphRelation, PathAlgorithm } from '../types/graph';
+import GraphCanvas from './GraphCanvas';
+import ObjectCard from './ObjectCard';
+import RelationCard from './RelationCard';
+import AddObjectModal from './modals/AddObjectModal';
+import AddRelationModal from './modals/AddRelationModal';
+import AddObjectTypeModal from './modals/AddObjectTypeModal';
+import AddRelationTypeModal from './modals/AddRelationTypeModal';
+import FilterModal from './modals/FilterModal';
+import SettingsModal from './modals/SettingsModal';
+import Sidebar from './Sidebar';
+import LayoutSelector from './LayoutSelector';
+import BulkActionsPanel from './BulkActionsPanel';
+import BulkChangeTypeModal from './modals/BulkChangeTypeModal';
+import HistoryPanel from './HistoryPanel';
+import SettingsButton from './SettingsButton';
+import SearchPanel from './SearchPanel';
+import AnalyticsDashboard from './AnalyticsDashboard';
+import TopToolbar from './TopToolbar';
+import { toast } from 'react-toastify';
+import { useAuth } from '../contexts/AuthContext';
+import { useMultiSelection } from '../hooks/useMultiSelection';
+import { useHistory } from '../hooks/useHistory';
+import { useLayoutManager } from '../hooks/useLayoutManager';
+import { usePathFinding } from '../hooks/usePathFinding';
+import { useGraphData } from '../hooks/useGraphData';
+import { useGraphFilters } from '../hooks/useGraphFilters';
+import { useBulkOperations } from '../hooks/useBulkOperations';
+import { useTimelineFilter } from '../hooks/useTimelineFilter';
+import { useNodeGrouping } from '../hooks/useNodeGrouping';
+import TimelinePanel from './TimelinePanel';
+import GeoMapView from './GeoMapView';
+import GroupInfoPanel from './GroupInfoPanel';
 
 export default function GraphView() {
   const { user, isAuthenticated } = useAuth();
@@ -73,7 +73,9 @@ export default function GraphView() {
 
   // Custom Hooks
   const { selectedIds, toggleSelection, selectAll, clearSelection } = useMultiSelection();
-  const { history, currentIndex, addAction, undo, redo, canUndo, canRedo } = useHistory({ maxSize: 20 });
+  const { history, currentIndex, addAction, undo, redo, canUndo, canRedo } = useHistory({
+    maxSize: 20,
+  });
   const { path, findPath } = usePathFinding();
 
   const {
@@ -119,12 +121,14 @@ export default function GraphView() {
     onAddHistoryAction: addAction,
   });
 
-  const { filters, filteredNodes, filteredEdges, applyFilters, hasActiveFilters } = useGraphFilters({
-    nodes,
-    edges,
-    objectTypes,
-    relationTypes,
-  });
+  const { filters, filteredNodes, filteredEdges, applyFilters, hasActiveFilters } = useGraphFilters(
+    {
+      nodes,
+      edges,
+      objectTypes,
+      relationTypes,
+    }
+  );
 
   const { bulkDelete, bulkChangeType } = useBulkOperations({
     nodes,
@@ -147,7 +151,7 @@ export default function GraphView() {
     dateBoundaries,
     stats: timelineStats,
     filterEdgesByTimeline,
-    filterNodesByTimeline
+    filterNodesByTimeline,
   } = useTimelineFilter({ edges: filteredEdges, nodes: filteredNodes });
 
   // Apply timeline filter to edges
@@ -177,24 +181,24 @@ export default function GraphView() {
 
   // Event Handlers
   const handleNodeAction = (action: string, node: GraphObject) => {
-    if (action === "create-relation") {
+    if (action === 'create-relation') {
       if (addRelation.source && !addRelation.target && node.id !== addRelation.source.id) {
-        setAddRelation((r) => ({ ...r, target: node }));
+        setAddRelation(r => ({ ...r, target: node }));
         setAddRelationOpen(true);
       } else {
         setAddRelation({ source: node, target: null });
       }
-    } else if (action === "edit") {
+    } else if (action === 'edit') {
       setEditNode(node);
-    } else if (action === "delete") {
-      if (window.confirm("Удалить объект?")) {
+    } else if (action === 'delete') {
+      if (window.confirm('Удалить объект?')) {
         deleteObject(node);
       }
-    } else if (action === "hide") {
+    } else if (action === 'hide') {
       hideNode(node.id);
-    } else if (action === "expand") {
+    } else if (action === 'expand') {
       expandNode(node.id);
-    } else if (action === "expand-group") {
+    } else if (action === 'expand-group') {
       // Для мета-узлов — развернуть группу
       if (node._collapsedGroupId) {
         toggleGroupCollapse(node._collapsedGroupId);
@@ -211,7 +215,7 @@ export default function GraphView() {
       setSelected(null); // Скрываем карточку обычного объекта
       return;
     }
-    setSelected({ type: "node", data: node });
+    setSelected({ type: 'node', data: node });
     setSelectedGroup(null);
   };
 
@@ -231,7 +235,7 @@ export default function GraphView() {
   };
 
   const handleDeleteEdge = async (edge: GraphRelation) => {
-    if (window.confirm("Удалить связь?")) {
+    if (window.confirm('Удалить связь?')) {
       await deleteRelation(edge);
     }
   };
@@ -253,15 +257,16 @@ export default function GraphView() {
     toast.info(`Выбрано ${nodes.length} объект(ов)`);
   };
 
-  const filteredRelationTypes = addRelation.source && addRelation.source.objectTypeId
-    ? relationTypes.filter((rt) => rt.objectTypeId === addRelation.source!.objectTypeId)
-    : relationTypes;
+  const filteredRelationTypes =
+    addRelation.source && addRelation.source.objectTypeId
+      ? relationTypes.filter(rt => rt.objectTypeId === addRelation.source!.objectTypeId)
+      : relationTypes;
 
   const nodesWithPositions = useMemo(() => {
     return groupedTransformedNodes.map((node: GraphObject) => ({
       ...node,
-      x: typeof node.PositionX === "number" ? node.PositionX : 0,
-      y: typeof node.PositionY === "number" ? node.PositionY : 0,
+      x: typeof node.PositionX === 'number' ? node.PositionX : 0,
+      y: typeof node.PositionY === 'number' ? node.PositionY : 0,
     }));
   }, [groupedTransformedNodes]);
 
@@ -316,8 +321,17 @@ export default function GraphView() {
   }, [selectedIds, nodes, undo, redo, clearSelection, searchPanelOpen]);
 
   return (
-    <div style={{ width: "100vw", height: "100vh", background: "#f4f6fa", overflow: "hidden" }}>
-      <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "#f4f6fa", overflow: "hidden" }}>
+    <div style={{ width: '100vw', height: '100vh', background: '#f4f6fa', overflow: 'hidden' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+          width: '100vw',
+          background: '#f4f6fa',
+          overflow: 'hidden',
+        }}
+      >
         {/* Top Toolbar */}
         <TopToolbar
           canEdit={canEdit}
@@ -344,14 +358,18 @@ export default function GraphView() {
           hasActiveFilters={hasActiveFilters}
         />
 
-        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           <Sidebar
             objectTypes={objectTypes}
             relationTypes={relationTypes}
             onAddObjectType={() => setAddObjectTypeOpen(true)}
             onAddRelationType={() => setAddRelationTypeOpen(true)}
-            onDeleteObjectType={(id) => window.confirm("Удалить тип объекта?") && deleteObjectType(id)}
-            onDeleteRelationType={(id) => window.confirm("Удалить тип связи?") && deleteRelationType(id)}
+            onDeleteObjectType={id =>
+              window.confirm('Удалить тип объекта?') && deleteObjectType(id)
+            }
+            onDeleteRelationType={id =>
+              window.confirm('Удалить тип связи?') && deleteRelationType(id)
+            }
             selectedAlgorithm={selectedAlgorithm}
             onAlgorithmChange={setSelectedAlgorithm}
             // Grouping props
@@ -364,11 +382,29 @@ export default function GraphView() {
             onCollapseAllGroups={collapseAllGroups}
             onExpandAllGroups={expandAllGroups}
           />
-          <div style={{ flex: 1, position: "relative", minWidth: 0, minHeight: 0 }}>
-
+          <div style={{ flex: 1, position: 'relative', minWidth: 0, minHeight: 0 }}>
             {objectTypes.length === 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 20, fontFamily: "Segoe UI, sans-serif", color: "#5f6368" }}>
-                <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.3 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  gap: 20,
+                  fontFamily: 'Segoe UI, sans-serif',
+                  color: '#5f6368',
+                }}
+              >
+                <svg
+                  width="120"
+                  height="120"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  style={{ opacity: 0.3 }}
+                >
                   <circle cx="12" cy="5" r="3" />
                   <circle cx="5" cy="19" r="3" />
                   <circle cx="19" cy="19" r="3" />
@@ -376,15 +412,42 @@ export default function GraphView() {
                   <line x1="12" y1="8" x2="19" y2="16" />
                 </svg>
                 <h2 style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>Граф пустой</h2>
-                <p style={{ margin: 0, fontSize: 16, textAlign: "center", maxWidth: 400 }}>
+                <p style={{ margin: 0, fontSize: 16, textAlign: 'center', maxWidth: 400 }}>
                   Начните с создания типов объектов в боковой панели, затем добавьте объекты на граф
                 </p>
-                <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
-                  <button onClick={() => setAddObjectTypeOpen(true)} style={{ background: "#2196f3", color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", boxShadow: "0 2px 8px rgba(33,150,243,0.3)", transition: "all 0.2s" }}>
+                <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+                  <button
+                    onClick={() => setAddObjectTypeOpen(true)}
+                    style={{
+                      background: '#2196f3',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '12px 24px',
+                      fontSize: 16,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(33,150,243,0.3)',
+                      transition: 'all 0.2s',
+                    }}
+                  >
                     Создать первый тип объекта
                   </button>
                   {objectTypes.length > 0 && canEdit && (
-                    <button onClick={() => setAddObjectOpen(true)} style={{ background: "#fff", color: "#2196f3", border: "2px solid #2196f3", borderRadius: 8, padding: "12px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", transition: "all 0.2s" }}>
+                    <button
+                      onClick={() => setAddObjectOpen(true)}
+                      style={{
+                        background: '#fff',
+                        color: '#2196f3',
+                        border: '2px solid #2196f3',
+                        borderRadius: 8,
+                        padding: '12px 24px',
+                        fontSize: 16,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                    >
                       Добавить объект
                     </button>
                   )}
@@ -393,17 +456,19 @@ export default function GraphView() {
             ) : (
               <>
                 {/* View Mode Toggle */}
-                <div style={{
-                  position: 'absolute',
-                  top: 12,
-                  right: 12,
-                  zIndex: 1000,
-                  display: 'flex',
-                  background: '#fff',
-                  borderRadius: 8,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                  overflow: 'hidden',
-                }}>
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 12,
+                    right: 12,
+                    zIndex: 1000,
+                    display: 'flex',
+                    background: '#fff',
+                    borderRadius: 8,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                    overflow: 'hidden',
+                  }}
+                >
                   <button
                     onClick={() => setViewMode('graph')}
                     style={{
@@ -445,7 +510,7 @@ export default function GraphView() {
                     nodes={nodesWithPositions}
                     edges={groupedTransformedEdges}
                     relationTypes={relationTypes}
-                    onSelectNode={(node) => {
+                    onSelectNode={node => {
                       const isShiftPressed = (window.event as KeyboardEvent)?.shiftKey;
                       if (isShiftPressed) {
                         toggleSelection(node.id, true);
@@ -454,12 +519,12 @@ export default function GraphView() {
                         clearSelection();
                       }
                     }}
-                    onSelectEdge={(edge) => setSelected({ type: "edge", data: edge })}
+                    onSelectEdge={edge => setSelected({ type: 'edge', data: edge })}
                     onNodeAction={handleNodeAction}
                     onNodesPositionChange={updateNodesPositions}
                     selectedNodes={selectedIds}
                     selectedAlgorithm={selectedAlgorithm}
-                    onNodeDoubleClick={(node) => {
+                    onNodeDoubleClick={node => {
                       if (node.isCollapsedGroup && node._collapsedGroupId) {
                         toggleGroupCollapse(node._collapsedGroupId);
                       } else {
@@ -471,17 +536,25 @@ export default function GraphView() {
                       setSelectedGroup(null);
                       clearSelection();
                     }}
+                    onCollapseAllGroups={() => {
+                      collapseAllGroups();
+                      toast.success('Все группы свёрнуты');
+                    }}
+                    onExpandAllGroups={() => {
+                      expandAllGroups();
+                      toast.success('Все группы развёрнуты');
+                    }}
                   />
                 ) : (
                   <GeoMapView
                     nodes={nodesWithPositions}
                     edges={timelineFilteredEdges}
                     relationTypes={relationTypes}
-                    onSelectNode={(node) => {
+                    onSelectNode={node => {
                       handleSelectNode(node);
                       clearSelection();
                     }}
-                    onSelectEdge={(edge) => setSelected({ type: "edge", data: edge })}
+                    onSelectEdge={edge => setSelected({ type: 'edge', data: edge })}
                     selectedNodes={selectedIds}
                   />
                 )}
@@ -490,9 +563,11 @@ export default function GraphView() {
                 {selectedGroup && selectedGroup._collapsedNodeIds && (
                   <GroupInfoPanel
                     groupNode={selectedGroup}
-                    nodesInGroup={nodes.filter(n => selectedGroup._collapsedNodeIds?.includes(n.id))}
+                    nodesInGroup={nodes.filter(n =>
+                      selectedGroup._collapsedNodeIds?.includes(n.id)
+                    )}
                     objectTypes={objectTypes}
-                    onNodeClick={(node) => {
+                    onNodeClick={node => {
                       // При клике на узел в списке переходим к нему (разворачиваем группу)
                       if (selectedGroup._collapsedGroupId) {
                         toggleGroupCollapse(selectedGroup._collapsedGroupId);
@@ -509,8 +584,8 @@ export default function GraphView() {
                     onClose={() => setSelectedGroup(null)}
                   />
                 )}
-                {selected?.type === "node" && <ObjectCard object={selected.data} />}
-                {selected?.type === "edge" && (
+                {selected?.type === 'node' && <ObjectCard object={selected.data} />}
+                {selected?.type === 'edge' && (
                   <RelationCard
                     relation={selected.data}
                     onEdit={() => handleEditEdge(selected.data)}
@@ -524,14 +599,16 @@ export default function GraphView() {
 
         {/* Timeline Panel - Positioned as overlay above bottom bar */}
         {isTimelineVisible && (
-          <div style={{
-            position: "absolute",
-            bottom: 48, // Height of status bar
-            left: 0,
-            right: 0,
-            zIndex: 9999,
-            boxShadow: "0 -2px 10px rgba(0,0,0,0.1)"
-          }}>
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 48, // Height of status bar
+              left: 0,
+              right: 0,
+              zIndex: 9999,
+              boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
+            }}
+          >
             <TimelinePanel
               histogramData={histogramData}
               dateBoundaries={dateBoundaries}
@@ -548,33 +625,58 @@ export default function GraphView() {
         )}
 
         {/* Bottom Status Bar */}
-        <div style={{ height: 48, background: "#23272f", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", fontSize: 13, zIndex: 101 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-            <div style={{ color: "#aaa" }}>
-              Узлов: {filteredNodes.length}/{nodes.length} | Связей: {timelineFilteredEdges.length}/{edges.length}
-              {hasActiveFilters && <span style={{ color: "#ff9800", marginLeft: 8 }}>• Фильтры активны</span>}
+        <div
+          style={{
+            height: 48,
+            background: '#23272f',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 24px',
+            fontSize: 13,
+            zIndex: 101,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <div style={{ color: '#aaa' }}>
+              Узлов: {filteredNodes.length}/{nodes.length} | Связей: {timelineFilteredEdges.length}/
+              {edges.length}
+              {hasActiveFilters && (
+                <span style={{ color: '#ff9800', marginLeft: 8 }}>• Фильтры активны</span>
+              )}
             </div>
 
             {/* Timeline Toggle Button */}
             <button
               onClick={() => setIsTimelineVisible(!isTimelineVisible)}
               style={{
-                background: isTimelineVisible ? "rgba(255,255,255,0.2)" : "transparent",
-                border: "1px solid rgba(255,255,255,0.3)",
+                background: isTimelineVisible ? 'rgba(255,255,255,0.2)' : 'transparent',
+                border: '1px solid rgba(255,255,255,0.3)',
                 borderRadius: 4,
-                color: "#fff",
-                padding: "4px 12px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
+                color: '#fff',
+                padding: '4px 12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
                 gap: 6,
                 fontSize: 12,
-                transition: "all 0.2s"
+                transition: 'all 0.2s',
               }}
             >
               <span>📅</span>
               Timeline
-              {isTimelineEnabled && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4caf50", display: "inline-block" }} />}
+              {isTimelineEnabled && (
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: '#4caf50',
+                    display: 'inline-block',
+                  }}
+                />
+              )}
             </button>
 
             {/* Hide/Show All Toggle Button */}
@@ -583,28 +685,28 @@ export default function GraphView() {
                 if (isHiddenMode()) {
                   showAll();
                 } else {
-                  if (window.confirm("Скрыть все объекты? Вы сможете добавить их через поиск.")) {
+                  if (window.confirm('Скрыть все объекты? Вы сможете добавить их через поиск.')) {
                     hideAll();
                   }
                 }
               }}
               style={{
-                background: isHiddenMode() ? "rgba(76, 175, 80, 0.3)" : "transparent",
-                border: `1px solid ${isHiddenMode() ? "rgba(76, 175, 80, 0.5)" : "rgba(255,255,255,0.3)"}`,
+                background: isHiddenMode() ? 'rgba(76, 175, 80, 0.3)' : 'transparent',
+                border: `1px solid ${isHiddenMode() ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255,255,255,0.3)'}`,
                 borderRadius: 4,
-                color: "#fff",
-                padding: "4px 12px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
+                color: '#fff',
+                padding: '4px 12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
                 gap: 6,
                 fontSize: 12,
-                transition: "all 0.2s"
+                transition: 'all 0.2s',
               }}
-              title={isHiddenMode() ? "Показать весь граф" : "Скрыть все для расследования"}
+              title={isHiddenMode() ? 'Показать весь граф' : 'Скрыть все для расследования'}
             >
-              <span>{isHiddenMode() ? "👁" : "🙈"}</span>
-              {isHiddenMode() ? "Показать все" : "Скрыть все"}
+              <span>{isHiddenMode() ? '👁' : '🙈'}</span>
+              {isHiddenMode() ? 'Показать все' : 'Скрыть все'}
             </button>
           </div>
         </div>
@@ -612,69 +714,84 @@ export default function GraphView() {
         {/* Modals */}
         <AddObjectModal
           open={addObjectOpen || !!editNode}
-          onClose={() => { setAddObjectOpen(false); setEditNode(null); }}
+          onClose={() => {
+            setAddObjectOpen(false);
+            setEditNode(null);
+          }}
           onCreate={addObject}
           onEdit={updateObject}
           objectTypes={objectTypes}
-          editData={editNode ? {
-            id: editNode.id,
-            name: editNode.name,
-            objectTypeId: editNode.objectTypeId,
-            properties: (() => {
-              // Обработка свойств: поддержка старого формата (Key/Value) и нового (key/value)
-              if (!editNode.properties) return {};
+          editData={
+            editNode
+              ? {
+                  id: editNode.id,
+                  name: editNode.name,
+                  objectTypeId: editNode.objectTypeId,
+                  properties: (() => {
+                    // Обработка свойств: поддержка старого формата (Key/Value) и нового (key/value)
+                    if (!editNode.properties) return {};
 
-              if (Array.isArray(editNode.properties)) {
-                return editNode.properties.reduce((acc: any, p: any) => {
-                  const key = p.key || p.Key;
-                  const value = p.value || p.Value;
-                  if (key) acc[key] = value || '';
-                  return acc;
-                }, {});
-              }
+                    if (Array.isArray(editNode.properties)) {
+                      return editNode.properties.reduce((acc: any, p: any) => {
+                        const key = p.key || p.Key;
+                        const value = p.value || p.Value;
+                        if (key) acc[key] = value || '';
+                        return acc;
+                      }, {});
+                    }
 
-              if (typeof editNode.properties === "object") {
-                return editNode.properties;
-              }
+                    if (typeof editNode.properties === 'object') {
+                      return editNode.properties;
+                    }
 
-              return {};
-            })(),
-            color: editNode.color,
-            icon: editNode.icon,
-          } : undefined}
+                    return {};
+                  })(),
+                  color: editNode.color,
+                  icon: editNode.icon,
+                }
+              : undefined
+          }
         />
 
         <AddRelationModal
           open={addRelationOpen || !!editEdge}
-          onClose={() => { setAddRelation({ source: null, target: null }); setAddRelationOpen(false); setEditEdge(null); }}
+          onClose={() => {
+            setAddRelation({ source: null, target: null });
+            setAddRelationOpen(false);
+            setEditEdge(null);
+          }}
           onCreate={handleAddRelationSubmit}
           onEdit={updateRelation}
           relationTypes={filteredRelationTypes}
           sourceId={addRelation.source?.id || (editEdge ? editEdge.source : 0)}
           targetId={addRelation.target?.id || (editEdge ? editEdge.target : 0)}
-          editData={editEdge ? {
-            id: editEdge.id,
-            relationTypeId: editEdge.relationTypeId,
-            properties: (() => {
-              // Обработка свойств: поддержка старого формата (Key/Value) и нового (key/value)
-              if (!editEdge.properties) return {};
+          editData={
+            editEdge
+              ? {
+                  id: editEdge.id,
+                  relationTypeId: editEdge.relationTypeId,
+                  properties: (() => {
+                    // Обработка свойств: поддержка старого формата (Key/Value) и нового (key/value)
+                    if (!editEdge.properties) return {};
 
-              if (Array.isArray(editEdge.properties)) {
-                return editEdge.properties.reduce((acc: any, p: any) => {
-                  const key = p.key || p.Key;
-                  const value = p.value || p.Value;
-                  if (key) acc[key] = value || '';
-                  return acc;
-                }, {});
-              }
+                    if (Array.isArray(editEdge.properties)) {
+                      return editEdge.properties.reduce((acc: any, p: any) => {
+                        const key = p.key || p.Key;
+                        const value = p.value || p.Value;
+                        if (key) acc[key] = value || '';
+                        return acc;
+                      }, {});
+                    }
 
-              if (typeof editEdge.properties === "object") {
-                return editEdge.properties;
-              }
+                    if (typeof editEdge.properties === 'object') {
+                      return editEdge.properties;
+                    }
 
-              return {};
-            })(),
-          } : undefined}
+                    return {};
+                  })(),
+                }
+              : undefined
+          }
         />
 
         <AddObjectTypeModal
@@ -726,26 +843,25 @@ export default function GraphView() {
           />
         )}
 
-        <SettingsModal
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-        />
+        <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
         {/* Search Panel */}
         {searchPanelOpen && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            right: 0,
-            width: "400px",
-            height: "100vh",
-            zIndex: 1000,
-            boxShadow: "-4px 0 12px rgba(0,0,0,0.15)",
-            animation: "slideInRight 0.3s ease-out"
-          }}>
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              right: 0,
+              width: '400px',
+              height: '100vh',
+              zIndex: 1000,
+              boxShadow: '-4px 0 12px rgba(0,0,0,0.15)',
+              animation: 'slideInRight 0.3s ease-out',
+            }}
+          >
             <SearchPanel
               onClose={() => setSearchPanelOpen(false)}
-              onObjectSelect={async (objectId) => {
+              onObjectSelect={async objectId => {
                 const node = nodes.find(n => n.id === objectId);
                 if (node) {
                   handleSelectNode(node);
@@ -759,10 +875,10 @@ export default function GraphView() {
                 }
                 setSearchPanelOpen(false);
               }}
-              onRelationSelect={(relationId) => {
+              onRelationSelect={relationId => {
                 const relation = edges.find(e => e.id === relationId);
                 if (relation) {
-                  setSelected({ type: "edge", data: relation });
+                  setSelected({ type: 'edge', data: relation });
                 }
               }}
               onHighlightResults={(objectIds, relationIds) => {
@@ -775,19 +891,31 @@ export default function GraphView() {
         )}
 
         {analyticsOpen && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            right: 0,
-            width: "420px",
-            height: "100vh",
-            zIndex: 1000,
-            boxShadow: "-4px 0 12px rgba(0,0,0,0.15)",
-            background: "#fff",
-            animation: "slideInRight 0.3s ease-out"
-          }}>
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              right: 0,
+              width: '420px',
+              height: '100vh',
+              zIndex: 1000,
+              boxShadow: '-4px 0 12px rgba(0,0,0,0.15)',
+              background: '#fff',
+              animation: 'slideInRight 0.3s ease-out',
+            }}
+          >
             <div style={{ position: 'absolute', top: 8, right: 8 }}>
-              <button onClick={() => setAnalyticsOpen(false)} style={{ background: 'transparent', border: 'none', fontSize: 22, cursor: 'pointer' }}>✕</button>
+              <button
+                onClick={() => setAnalyticsOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: 22,
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
             </div>
             <AnalyticsDashboard nodes={nodes} />
           </div>
@@ -798,15 +926,15 @@ export default function GraphView() {
 }
 
 const actionBtn: React.CSSProperties = {
-  background: "none",
-  border: "none",
-  color: "#fff",
+  background: 'none',
+  border: 'none',
+  color: '#fff',
   borderRadius: 8,
-  padding: "8px 18px",
+  padding: '8px 18px',
   fontSize: 17,
   fontWeight: 500,
-  display: "flex",
-  alignItems: "center",
-  cursor: "pointer",
-  transition: "background 0.15s",
+  display: 'flex',
+  alignItems: 'center',
+  cursor: 'pointer',
+  transition: 'background 0.15s',
 };

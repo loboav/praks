@@ -285,19 +285,33 @@ export function useNodeGrouping({
       const avgX = groupNodes.reduce((sum, n) => sum + (n.PositionX || 0), 0) / groupNodes.length;
       const avgY = groupNodes.reduce((sum, n) => sum + (n.PositionY || 0), 0) / groupNodes.length;
 
+      // Определяем уникальные категории в группе
+      const uniqueCategories = new Set(groupNodes.map(n => n.objectTypeId));
+      const isMixed = uniqueCategories.size > 1;
+
       // Определяем иконку и цвет
       let color = '#9e9e9e';
       let icon = '📦';
 
-      if (group.categoryId) {
-        // O(1) Map lookup вместо .find()
-        const typeName = objectTypeMap.get(group.categoryId);
-        if (typeName) {
-          const firstNode = groupNodes[0];
-          color = firstNode?.color || '#9e9e9e';
-          icon = firstNode?.icon || '📦';
-        }
+      if (!isMixed && group.categoryId) {
+        // Все узлы одной категории - берем цвет и иконку первого узла
+        const firstNode = groupNodes[0];
+        color = firstNode?.color || '#9e9e9e';
+        icon = firstNode?.icon || '📦';
+      } else if (isMixed) {
+        // Смешанные категории - специальная иконка
+        icon = '📦';
+        color = '#9e9e9e'; // Серый цвет, градиент будет в GroupNode
       }
+
+      // Считаем количество связей, идущих ИЗ группы (наружу)
+      const groupNodeIdsSet = new Set(group.nodeIds);
+      const outgoingEdgesCount = edges.filter(edge => {
+        const sourceInGroup = groupNodeIdsSet.has(edge.source);
+        const targetInGroup = groupNodeIdsSet.has(edge.target);
+        // Связь идёт наружу если один конец в группе, другой - нет
+        return (sourceInGroup && !targetInGroup) || (!sourceInGroup && targetInGroup);
+      }).length;
 
       const metaNode: GraphObject = {
         id: -(Math.abs(stableHash(group.id)) + 1), // Стабильный уникальный отрицательный ID
@@ -313,10 +327,14 @@ export function useNodeGrouping({
         _collapsedCount: group.nodeIds.length,
         _collapsedGroupId: group.id,
         _groupPropertyValue: group.propertyValue,
-        _groupNodeNames: groupNodes.map(n => n.name).slice(0, 5),
+        _groupNodeNames: groupNodes.map(n => n.name),
+        _groupEdgeCount: outgoingEdgesCount,
+        _groupIsMixed: isMixed,
       } as GraphObject & {
         _groupPropertyValue: string;
         _groupNodeNames: string[];
+        _groupEdgeCount: number;
+        _groupIsMixed: boolean;
       };
 
       metaNodes.push(metaNode);
@@ -396,9 +414,9 @@ export function useNodeGrouping({
           ...edge,
           source: newSource,
           target: newTarget,
-          // Сбрасываем ID чтобы ReactFlow не сходил с ума от дубликатов, 
+          // Сбрасываем ID чтобы ReactFlow не сходил с ума от дубликатов,
           // но лучше использовать стабильный ID на основе ключа
-          id: parseInt(stableHash(edgeKey).toString().slice(0, 9)) // Генерируем стабильный числовой ID
+          id: parseInt(stableHash(edgeKey).toString().slice(0, 9)), // Генерируем стабильный числовой ID
         });
       }
     });

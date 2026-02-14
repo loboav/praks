@@ -39,7 +39,9 @@ export interface GraphObject {
   _collapsedCount?: number; // Количество узлов
   _collapsedGroupId?: string; // ID группы для разворачивания
   _groupPropertyValue?: string; // Значение свойства группировки (напр. "Москва")
-  _groupNodeNames?: string[]; // Имена первых N узлов для tooltip
+  _groupNodeNames?: string[]; // Имена узлов для tooltip
+  _groupEdgeCount?: number; // Количество связей, идущих наружу из группы
+  _groupIsMixed?: boolean; // Флаг смешанных категорий (разные типы узлов в группе)
 }
 
 export interface GraphRelation {
