@@ -50,6 +50,8 @@ export interface GraphRelation {
   relationType?: RelationType;
   properties: Record<string, string>;
   color?: string; // HEX или CSS-цвет
+  // Свойства для агрегированных рёбер (при группировке)
+  _aggregatedEdgeCount?: number; // Количество оригинальных рёбер в группе
 }
 
 // Типы алгоритмов поиска пути

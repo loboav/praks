@@ -54,7 +54,20 @@ interface UseNodeGroupingReturn {
 }
 
 const STORAGE_KEY_RULES = 'graph_grouping_rules';
-const STORAGE_KEY_COLLAPSED = 'graph_grouping_collapsed';
+const STORAGE_KEY_EXPANDED = 'graph_grouping_expanded';
+
+/**
+ * Простая хеш-функция для генерации стабильных отрицательных ID мета-узлов
+ */
+function stableHash(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  }
+  return hash;
+}
+
+let _ruleIdCounter = 0;
 
 /**
  * Хук для группировки узлов по свойствам (по паттерну Linkurious)
@@ -74,10 +87,10 @@ export function useNodeGrouping({
     }
   });
 
-  // Состояние сворачивания групп
-  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => {
+  // Множество РАЗВЁРНУТЫХ групп (по умолчанию все свёрнуты)
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_COLLAPSED);
+      const saved = localStorage.getItem(STORAGE_KEY_EXPANDED);
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch {
       return new Set();
@@ -90,8 +103,8 @@ export function useNodeGrouping({
   }, [rules]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_COLLAPSED, JSON.stringify([...collapsedGroupIds]));
-  }, [collapsedGroupIds]);
+    localStorage.setItem(STORAGE_KEY_EXPANDED, JSON.stringify([...expandedGroupIds]));
+  }, [expandedGroupIds]);
 
   // Активное правило
   const activeRule = useMemo(() => rules.find(r => r.isActive) || null, [rules]);
@@ -113,7 +126,7 @@ export function useNodeGrouping({
   // Создание правила
   const createRule = useCallback((title: string, propertyKey: string, categoryIds?: number[]) => {
     const newRule: GroupingRule = {
-      id: `rule-${Date.now()}`,
+      id: `rule-${Date.now()}-${++_ruleIdCounter}`,
       title,
       propertyKey,
       categoryIds,
@@ -136,8 +149,8 @@ export function useNodeGrouping({
         isActive: r.id === ruleId ? !r.isActive : false,
       }))
     );
-    // Сбрасываем collapsed при смене правила
-    setCollapsedGroupIds(new Set());
+    // Сбрасываем expanded при смене правила (всё свернётся)
+    setExpandedGroupIds(new Set());
   }, []);
 
   // Вычисляем группы на основе активного правила
@@ -192,48 +205,45 @@ export function useNodeGrouping({
           propertyValue,
           nodeIds,
           categoryId: categoryIds.size === 1 ? [...categoryIds][0] : undefined,
-          isCollapsed: collapsedGroupIds.has(groupId) || true, // По умолчанию свёрнуты
+          isCollapsed: !expandedGroupIds.has(groupId), // Свёрнуты по умолчанию, развёрнуты если в expandedGroupIds
         });
       }
     });
 
     return result;
-  }, [nodes, activeRule, objectTypes, collapsedGroupIds]);
+  }, [nodes, activeRule, objectTypes, expandedGroupIds]);
 
-  // Переключение сворачивания группы
+  // Переключение сворачивания группы (toggle expanded)
   const toggleGroupCollapse = useCallback((groupId: string) => {
-    setCollapsedGroupIds(prev => {
+    setExpandedGroupIds(prev => {
       const next = new Set(prev);
       if (next.has(groupId)) {
+        // Был развёрнут → сворачиваем
         next.delete(groupId);
       } else {
+        // Был свёрнут → разворачиваем
         next.add(groupId);
       }
       return next;
     });
   }, []);
 
-  // Свернуть все группы
+  // Свернуть все группы (очищаем expanded set)
   const collapseAllGroups = useCallback(() => {
-    setCollapsedGroupIds(new Set(groups.map(g => g.id)));
-  }, [groups]);
-
-  // Развернуть все группы
-  const expandAllGroups = useCallback(() => {
-    setCollapsedGroupIds(new Set());
+    setExpandedGroupIds(new Set());
   }, []);
 
-  // Проверка: свёрнута ли группа
+  // Развернуть все группы (добавляем все в expanded set)
+  const expandAllGroups = useCallback(() => {
+    setExpandedGroupIds(new Set(groups.map(g => g.id)));
+  }, [groups]);
+
+  // Проверка: свёрнута ли группа (свёрнута = НЕ в expandedGroupIds)
   const isGroupCollapsed = useCallback(
     (groupId: string): boolean => {
-      // Новые группы по умолчанию свёрнуты
-      if (!collapsedGroupIds.has(groupId)) {
-        const group = groups.find(g => g.id === groupId);
-        return group ? true : false;
-      }
-      return collapsedGroupIds.has(groupId);
+      return !expandedGroupIds.has(groupId);
     },
-    [collapsedGroupIds, groups]
+    [expandedGroupIds]
   );
 
   // Трансформированные узлы
@@ -252,13 +262,10 @@ export function useNodeGrouping({
 
     // Собираем ID узлов в свёрнутых группах
     const hiddenNodeIds = new Set<number>();
-    const collapsedGroups = groups.filter(g => !collapsedGroupIds.has(g.id) || true);
+    const collapsedGroups = groups.filter(g => !expandedGroupIds.has(g.id));
 
     collapsedGroups.forEach(group => {
-      const isCollapsed = !collapsedGroupIds.has(`expanded-${group.id}`);
-      if (isCollapsed) {
-        group.nodeIds.forEach(id => hiddenNodeIds.add(id));
-      }
+      group.nodeIds.forEach(id => hiddenNodeIds.add(id));
     });
 
     // Фильтруем скрытые узлы — Set.has() O(1)
@@ -268,8 +275,7 @@ export function useNodeGrouping({
     const metaNodes: GraphObject[] = [];
 
     collapsedGroups.forEach(group => {
-      const isCollapsed = !collapsedGroupIds.has(`expanded-${group.id}`);
-      if (!isCollapsed) return;
+      // Все группы в collapsedGroups гарантированно свёрнуты
 
       // O(1) Map lookup вместо .filter() + .includes() O(n×m)
       const groupNodes = group.nodeIds
@@ -294,7 +300,7 @@ export function useNodeGrouping({
       }
 
       const metaNode: GraphObject = {
-        id: -Date.now() - Math.random() * 1000, // Уникальный отрицательный ID
+        id: -(Math.abs(stableHash(group.id)) + 1), // Стабильный уникальный отрицательный ID
         name: `${group.propertyValue} ×${group.nodeIds.length}`,
         objectTypeId: group.categoryId || 0,
         properties: {},
@@ -317,7 +323,7 @@ export function useNodeGrouping({
     });
 
     return [...visibleNodes, ...metaNodes];
-  }, [nodes, activeRule, groups, collapsedGroupIds, objectTypes]);
+  }, [nodes, activeRule, groups, expandedGroupIds, objectTypes]);
 
   // Трансформированные рёбра
   const transformedEdges = useMemo((): GraphRelation[] => {
@@ -337,8 +343,7 @@ export function useNodeGrouping({
     const nodeToGroupMeta = new Map<number, number>();
 
     groups.forEach(group => {
-      const isCollapsed = !collapsedGroupIds.has(`expanded-${group.id}`);
-      if (isCollapsed) {
+      if (!expandedGroupIds.has(group.id)) {
         // O(1) Map lookup вместо .find() O(n)
         const metaNodeId = groupIdToMetaNodeId.get(group.id);
         if (metaNodeId !== undefined) {
@@ -354,13 +359,14 @@ export function useNodeGrouping({
     }
 
     // Трансформируем рёбра
-    const resultEdges: GraphRelation[] = [];
-    const seenEdges = new Set<string>();
+    const resultEdgesMap = new Map<string, GraphRelation>();
+    const edgeCounts = new Map<string, number>();
 
     edges.forEach(edge => {
       let newSource = edge.source;
       let newTarget = edge.target;
 
+      // Если узлы принадлежат свернутым группам, заменяем их ID на ID мета-узлов
       if (nodeToGroupMeta.has(edge.source)) {
         newSource = nodeToGroupMeta.get(edge.source)!;
       }
@@ -368,23 +374,53 @@ export function useNodeGrouping({
         newTarget = nodeToGroupMeta.get(edge.target)!;
       }
 
-      // Пропускаем рёбра внутри одной группы
+      // Пропускаем рёбра внутри одной группы (петли на мета-узле не нужны)
       if (newSource === newTarget) return;
 
-      // Дедупликация
-      const edgeKey = `${Math.min(newSource, newTarget)}-${Math.max(newSource, newTarget)}`;
-      if (seenEdges.has(edgeKey)) return;
-      seenEdges.add(edgeKey);
+      // Ключ для уникального ребра между двумя узлами (независимо от направления и ТИПА)
+      // Мы схлопываем ВСЕ связи между А и Б в одну, чтобы не перегружать граф
+      const sourceId = typeof newSource === 'number' ? newSource : String(newSource);
+      const targetId = typeof newTarget === 'number' ? newTarget : String(newTarget);
 
-      resultEdges.push({
-        ...edge,
-        source: newSource,
-        target: newTarget,
-      });
+      // Сортируем ID чтобы направление не влияло на ключ
+      const [minId, maxId] = [sourceId, targetId].sort();
+      const edgeKey = `${minId}-${maxId}`;
+
+      const currentCount = edgeCounts.get(edgeKey) || 0;
+      edgeCounts.set(edgeKey, currentCount + 1);
+
+      // Сохраняем только первое попавшееся ребро как представителя
+      // Можно было бы создать создать фиктивное ребро типа "Mixed", но пока берем первое
+      if (!resultEdgesMap.has(edgeKey)) {
+        resultEdgesMap.set(edgeKey, {
+          ...edge,
+          source: newSource,
+          target: newTarget,
+          // Сбрасываем ID чтобы ReactFlow не сходил с ума от дубликатов, 
+          // но лучше использовать стабильный ID на основе ключа
+          id: parseInt(stableHash(edgeKey).toString().slice(0, 9)) // Генерируем стабильный числовой ID
+        });
+      }
+    });
+
+    // Формируем итоговый массив и проставляем счетчики
+    const resultEdges = Array.from(resultEdgesMap.values()).map(edge => {
+      const sourceId = typeof edge.source === 'number' ? edge.source : String(edge.source);
+      const targetId = typeof edge.target === 'number' ? edge.target : String(edge.target);
+      const [minId, maxId] = [sourceId, targetId].sort();
+      const edgeKey = `${minId}-${maxId}`;
+
+      const count = edgeCounts.get(edgeKey) || 1;
+
+      // Если рёбер много, добавляем свойство count
+      if (count > 1) {
+        return { ...edge, _aggregatedEdgeCount: count };
+      }
+      return edge;
     });
 
     return resultEdges;
-  }, [edges, groups, collapsedGroupIds, transformedNodes, activeRule]);
+  }, [edges, groups, expandedGroupIds, transformedNodes, activeRule]);
 
   return {
     rules,

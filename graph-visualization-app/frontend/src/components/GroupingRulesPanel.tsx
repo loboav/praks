@@ -48,6 +48,20 @@ export default function GroupingRulesPanel({
         localStorage.setItem('sidebar_grouping_expanded', String(isExpanded));
     }, [isExpanded]);
 
+    // Автоматический выбор категорий при смене свойства
+    useEffect(() => {
+        if (newPropertyKey === 'objectTypeId') {
+            setSelectedCategories(objectTypes.map(t => t.id));
+        } else {
+            const matchingTypes = objectTypes.filter(t => {
+                // Если схем нет, считаем что подходит (fallback)
+                if (!t.propertySchemas || t.propertySchemas.length === 0) return true;
+                return t.propertySchemas.some(s => s.key === newPropertyKey);
+            });
+            setSelectedCategories(matchingTypes.map(t => t.id));
+        }
+    }, [newPropertyKey, objectTypes]);
+
     const handleCreate = () => {
         if (!newTitle.trim()) return;
         onCreateRule(
@@ -57,7 +71,7 @@ export default function GroupingRulesPanel({
         );
         setNewTitle('');
         setNewPropertyKey('objectTypeId');
-        setSelectedCategories([]);
+        // selectedCategories сбросится через эффект
         setIsCreating(false);
     };
 
@@ -215,7 +229,13 @@ export default function GroupingRulesPanel({
                                 Применить к типам:
                             </div>
                             <div style={{ maxHeight: 100, overflowY: 'auto', marginTop: 4 }}>
-                                {objectTypes.map(type => (
+                                {objectTypes.filter(type => {
+                                    if (newPropertyKey === 'objectTypeId') return true;
+                                    // Если схем нет, показываем всё (fallback)
+                                    if (!type.propertySchemas || type.propertySchemas.length === 0) return true;
+                                    // Иначе проверяем наличие свойства в схеме
+                                    return type.propertySchemas.some(s => s.key === newPropertyKey);
+                                }).map(type => (
                                     <label key={type.id} style={checkboxLabelStyle}>
                                         <input
                                             type="checkbox"

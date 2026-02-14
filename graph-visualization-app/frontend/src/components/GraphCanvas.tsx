@@ -3,6 +3,7 @@ import ReactFlow, { Controls, Background, useNodesState, NodeChange, Node, Edge 
 import 'reactflow/dist/style.css';
 import { GraphObject, GraphRelation, RelationType, PathAlgorithm } from '../types/graph';
 import { apiClient } from '../utils/apiClient';
+import GroupNode from './GroupNode';
 
 interface GraphCanvasProps {
   nodes: GraphObject[];
@@ -74,7 +75,8 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
-    node: GraphObject;
+    node: GraphObject | null; // null для глобального меню
+    type?: 'pane' | 'node'; // Тип меню
   } | null>(null);
 
   // Fallback state for find-path flow when parent handler doesn't implement it
@@ -128,32 +130,39 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   const selectedNodesSet = useMemo(() => new Set(combinedSelectedNodes), [combinedSelectedNodes]);
   const selectedEdgesSet = useMemo(() => new Set(combinedSelectedEdges), [combinedSelectedEdges]);
 
+  // Регистрируем типы узлов (мемоизируем, чтобы не пересоздавать)
+  const nodeTypes = useMemo(() => ({ group: GroupNode }), []);
+
   // Мемоизация преобразования узлов для ReactFlow
   const initialRfNodes = useMemo<Node[]>(() => {
     return nodes.map(node => {
       const isSelected = selectedNodesSet.has(node.id);
       const isCollapsedGroup = node.isCollapsedGroup === true;
 
-      // Специальный стиль для свёрнутых групп (мета-узлов)
-      const collapsedStyle: React.CSSProperties = isCollapsedGroup
-        ? {
-            border: '3px dashed #9e9e9e',
-            borderRadius: '50%',
-            padding: 16,
-            background: 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            minWidth: 80,
-            minHeight: 80,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 600,
-            fontSize: 14,
-          }
-        : {};
+      // Если это сгруппированный узел (мета-узел)
+      if (isCollapsedGroup) {
+        return {
+          id: node.id.toString(),
+          type: 'group', // Используем кастомный компонент
+          data: {
+            label: node._groupPropertyValue || node.name, // Название группы (напр. "Москва")
+            count: node._collapsedCount || 0,
+            color: node.color,
+            icon: node.icon,
+            orig: node,
+          },
+          position: {
+            x: node.PositionX ?? 400,
+            y: node.PositionY ?? 300,
+          },
+          selected: isSelected, // Передаем selected prop в GroupNode
+        };
+      }
 
+      // Обычный узел
       return {
         id: node.id.toString(),
+        type: 'default', // Стандартный узел
         data: {
           label: node.icon ? `${node.icon} ${node.name}` : node.name,
           orig: node,
@@ -162,19 +171,24 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           x: node.PositionX ?? 400,
           y: node.PositionY ?? 300,
         },
-        style: isCollapsedGroup
-          ? collapsedStyle
-          : {
-              border: isSelected ? '4px solid #1976d2' : `2px solid ${node.color || '#2196f3'}`,
-              borderRadius: 8,
-              padding: 8,
-              background: '#fff',
-              color: node.color || undefined,
-              boxShadow: isSelected ? '0 0 0 6px rgba(25,118,210,0.12)' : undefined,
-            },
+        style: {
+          border: isSelected ? '4px solid #1976d2' : `2px solid ${node.color || '#2196f3'}`,
+          borderRadius: 8,
+          padding: 8,
+          background: '#fff',
+          color: node.color || undefined,
+          boxShadow: isSelected ? '0 0 0 6px rgba(25,118,210,0.12)' : undefined,
+          minWidth: 80,
+          minHeight: 80,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: 600,
+          fontSize: 14,
+        },
       };
     });
-  }, [nodes, combinedSelectedNodes]);
+  }, [nodes, combinedSelectedNodes, selectedNodesSet]);
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState(initialRfNodes);
 
@@ -229,6 +243,24 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         if (!node) return currentNode;
 
         const isSelected = selectedNodesSet.has(node.id);
+
+        // Для групповых узлов обновляем selected prop и data (если нужно), но не style
+        if (currentNode.type === 'group') {
+          return {
+            ...currentNode,
+            selected: isSelected,
+            data: {
+              ...currentNode.data,
+              // Обновляем данные, если они изменились (хотя это делает setRfNodes выше,
+              // но здесь мы идем по currentNodes, которые могут быть старыми в плане data,
+              // если мы попали в ветку без hasDataChanges. Но ветку без hasDataChanges
+              // мы используем только для обновления selection/style.
+              // Так что просто обновляем selection.
+            }
+          };
+        }
+
+        // Для обычных узлов обновляем style
         return {
           ...currentNode,
           style: {
@@ -238,6 +270,13 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
             background: '#fff',
             color: node.color || undefined,
             boxShadow: isSelected ? '0 0 0 6px rgba(25,118,210,0.12)' : undefined,
+            minWidth: 80,
+            minHeight: 80,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 600,
+            fontSize: 14,
           },
         };
       });
@@ -282,16 +321,16 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         },
         labelStyle: showLabel
           ? {
-              fontSize: isHighlighted ? 11 : 10,
-              fontWeight: isHighlighted ? 500 : 400,
-              fill: isHighlighted ? '#555' : '#666',
-            }
+            fontSize: isHighlighted ? 11 : 10,
+            fontWeight: isHighlighted ? 500 : 400,
+            fill: isHighlighted ? '#555' : '#666',
+          }
           : undefined,
         labelBgStyle: showLabel
           ? {
-              fill: '#fff',
-              fillOpacity: isHighlighted ? 0.7 : 0.5,
-            }
+            fill: '#fff',
+            fillOpacity: isHighlighted ? 0.7 : 0.5,
+          }
           : undefined,
         // animated: false по умолчанию — CSS анимация на тысячах рёбер = #1 убийца производительности
         // Анимируем ТОЛЬКО highlighted рёбра (их обычно 5-20 штук)
@@ -367,6 +406,12 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     setMenu({ x: event.clientX, y: event.clientY, node: node.data.orig });
   }, []);
 
+  // Контекстное меню по правому клику на фон
+  const onPaneContextMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    setMenu({ x: event.clientX, y: event.clientY, type: 'pane', node: null });
+  }, []);
+
   // Обработка клика по узлу
   const handleNodeClick = useCallback(
     (_: any, node: any) => {
@@ -393,10 +438,53 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     [edgesMap, onSelectEdge]
   );
 
+  // Обработка двойного клика по узлу
+  const handleNodeDoubleClick = useCallback(
+    (event: React.MouseEvent, node: any) => {
+      // Если это сгруппированный узел, разворачиваем его
+      if (node.data.orig.isCollapsedGroup) {
+        if (onNodeAction) {
+          (onNodeAction as any)('expand-group', node.data.orig);
+        }
+        return;
+      }
+
+      if (onNodeDoubleClick) {
+        onNodeDoubleClick(node.data.orig);
+      }
+    },
+    [onNodeDoubleClick, onNodeAction]
+  );
+
   // Действия из меню
   const handleMenuAction = useCallback(
     (action: string) => {
       if (!menu) {
+        setMenu(null);
+        return;
+      }
+
+      // Глобальные действия (не требуют node)
+      if (action === 'expand-all') {
+        if (onNodeAction) (onNodeAction as any)('expand-all', null);
+        setMenu(null);
+        return;
+      }
+      if (action === 'collapse-all') {
+        if (onNodeAction) (onNodeAction as any)('collapse-all', null);
+        setMenu(null);
+        return;
+      }
+      if (action === 'fit-view') {
+        // fitView() вызывается через ref, но у нас его нет под рукой в этом компоненте,
+        // можно прокинуть или просто сбросить зум
+        // Пока оставим заглушку или уберем кнопку
+        setMenu(null);
+        return;
+      }
+
+      // Действия с узлом (требуют node)
+      if (!menu.node) {
         setMenu(null);
         return;
       }
@@ -466,7 +554,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                     `http://localhost:5000/api/dijkstra-path?fromId=${from}&toId=${to}`
                   );
                   if (r2.ok) data = await r2.json();
-                } catch (e) {}
+                } catch (e) { }
               }
 
               if (!data) {
@@ -649,7 +737,9 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
       if (onNodeAction && typeof onNodeAction === 'function') {
         try {
-          onNodeAction(action, menu.node);
+          if (menu.node) {
+            onNodeAction(action, menu.node);
+          }
         } catch (err) {
           console.error('GraphCanvas: ошибка при вызове onNodeAction', err);
         }
@@ -677,27 +767,21 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     setPathModalPos(null);
   }, []);
 
-  // Handle double click on node for Expand feature
-  const handleNodeDoubleClick = useCallback(
-    (_: React.MouseEvent, node: any) => {
-      if (onNodeDoubleClick && node.data?.orig) {
-        onNodeDoubleClick(node.data.orig);
-      }
-    },
-    [onNodeDoubleClick]
-  );
+
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
+        nodeTypes={nodeTypes}
         onNodesChange={handleNodesChange}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeClick={handleEdgeClick}
         onPaneClick={onPaneClick}
+        onPaneContextMenu={onPaneContextMenu}
         panOnDrag={panOnDrag}
         fitView
         onlyRenderVisibleElements
@@ -904,8 +988,22 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
             minWidth: 160,
           }}
         >
-          {/* Показываем разные действия для мета-узлов и обычных узлов */}
-          {menu.node.isCollapsedGroup ? (
+          {/* Глобальное меню (клик по фону) */}
+          {menu.type === 'pane' ? (
+            <>
+              <button style={menuBtn} onClick={() => handleMenuAction('expand-all')}>
+                Развернуть все группы
+              </button>
+              <button style={menuBtn} onClick={() => handleMenuAction('collapse-all')}>
+                Свернуть все группы
+              </button>
+              <div style={{ height: 1, background: '#eee', margin: '4px 0' }} />
+              <button style={menuBtn} onClick={() => handleMenuAction('fit-view')}>
+                Показать всё
+              </button>
+            </>
+          ) : menu.node && menu.node.isCollapsedGroup ? (
+            /* Меню для мета-узла */
             <>
               <button
                 style={{ ...menuBtn, color: '#4caf50', fontWeight: 600 }}
@@ -913,8 +1011,13 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
               >
                 🔓 Развернуть группу ({menu.node._collapsedCount} узлов)
               </button>
+              <div style={{ height: 1, background: '#eee', margin: '4px 0' }} />
+              <button style={menuBtn} onClick={() => handleMenuAction('select-group-nodes')}>
+                Выбрать узлы группы
+              </button>
             </>
           ) : (
+            /* Меню для обычного узла */
             <>
               <button style={menuBtn} onClick={() => handleMenuAction('create-relation')}>
                 Создать связь
