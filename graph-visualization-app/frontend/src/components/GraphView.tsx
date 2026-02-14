@@ -29,9 +29,11 @@ import { useGraphFilters } from '../hooks/useGraphFilters';
 import { useBulkOperations } from '../hooks/useBulkOperations';
 import { useTimelineFilter } from '../hooks/useTimelineFilter';
 import { useNodeGrouping } from '../hooks/useNodeGrouping';
+import { useCommonNeighbors } from '../hooks/useCommonNeighbors';
 import TimelinePanel from './TimelinePanel';
 import GeoMapView from './GeoMapView';
 import GroupInfoPanel from './GroupInfoPanel';
+import CommonNeighborsPanel from './CommonNeighborsPanel';
 
 export default function GraphView() {
   const { user, isAuthenticated } = useAuth();
@@ -58,6 +60,7 @@ export default function GraphView() {
   const [addRelationTypeOpen, setAddRelationTypeOpen] = useState(false);
   const [isTimelineVisible, setIsTimelineVisible] = useState(false);
   const [viewMode, setViewMode] = useState<'graph' | 'map'>('graph');
+  const [commonNeighborsPanelOpen, setCommonNeighborsPanelOpen] = useState(false);
 
   // Состояние выбранного алгоритма
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<PathAlgorithm>(() => {
@@ -77,6 +80,13 @@ export default function GraphView() {
     maxSize: 20,
   });
   const { path, findPath } = usePathFinding();
+  const {
+    results: commonNeighborsResults,
+    loading: commonNeighborsLoading,
+    error: commonNeighborsError,
+    findCommonNeighbors,
+    clearResults: clearCommonNeighbors,
+  } = useCommonNeighbors();
 
   const {
     nodes,
@@ -255,6 +265,30 @@ export default function GraphView() {
   const handleSelectAllNodes = () => {
     selectAll(nodes.map(n => n.id));
     toast.info(`Выбрано ${nodes.length} объект(ов)`);
+  };
+
+  const handleFindCommonNeighbors = async () => {
+    if (selectedIds.length < 2) {
+      toast.warning('Выберите минимум 2 узла');
+      return;
+    }
+
+    await findCommonNeighbors(selectedIds);
+    setCommonNeighborsPanelOpen(true);
+    toast.success(`Ищем общих знакомых между ${selectedIds.length} узлами...`);
+  };
+
+  const handleHighlightCommonNeighbors = (nodeIds: number[]) => {
+    clearSelection();
+    nodeIds.forEach(id => toggleSelection(id, true));
+    toast.info(`Выделено ${nodeIds.length} узлов`);
+  };
+
+  const handleCommonNeighborNodeClick = (nodeId: number) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (node) {
+      handleSelectNode(node);
+    }
   };
 
   const filteredRelationTypes =
@@ -584,6 +618,22 @@ export default function GraphView() {
                     onClose={() => setSelectedGroup(null)}
                   />
                 )}
+
+                {/* Панель общих знакомых */}
+                {commonNeighborsPanelOpen && commonNeighborsResults && (
+                  <CommonNeighborsPanel
+                    requestedNodes={commonNeighborsResults.requestedNodes}
+                    commonNeighbors={commonNeighborsResults.commonNeighbors}
+                    allNodes={nodes}
+                    onClose={() => {
+                      setCommonNeighborsPanelOpen(false);
+                      clearCommonNeighbors();
+                    }}
+                    onHighlight={handleHighlightCommonNeighbors}
+                    onNodeClick={handleCommonNeighborNodeClick}
+                  />
+                )}
+
                 {selected?.type === 'node' && <ObjectCard object={selected.data} />}
                 {selected?.type === 'edge' && (
                   <RelationCard
@@ -821,6 +871,7 @@ export default function GraphView() {
           onDelete={handleBulkDelete}
           onChangeType={() => setBulkChangeTypeOpen(true)}
           onClearSelection={clearSelection}
+          onFindCommonNeighbors={handleFindCommonNeighbors}
         />
 
         <BulkChangeTypeModal

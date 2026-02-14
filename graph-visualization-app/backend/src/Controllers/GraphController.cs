@@ -436,5 +436,94 @@ namespace GraphVisualizationApp.Controllers
 
         [HttpGet("paths")]
         public async Task<IActionResult> FindPaths([FromQuery] int fromId, [FromQuery] int toId) => Ok(await _pathfindingService.FindPathsAsync(fromId, toId));
+
+        // Поиск общих соседей (Common Neighbors) между несколькими узлами
+        [HttpPost("common-neighbors")]
+        [AllowAnonymous]
+        public async Task<IActionResult> FindCommonNeighbors([FromBody] CommonNeighborsRequest request)
+        {
+            if (request == null || request.NodeIds == null || request.NodeIds.Count < 2)
+            {
+                return BadRequest(new { error = "At least 2 node IDs required" });
+            }
+
+            var allObjects = await _objectService.GetObjectsAsync();
+            var allRelations = await _relationService.GetRelationsAsync();
+
+            // Проверяем что все узлы существуют
+            var existingNodeIds = new HashSet<int>(allObjects.Select(o => o.Id));
+            var missingNodes = request.NodeIds.Where(id => !existingNodeIds.Contains(id)).ToList();
+            if (missingNodes.Any())
+            {
+                return NotFound(new { error = "Some nodes not found", missingNodeIds = missingNodes });
+            }
+
+            // Для каждого узла находим всех соседей
+            var neighborSets = new List<HashSet<int>>();
+            foreach (var nodeId in request.NodeIds)
+            {
+                var neighbors = new HashSet<int>();
+                foreach (var rel in allRelations)
+                {
+                    if (rel.Source == nodeId && !request.NodeIds.Contains(rel.Target))
+                        neighbors.Add(rel.Target);
+                    else if (rel.Target == nodeId && !request.NodeIds.Contains(rel.Source))
+                        neighbors.Add(rel.Source);
+                }
+                neighborSets.Add(neighbors);
+            }
+
+            // Находим пересечение всех множеств = общие соседи
+            var commonNeighbors = neighborSets.First();
+            foreach (var set in neighborSets.Skip(1))
+            {
+                commonNeighbors.IntersectWith(set);
+            }
+
+            // Собираем информацию о каждом общем соседе
+            var results = new List<object>();
+            foreach (var neighborId in commonNeighbors)
+            {
+                var neighbor = allObjects.FirstOrDefault(o => o.Id == neighborId);
+                if (neighbor == null) continue;
+
+                // Считаем количество связей с каждым из запрашиваемых узлов
+                var connections = new Dictionary<int, int>();
+                foreach (var nodeId in request.NodeIds)
+                {
+                    var count = allRelations.Count(r =>
+                        (r.Source == nodeId && r.Target == neighborId) ||
+                        (r.Target == nodeId && r.Source == neighborId)
+                    );
+                    connections[nodeId] = count;
+                }
+
+                var totalConnections = connections.Values.Sum();
+
+                results.Add(new
+                {
+                    nodeId = neighborId,
+                    node = neighbor,
+                    totalConnections,
+                    connections,
+                    strength = (double)totalConnections / request.NodeIds.Count // "сила" связи
+                });
+            }
+
+            // Сортируем по силе связи (убывание)
+            var sortedResults = results.OrderByDescending(r => ((dynamic)r).strength).ToList();
+
+            return Ok(new
+            {
+                requestedNodes = request.NodeIds,
+                commonNeighbors = sortedResults,
+                count = sortedResults.Count
+            });
+        }
+
+        public class CommonNeighborsRequest
+        {
+            public required List<int> NodeIds { get; set; }
+        }
     }
 }

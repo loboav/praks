@@ -5,6 +5,7 @@ interface BulkActionsPanelProps {
   onDelete: () => void;
   onChangeType: () => void;
   onClearSelection: () => void;
+  onFindCommonNeighbors?: () => void;
 }
 
 export default function BulkActionsPanel({
@@ -12,6 +13,7 @@ export default function BulkActionsPanel({
   onDelete,
   onChangeType,
   onClearSelection,
+  onFindCommonNeighbors,
 }: BulkActionsPanelProps) {
   if (selectedCount === 0) return null;
 
@@ -33,31 +35,62 @@ export default function BulkActionsPanel({
         animation: 'slideDown 0.3s ease-out',
       }}
     >
-      <div style={{ 
-        fontSize: '14px', 
-        fontWeight: 600, 
-        color: '#2196F3',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px'
-      }}>
-        <span style={{ 
-          background: '#2196F3', 
-          color: 'white', 
-          borderRadius: '50%', 
-          width: '24px', 
-          height: '24px',
+      <div
+        style={{
+          fontSize: '14px',
+          fontWeight: 600,
+          color: '#2196F3',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '12px'
-        }}>
+          gap: '8px',
+        }}
+      >
+        <span
+          style={{
+            background: '#2196F3',
+            color: 'white',
+            borderRadius: '50%',
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+          }}
+        >
           {selectedCount}
         </span>
         <span>выбрано</span>
       </div>
 
       <div style={{ width: '1px', height: '24px', background: '#e0e0e0' }} />
+
+      {selectedCount >= 2 && onFindCommonNeighbors && (
+        <button
+          onClick={onFindCommonNeighbors}
+          style={{
+            background: 'none',
+            border: '1px solid #9c27b0',
+            color: '#9c27b0',
+            borderRadius: '6px',
+            padding: '6px 12px',
+            fontSize: '13px',
+            fontWeight: 500,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = '#f3e5f5';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'none';
+          }}
+        >
+          🔗 Кто связывает?
+        </button>
+      )}
 
       <button
         onClick={onChangeType}
@@ -74,10 +107,10 @@ export default function BulkActionsPanel({
           alignItems: 'center',
           gap: '6px',
         }}
-        onMouseEnter={(e) => {
+        onMouseEnter={e => {
           e.currentTarget.style.background = '#E3F2FD';
         }}
-        onMouseLeave={(e) => {
+        onMouseLeave={e => {
           e.currentTarget.style.background = 'none';
         }}
       >
@@ -99,10 +132,10 @@ export default function BulkActionsPanel({
           alignItems: 'center',
           gap: '6px',
         }}
-        onMouseEnter={(e) => {
+        onMouseEnter={e => {
           e.currentTarget.style.background = '#FFEBEE';
         }}
-        onMouseLeave={(e) => {
+        onMouseLeave={e => {
           e.currentTarget.style.background = 'none';
         }}
       >
@@ -120,10 +153,10 @@ export default function BulkActionsPanel({
           fontSize: '13px',
           cursor: 'pointer',
         }}
-        onMouseEnter={(e) => {
+        onMouseEnter={e => {
           e.currentTarget.style.background = '#f5f5f5';
         }}
-        onMouseLeave={(e) => {
+        onMouseLeave={e => {
           e.currentTarget.style.background = 'none';
         }}
       >
