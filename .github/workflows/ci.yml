@@ -179,7 +179,7 @@ jobs:
 
       # Сборка backend образа
       - name: 🐳 Build backend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./graph-visualization-app/backend
           file: ./graph-visualization-app/backend/Dockerfile
@@ -192,7 +192,7 @@ jobs:
 
       # Сборка frontend образа
       - name: 🐳 Build frontend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./graph-visualization-app/frontend
           file: ./graph-visualization-app/frontend/Dockerfile
