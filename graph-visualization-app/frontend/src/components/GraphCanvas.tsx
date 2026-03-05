@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import ReactFlow, { Controls, Background, useNodesState, NodeChange, Node, Edge } from 'reactflow';
+import ReactFlow, { Controls, Background, useNodesState, NodeChange, Node, Edge, MarkerType } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { GraphObject, GraphRelation, RelationType, PathAlgorithm } from '../types/graph';
+import { AggregatedEdge } from '../hooks/useEdgeGrouping';
 import { apiClient } from '../utils/apiClient';
 import GroupNode from './GroupNode';
+
 
 interface GraphCanvasProps {
   nodes: GraphObject[];
@@ -22,6 +24,7 @@ interface GraphCanvasProps {
   onPaneClick?: () => void;
   onCollapseAllGroups?: () => void;
   onExpandAllGroups?: () => void;
+  onGroupSelected?: (nodeIds: number[]) => void;
 }
 
 interface HighlightProps {
@@ -30,6 +33,7 @@ interface HighlightProps {
 }
 
 const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
+  // Note: onGroupSelected is destructured below alongside other props
   nodes,
   edges,
   relationTypes,
@@ -45,6 +49,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   onNodeDoubleClick,
   onCollapseAllGroups,
   onExpandAllGroups,
+  onGroupSelected,
 }) => {
   // Local highlighting for found path
   const [selectedNodesLocal, setSelectedNodesLocal] = useState<number[]>([]);
@@ -142,6 +147,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     return nodes.map(node => {
       const isSelected = selectedNodesSet.has(node.id);
       const isCollapsedGroup = node.isCollapsedGroup === true;
+
 
       // Если это сгруппированный узел (мета-узел)
       if (isCollapsedGroup) {
@@ -346,46 +352,46 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
       // Получаем название типа связи
       const edgeLabel = relationTypesMap.get(edge.relationTypeId) || '';
 
+      // Проверяем агрегированное ребро
+      const aggEdge = (edge as AggregatedEdge)._isAggregated ? (edge as AggregatedEdge) : null;
+      const aggCount = aggEdge?._aggregatedEdgeCount ?? 0;
+      const aggColor = '#ff8f00'; // amber — хорошо выделяется
+      const displayLabel = aggEdge ? `${edgeLabel} ×${aggCount}` : edgeLabel;
+
       return {
         id: edge.id.toString(),
         source: edge.source.toString(),
         target: edge.target.toString(),
-        // Показываем label: всегда на highlighted, на остальных - если граф не очень большой
-        // ВСЕГДА показываем label (оптимизация через onlyRenderVisibleElements)
-        label: edgeLabel,
+        label: displayLabel,
         style: {
-          stroke: isHighlighted ? highlightColor : getEdgeColor(edge),
-          strokeWidth: isHighlighted ? 6 : 2,
-          opacity: isHighlighted ? 1 : hasHighlightedEdges ? 0.18 : 1, // Всегда яркие связи
-          // strokeDasharray ТОЛЬКО на highlighted (SVG dash = дорогая операция при тысячах рёбер)
-          strokeDasharray: isHighlighted ? '6 6' : undefined,
+          stroke: isHighlighted ? highlightColor : aggEdge ? aggColor : getEdgeColor(edge),
+          strokeWidth: isHighlighted ? 6 : aggEdge ? 4 : 2,
+          opacity: isHighlighted ? 1 : hasHighlightedEdges ? 0.18 : 1,
+          strokeDasharray: isHighlighted ? '6 6' : aggEdge ? '8 3' : undefined,
         },
         markerEnd: {
-          type: 'arrowclosed',
-          color: isHighlighted ? highlightColor : getEdgeColor(edge),
+          type: MarkerType.ArrowClosed,
+          color: isHighlighted ? highlightColor : aggEdge ? aggColor : getEdgeColor(edge),
           width: 20,
           height: 20,
         },
-        // ВСЕГДА показываем стили для label
         labelStyle: {
-          fontSize: isHighlighted ? baseFontSize + 2 : baseFontSize,
-          fontWeight: isHighlighted ? 700 : 500,
-          fill: isHighlighted ? '#000' : '#424242',
+          fontSize: isHighlighted ? baseFontSize + 2 : aggEdge ? baseFontSize + 2 : baseFontSize,
+          fontWeight: isHighlighted || aggEdge ? 700 : 500,
+          fill: isHighlighted ? '#000' : aggEdge ? '#e65100' : '#424242',
           fontFamily: 'Segoe UI, Tahoma, system-ui, sans-serif',
           letterSpacing: '0.3px',
         },
         labelBgStyle: {
-          fill: isHighlighted ? '#fffde7' : '#ffffff',
-          fillOpacity: isHighlighted ? 1 : 0.85,
+          fill: isHighlighted ? '#fffde7' : aggEdge ? '#fff8e1' : '#ffffff',
+          fillOpacity: isHighlighted || aggEdge ? 1 : 0.85,
           rx: 4,
           ry: 4,
-          stroke: isHighlighted ? highlightColor : '#e0e0e0',
-          strokeWidth: isHighlighted ? 1.5 : 0.5,
+          stroke: isHighlighted ? highlightColor : aggEdge ? aggColor : '#e0e0e0',
+          strokeWidth: isHighlighted || aggEdge ? 1.5 : 0.5,
         },
         labelBgPadding: [5, 8] as [number, number],
         labelBgBorderRadius: 4,
-        // animated: false по умолчанию — CSS анимация на тысячах рёбер = #1 убийца производительности
-        // Анимируем ТОЛЬКО highlighted рёбра (их обычно 5-20 штук)
         animated: isHighlighted,
       };
     });
@@ -615,7 +621,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
                     `http://localhost:5000/api/dijkstra-path?fromId=${from}&toId=${to}`
                   );
                   if (r2.ok) data = await r2.json();
-                } catch (e) {}
+                } catch (e) { }
               }
 
               if (!data) {
@@ -796,6 +802,17 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         }
       }
 
+      // group-selected: произвольная группировка выбранных узлов
+      if (action === 'group-selected') {
+        const nodeIds =
+          propsSelectedNodes && propsSelectedNodes.length >= 2 ? [...propsSelectedNodes] : [];
+        if (onGroupSelected && nodeIds.length >= 2) {
+          onGroupSelected(nodeIds);
+        }
+        setMenu(null);
+        return;
+      }
+
       if (onNodeAction && typeof onNodeAction === 'function') {
         try {
           if (menu.node) {
@@ -808,7 +825,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
       setMenu(null);
     },
-    [menu, onNodeAction, fallbackFindFirst, nodes]
+    [menu, onNodeAction, fallbackFindFirst, nodes, propsSelectedNodes, onGroupSelected]
   );
 
   // Закрыть меню при клике вне
@@ -1120,6 +1137,17 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
               <button style={menuBtn} onClick={() => handleMenuAction('find-path')}>
                 Поиск пути
               </button>
+              {onGroupSelected && propsSelectedNodes && propsSelectedNodes.length >= 2 && (
+                <>
+                  <div style={{ height: 1, background: '#eee', margin: '4px 0' }} />
+                  <button
+                    style={{ ...menuBtn, color: '#1976d2', fontWeight: 600 }}
+                    onClick={() => handleMenuAction('group-selected')}
+                  >
+                    🗂 Сгруппировать выбранные ({propsSelectedNodes.length})
+                  </button>
+                </>
+              )}
             </>
           )}
         </div>

@@ -29,11 +29,14 @@ import { useGraphFilters } from '../hooks/useGraphFilters';
 import { useBulkOperations } from '../hooks/useBulkOperations';
 import { useTimelineFilter } from '../hooks/useTimelineFilter';
 import { useNodeGrouping } from '../hooks/useNodeGrouping';
+import { useEdgeGrouping } from '../hooks/useEdgeGrouping';
 import { useCommonNeighbors } from '../hooks/useCommonNeighbors';
 import TimelinePanel from './TimelinePanel';
 import GeoMapView from './GeoMapView';
 import GroupInfoPanel from './GroupInfoPanel';
 import CommonNeighborsPanel from './CommonNeighborsPanel';
+import EdgeGroupingPanel from './EdgeGroupingPanel';
+import AggregatedEdgeCard from './AggregatedEdgeCard';
 
 export default function GraphView() {
   const { user, isAuthenticated } = useAuth();
@@ -80,6 +83,8 @@ export default function GraphView() {
     maxSize: 20,
   });
   const { path, findPath } = usePathFinding();
+  // Selected node IDs as array for manual grouping
+  const selectedNodeIdsArray = useMemo(() => Array.from(selectedIds), [selectedIds]);
   const {
     results: commonNeighborsResults,
     loading: commonNeighborsLoading,
@@ -173,16 +178,32 @@ export default function GraphView() {
   const {
     rules: groupingRules,
     createRule: createGroupingRule,
+    createManualGroup: createManualGroupingRule,
     deleteRule: deleteGroupingRule,
     toggleRule: toggleGroupingRule,
     activeRule: activeGroupingRule,
+    groups: nodeGroups,
     toggleGroupCollapse,
     collapseAllGroups,
     expandAllGroups,
     transformedNodes: groupedTransformedNodes,
     transformedEdges: groupedTransformedEdges,
     availableProperties,
+    computeGroupStats,
   } = useNodeGrouping({ nodes: filteredNodes, edges: timelineFilteredEdges, objectTypes });
+
+  // Edge Grouping Hook — независимая группировка параллельных рёбер по типу
+  const {
+    enabledTypeIds: edgeGroupingEnabledTypes,
+    toggleType: toggleEdgeGroupingType,
+    enableAll: enableAllEdgeGrouping,
+    disableAll: disableAllEdgeGrouping,
+    groupedEdges: edgeGroupedEdges,
+    selectedAggEdge,
+    selectAggEdge,
+    findAggEdge,
+    groupCount: edgeGroupCount,
+  } = useEdgeGrouping(groupedTransformedEdges, relationTypes);
 
   // Load initial data
   useEffect(() => {
@@ -411,10 +432,18 @@ export default function GraphView() {
             activeGroupingRule={activeGroupingRule}
             availableProperties={availableProperties}
             onCreateGroupingRule={createGroupingRule}
+            onCreateManualGroupingRule={createManualGroupingRule}
             onDeleteGroupingRule={deleteGroupingRule}
             onToggleGroupingRule={toggleGroupingRule}
             onCollapseAllGroups={collapseAllGroups}
             onExpandAllGroups={expandAllGroups}
+            selectedNodeIds={selectedNodeIdsArray}
+            groupedEdgesForStats={groupedTransformedEdges}
+            edgeGroupingEnabledTypes={edgeGroupingEnabledTypes}
+            edgeGroupCount={edgeGroupCount}
+            onToggleEdgeGroupingType={toggleEdgeGroupingType}
+            onEnableAllEdgeGrouping={() => enableAllEdgeGrouping(relationTypes.map(rt => rt.id))}
+            onDisableAllEdgeGrouping={disableAllEdgeGrouping}
           />
           <div style={{ flex: 1, position: 'relative', minWidth: 0, minHeight: 0 }}>
             {objectTypes.length === 0 ? (
@@ -542,7 +571,7 @@ export default function GraphView() {
                 {viewMode === 'graph' ? (
                   <GraphCanvas
                     nodes={nodesWithPositions}
-                    edges={groupedTransformedEdges}
+                    edges={edgeGroupedEdges}
                     relationTypes={relationTypes}
                     onSelectNode={node => {
                       const isShiftPressed = (window.event as KeyboardEvent)?.shiftKey;
@@ -553,7 +582,17 @@ export default function GraphView() {
                         clearSelection();
                       }
                     }}
-                    onSelectEdge={edge => setSelected({ type: 'edge', data: edge })}
+                    onSelectEdge={edge => {
+                      // Check if it's an aggregated edge from edge grouping
+                      const aggEdge = findAggEdge(edge.id);
+                      if (aggEdge) {
+                        selectAggEdge(aggEdge);
+                        setSelected(null);
+                        setSelectedGroup(null);
+                        return;
+                      }
+                      setSelected({ type: 'edge', data: edge });
+                    }}
                     onNodeAction={handleNodeAction}
                     onNodesPositionChange={updateNodesPositions}
                     selectedNodes={selectedIds}
@@ -578,6 +617,12 @@ export default function GraphView() {
                       expandAllGroups();
                       toast.success('Все группы развёрнуты');
                     }}
+                    onGroupSelected={nodeIds => {
+                      const label = `Группа ${nodeIds.length} узлов`;
+                      createManualGroupingRule(label, nodeIds);
+                      toast.success(`Создана группа из ${nodeIds.length} узлов`);
+                      clearSelection();
+                    }}
                   />
                 ) : (
                   <GeoMapView
@@ -594,28 +639,55 @@ export default function GraphView() {
                 )}
 
                 {/* Панель информации о группе */}
-                {selectedGroup && selectedGroup._collapsedNodeIds && (
-                  <GroupInfoPanel
-                    groupNode={selectedGroup}
-                    nodesInGroup={nodes.filter(n =>
-                      selectedGroup._collapsedNodeIds?.includes(n.id)
-                    )}
-                    objectTypes={objectTypes}
-                    onNodeClick={node => {
-                      // При клике на узел в списке переходим к нему (разворачиваем группу)
-                      if (selectedGroup._collapsedGroupId) {
-                        toggleGroupCollapse(selectedGroup._collapsedGroupId);
-                        // Выбираем этот узел после разворачивания (с небольшой задержкой для рендера)
-                        setTimeout(() => handleSelectNode(node), 100);
-                      }
-                    }}
-                    onExpandGroup={() => {
-                      if (selectedGroup._collapsedGroupId) {
-                        toggleGroupCollapse(selectedGroup._collapsedGroupId);
-                        setSelectedGroup(null);
-                      }
-                    }}
-                    onClose={() => setSelectedGroup(null)}
+                {selectedGroup &&
+                  selectedGroup._collapsedNodeIds &&
+                  (() => {
+                    const grpId = (selectedGroup as any)._collapsedGroupId as string | undefined;
+                    const foundGroup = nodeGroups.find(g => g.id === grpId);
+                    const groupStats = foundGroup
+                      ? computeGroupStats(foundGroup)
+                      : { nodeCount: 0, numericStats: [], dateStats: [], stringDists: [] };
+                    return (
+                      <GroupInfoPanel
+                        groupNode={selectedGroup}
+                        nodesInGroup={nodes.filter(n =>
+                          selectedGroup._collapsedNodeIds?.includes(n.id)
+                        )}
+                        objectTypes={objectTypes}
+                        group={
+                          foundGroup ?? {
+                            id: grpId ?? '',
+                            ruleId: '',
+                            propertyValue: selectedGroup.name ?? 'Группа',
+                            nodeIds: selectedGroup._collapsedNodeIds ?? [],
+                            isCollapsed: true,
+                            mode: 'manual' as const,
+                          }
+                        }
+                        stats={groupStats}
+                        onNodeClick={node => {
+                          if (grpId) {
+                            toggleGroupCollapse(grpId);
+                            setTimeout(() => handleSelectNode(node), 100);
+                          }
+                        }}
+                        onExpandGroup={() => {
+                          if (grpId) {
+                            toggleGroupCollapse(grpId);
+                            setSelectedGroup(null);
+                          }
+                        }}
+                        onClose={() => setSelectedGroup(null)}
+                      />
+                    );
+                  })()}
+
+                {/* Aggregated edge card */}
+                {selectedAggEdge && (
+                  <AggregatedEdgeCard
+                    edge={selectedAggEdge}
+                    relationTypes={relationTypes}
+                    onClose={() => selectAggEdge(null)}
                   />
                 )}
 
@@ -774,31 +846,31 @@ export default function GraphView() {
           editData={
             editNode
               ? {
-                  id: editNode.id,
-                  name: editNode.name,
-                  objectTypeId: editNode.objectTypeId,
-                  properties: (() => {
-                    // Обработка свойств: поддержка старого формата (Key/Value) и нового (key/value)
-                    if (!editNode.properties) return {};
+                id: editNode.id,
+                name: editNode.name,
+                objectTypeId: editNode.objectTypeId,
+                properties: (() => {
+                  // Обработка свойств: поддержка старого формата (Key/Value) и нового (key/value)
+                  if (!editNode.properties) return {};
 
-                    if (Array.isArray(editNode.properties)) {
-                      return editNode.properties.reduce((acc: any, p: any) => {
-                        const key = p.key || p.Key;
-                        const value = p.value || p.Value;
-                        if (key) acc[key] = value || '';
-                        return acc;
-                      }, {});
-                    }
+                  if (Array.isArray(editNode.properties)) {
+                    return editNode.properties.reduce((acc: any, p: any) => {
+                      const key = p.key || p.Key;
+                      const value = p.value || p.Value;
+                      if (key) acc[key] = value || '';
+                      return acc;
+                    }, {});
+                  }
 
-                    if (typeof editNode.properties === 'object') {
-                      return editNode.properties;
-                    }
+                  if (typeof editNode.properties === 'object') {
+                    return editNode.properties;
+                  }
 
-                    return {};
-                  })(),
-                  color: editNode.color,
-                  icon: editNode.icon,
-                }
+                  return {};
+                })(),
+                color: editNode.color,
+                icon: editNode.icon,
+              }
               : undefined
           }
         />
@@ -818,28 +890,28 @@ export default function GraphView() {
           editData={
             editEdge
               ? {
-                  id: editEdge.id,
-                  relationTypeId: editEdge.relationTypeId,
-                  properties: (() => {
-                    // Обработка свойств: поддержка старого формата (Key/Value) и нового (key/value)
-                    if (!editEdge.properties) return {};
+                id: editEdge.id,
+                relationTypeId: editEdge.relationTypeId,
+                properties: (() => {
+                  // Обработка свойств: поддержка старого формата (Key/Value) и нового (key/value)
+                  if (!editEdge.properties) return {};
 
-                    if (Array.isArray(editEdge.properties)) {
-                      return editEdge.properties.reduce((acc: any, p: any) => {
-                        const key = p.key || p.Key;
-                        const value = p.value || p.Value;
-                        if (key) acc[key] = value || '';
-                        return acc;
-                      }, {});
-                    }
+                  if (Array.isArray(editEdge.properties)) {
+                    return editEdge.properties.reduce((acc: any, p: any) => {
+                      const key = p.key || p.Key;
+                      const value = p.value || p.Value;
+                      if (key) acc[key] = value || '';
+                      return acc;
+                    }, {});
+                  }
 
-                    if (typeof editEdge.properties === 'object') {
-                      return editEdge.properties;
-                    }
+                  if (typeof editEdge.properties === 'object') {
+                    return editEdge.properties;
+                  }
 
-                    return {};
-                  })(),
-                }
+                  return {};
+                })(),
+              }
               : undefined
           }
         />

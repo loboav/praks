@@ -41,15 +41,13 @@ const GroupNode = memo(({ data, selected }: NodeProps) => {
           width: 90,
           height: 90,
           borderRadius: '50%',
-          // Внешняя граница: пунктирная серая (как в Linkurious) или сплошная синяя при выборе
-          border: selected ? '3px solid #1976d2' : '3px dashed #9e9e9e',
-          background: '#fafafa',
+          // Внешняя граница: сплошная серая (как в Linkurious)
+          border: '3px solid #e0e0e0',
+          background: '#fff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: selected
-            ? '0 0 0 4px rgba(25,118,210,0.1), 0 8px 16px rgba(0,0,0,0.15)'
-            : '0 4px 12px rgba(0,0,0,0.12)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
           transition: 'all 0.2s ease',
           position: 'relative',
           cursor: 'pointer',
@@ -145,8 +143,8 @@ const GroupNode = memo(({ data, selected }: NodeProps) => {
               boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
               border: '2px solid white',
               zIndex: 10,
-              title: 'Смешанные категории',
             }}
+            title="Смешанные категории"
           >
             ⚡
           </div>
@@ -163,7 +161,7 @@ const GroupNode = memo(({ data, selected }: NodeProps) => {
           marginTop: 8,
           fontSize: 13,
           fontWeight: 600,
-          color: selected ? '#1976d2' : '#333',
+          color: '#333',
           textAlign: 'center',
           whiteSpace: 'nowrap',
           background: 'rgba(255,255,255,0.95)',
@@ -225,6 +223,14 @@ const GroupNode = memo(({ data, selected }: NodeProps) => {
                 }
                 div:hover > .group-node-tooltip {
                     opacity: 1;
+                }
+                /* Скрыть стандартную рамку выделения ReactFlow */
+                .react-flow__node-group.selected {
+                    box-shadow: none !important;
+                }
+                .react-flow__node-group {
+                  border: none !important;
+                  background: transparent !important;
                 }
             `}</style>
     </div>
