@@ -27,6 +27,11 @@ const GroupNode = memo(({ data, selected }: NodeProps) => {
   // Иконка для смешанных групп
   const displayIcon = isMixed ? '📦' : icon;
 
+  // Динамический размер: растёт с количеством узлов
+  const size = Math.min(140, Math.max(70, 50 + count * 4));
+  const innerSize = Math.round(size * 0.65);
+  const iconSize = Math.round(size * 0.3);
+
   return (
     <div style={{ position: 'relative' }} title={tooltipContent}>
       {/* Handles для соединений (невидимые, но нужны для ReactFlow) */}
@@ -38,8 +43,8 @@ const GroupNode = memo(({ data, selected }: NodeProps) => {
       {/* Основной контейнер группы */}
       <div
         style={{
-          width: 90,
-          height: 90,
+          width: size,
+          height: size,
           borderRadius: '50%',
           // Внешняя граница: сплошная серая (как в Linkurious)
           border: '3px solid #e0e0e0',
@@ -47,8 +52,6 @@ const GroupNode = memo(({ data, selected }: NodeProps) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-          transition: 'all 0.2s ease',
           position: 'relative',
           cursor: 'pointer',
         }}
@@ -56,16 +59,15 @@ const GroupNode = memo(({ data, selected }: NodeProps) => {
         {/* Внутренний круг с цветом категории (или градиентом для смешанных) */}
         <div
           style={{
-            width: 60,
-            height: 60,
+            width: innerSize,
+            height: innerSize,
             borderRadius: '50%',
             background: isMixed ? backgroundStyle : color,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 28,
+            fontSize: iconSize,
             color: '#fff',
-            boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.15)',
             border: isMixed ? '2px solid #fff' : 'none',
           }}
         >

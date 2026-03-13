@@ -42,6 +42,13 @@ export interface GraphObject {
   _groupNodeNames?: string[]; // Имена узлов для tooltip
   _groupEdgeCount?: number; // Количество связей, идущих наружу из группы
   _groupIsMixed?: boolean; // Флаг смешанных категорий (разные типы узлов в группе)
+  // Свойства для раскрытых групп (expanded group sub-flow)
+  _expandedGroupParentId?: string; // ID parent-узла контейнера (ReactFlow Sub Flow)
+  _isExpandedGroupContainer?: boolean; // Это контейнер раскрытой группы?
+  _expandedGroupLabel?: string; // Подпись контейнера
+  _expandedGroupCount?: number; // Количество узлов в контейнере
+  _expandedGroupWidth?: number; // Ширина контейнера
+  _expandedGroupHeight?: number; // Высота контейнера
 }
 
 export interface GraphRelation {

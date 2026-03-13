@@ -598,9 +598,16 @@ export default function GraphView() {
                     selectedNodes={selectedIds}
                     selectedAlgorithm={selectedAlgorithm}
                     onNodeDoubleClick={node => {
+                      // Контейнер раскрытой группы — свернуть обратно
+                      if ((node as any)._isExpandedGroupContainer && (node as any)._collapsedGroupId) {
+                        toggleGroupCollapse((node as any)._collapsedGroupId);
+                        return;
+                      }
+                      // Мета-узел сгруппированной группы — развернуть
                       if (node.isCollapsedGroup && node._collapsedGroupId) {
                         toggleGroupCollapse(node._collapsedGroupId);
-                      } else {
+                      } else if (node.id > 0) {
+                        // Обычный узел — expand neighbors (только для реальных узлов)
                         expandNode(node.id);
                       }
                     }}

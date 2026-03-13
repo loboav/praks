@@ -5,6 +5,8 @@ import { GraphObject, GraphRelation, RelationType, PathAlgorithm } from '../type
 import { AggregatedEdge } from '../hooks/useEdgeGrouping';
 import { apiClient } from '../utils/apiClient';
 import GroupNode from './GroupNode';
+import ExpandedGroupNode from './ExpandedGroupNode';
+import ParallelEdge from './ParallelEdge';
 
 
 interface GraphCanvasProps {
@@ -140,7 +142,15 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   const selectedEdgesSet = useMemo(() => new Set(combinedSelectedEdges), [combinedSelectedEdges]);
 
   // Регистрируем типы узлов (мемоизируем, чтобы не пересоздавать)
-  const nodeTypes = useMemo(() => ({ group: GroupNode }), []);
+  const nodeTypes = useMemo(() => ({
+    group: GroupNode,
+    expandedGroup: ExpandedGroupNode,
+  }), []);
+
+  // Регистрируем типы рёбер
+  const edgeTypes = useMemo(() => ({
+    parallel: ParallelEdge,
+  }), []);
 
   // Мемоизация преобразования узлов для ReactFlow
   const initialRfNodes = useMemo<Node[]>(() => {
@@ -148,6 +158,33 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
       const isSelected = selectedNodesSet.has(node.id);
       const isCollapsedGroup = node.isCollapsedGroup === true;
 
+      // Если это контейнер раскрытой группы (ReactFlow Sub Flow parent)
+      if ((node as any)._isExpandedGroupContainer) {
+        return {
+          id: node.id.toString(), // БЫЛО: \`expanded-container-\${(node as any)._collapsedGroupId}\` - именно это ломало производительность!
+          type: 'expandedGroup',
+          data: {
+            label: (node as any)._expandedGroupLabel || node.name,
+            count: (node as any)._expandedGroupCount || 0,
+            orig: node,
+          },
+          position: {
+            x: node.PositionX ?? 0,
+            y: node.PositionY ?? 0,
+          },
+          // Явная передача width и height критически важна для onlyRenderVisibleElements!
+          // Иначе движок думает, что размер узла 0x0, и выгружает его, когда мы приближаемся 
+          width: (node as any)._expandedGroupWidth || 300,
+          height: (node as any)._expandedGroupHeight || 300,
+          style: {
+            width: (node as any)._expandedGroupWidth || 300,
+            height: (node as any)._expandedGroupHeight || 300,
+            zIndex: -1, // Контейнер всегда позади элементов
+          },
+          selectable: false,
+          draggable: true,
+        };
+      }
 
       // Если это сгруппированный узел (мета-узел)
       if (isCollapsedGroup) {
@@ -155,27 +192,28 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           id: node.id.toString(),
           type: 'group', // Используем кастомный компонент
           data: {
-            label: node._groupPropertyValue || node.name, // Название группы (напр. "Москва")
+            label: node._groupPropertyValue || node.name,
             count: node._collapsedCount || 0,
             color: node.color,
             icon: node.icon,
             orig: node,
-            nodeNames: (node as any)._groupNodeNames || [], // Имена узлов для tooltip
-            edgeCount: (node as any)._groupEdgeCount || 0, // Количество связей наружу
-            isMixed: (node as any)._groupIsMixed || false, // Флаг смешанных категорий
+            nodeNames: (node as any)._groupNodeNames || [],
+            edgeCount: (node as any)._groupEdgeCount || 0,
+            isMixed: (node as any)._groupIsMixed || false,
           },
           position: {
             x: node.PositionX ?? 400,
             y: node.PositionY ?? 300,
           },
-          selected: isSelected, // Передаем selected prop в GroupNode
+          selected: isSelected,
         };
       }
 
-      // Обычный узел
-      return {
+      // Обычный узел (может быть дочерним в раскрытой группе)
+      const parentId = (node as any)._expandedGroupParentId as string | undefined;
+      const rfNode: any = {
         id: node.id.toString(),
-        type: 'default', // Стандартный узел
+        type: 'default',
         data: {
           label: node.icon ? `${node.icon} ${node.name}` : node.name,
           orig: node,
@@ -198,9 +236,17 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           justifyContent: 'center',
           fontWeight: 600,
           fontSize: 14,
-          opacity: 1, // Всегда яркие узлы при любом зуме
+          opacity: 1,
         },
       };
+
+      // Восстанавливаем встроенную физическую привязку React Flow (Sub Flows) по просьбе пользователя
+      if (parentId) {
+        rfNode.parentId = parentId;
+        rfNode.extent = 'parent';
+      }
+
+      return rfNode;
     });
   }, [nodes, combinedSelectedNodes, selectedNodesSet]);
 
@@ -229,10 +275,23 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
             currentNode.data.orig.objectTypeId !== node.objectTypeId;
 
           // Проверяем изменение позиций из props (например, при выравнивании)
-          const positionChanged =
+          let currentAbsX = currentNode.position.x;
+          let currentAbsY = currentNode.position.y;
+          if (currentNode.parentId) {
+            const parent = currentNodesMap.get(currentNode.parentId);
+            if (parent) {
+              currentAbsX += parent.position.x;
+              currentAbsY += parent.position.y;
+            }
+          }
+
+          const isVirtual = typeof node.id === 'number' && node.id < 0;
+
+          const positionChanged = !isVirtual && (
             (node.PositionX !== undefined &&
-              Math.abs(currentNode.position.x - node.PositionX) > 1) ||
-            (node.PositionY !== undefined && Math.abs(currentNode.position.y - node.PositionY) > 1);
+              Math.abs(currentAbsX - node.PositionX) > 1) ||
+            (node.PositionY !== undefined && Math.abs(currentAbsY - node.PositionY) > 1)
+          );
 
           return dataChanged || positionChanged;
         });
@@ -257,6 +316,11 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         if (!node) return currentNode;
 
         const isSelected = selectedNodesSet.has(node.id);
+
+        // Для контейнеров раскрытых групп — ничего не обновляем
+        if (currentNode.type === 'expandedGroup') {
+          return currentNode;
+        }
 
         // Для групповых узлов обновляем selected prop и data (если нужно), но не style
         if (currentNode.type === 'group') {
@@ -308,93 +372,100 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   const rfEdges = useMemo<Edge[]>(() => {
     const hasHighlightedEdges = selectedEdgesSet.size > 0;
 
-    // Адаптивный размер шрифта в зависимости от количества рёбер
-    // Чем больше рёбер, тем меньше шрифт для оптимизации читаемости
     const baseFontSize =
       edges.length < 100
-        ? 11 // Маленький граф
+        ? 11
         : edges.length < 500
-          ? 10 // Средний граф
+          ? 10
           : edges.length < 1000
-            ? 9 // Большой граф
+            ? 9
             : edges.length < 2000
-              ? 8 // Очень большой граф
-              : 7; // Экстремально большой граф (>2000)
+              ? 8
+              : 7;
 
-    // ВСЕГДА показываем label на всех рёбрах!
-    // ReactFlow автоматически оптимизирует рендеринг благодаря:
-    // 1. onlyRenderVisibleElements - рендерит только видимые элементы
-    // 2. Виртуализация - не рисует то, что за пределами экрана
-    // 3. Canvas-based optimization - для тысяч элементов
-    const showLabelsOnAll = true;
-
-    // Цвета для разных типов связей (можно кастомизировать)
     const getEdgeColor = (edge: GraphRelation): string => {
-      // Если у связи уже есть цвет - используем его
       if (edge.color) return edge.color;
-
-      // Иначе используем цвет по умолчанию
-      return '#90caf9'; // Светло-голубой для лучшей видимости
+      return '#90caf9';
     };
 
-    return edges.map(edge => {
-      const isHighlighted = selectedEdgesSet.has(edge.id);
+    // Группируем рёбра по парам узлов для выявления параллельных связей
+    const groupedEdgesMap = new Map<string, GraphRelation[]>();
+    edges.forEach(edge => {
+      // Используем отсортированные ID для того, чтобы связи A->B и B->A попали в одну группу
+      const id1 = Math.min(edge.source, edge.target);
+      const id2 = Math.max(edge.source, edge.target);
+      const key = `${id1}-${id2}`;
 
-      // Determine color for highlighted edge
-      let highlightColor = '#d32f2f'; // Default red
-      if (isHighlighted && edgeToPathIndex.size > 0) {
-        const pathIdx = edgeToPathIndex.get(edge.id);
-        if (pathIdx !== undefined) {
-          highlightColor = PATH_COLORS[pathIdx % PATH_COLORS.length];
-        }
+      if (!groupedEdgesMap.has(key)) {
+        groupedEdgesMap.set(key, []);
       }
-
-      // Получаем название типа связи
-      const edgeLabel = relationTypesMap.get(edge.relationTypeId) || '';
-
-      // Проверяем агрегированное ребро
-      const aggEdge = (edge as AggregatedEdge)._isAggregated ? (edge as AggregatedEdge) : null;
-      const aggCount = aggEdge?._aggregatedEdgeCount ?? 0;
-      const aggColor = '#ff8f00'; // amber — хорошо выделяется
-      const displayLabel = aggEdge ? `${edgeLabel} ×${aggCount}` : edgeLabel;
-
-      return {
-        id: edge.id.toString(),
-        source: edge.source.toString(),
-        target: edge.target.toString(),
-        label: displayLabel,
-        style: {
-          stroke: isHighlighted ? highlightColor : aggEdge ? aggColor : getEdgeColor(edge),
-          strokeWidth: isHighlighted ? 6 : aggEdge ? 4 : 2,
-          opacity: isHighlighted ? 1 : hasHighlightedEdges ? 0.18 : 1,
-          strokeDasharray: isHighlighted ? '6 6' : aggEdge ? '8 3' : undefined,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: isHighlighted ? highlightColor : aggEdge ? aggColor : getEdgeColor(edge),
-          width: 20,
-          height: 20,
-        },
-        labelStyle: {
-          fontSize: isHighlighted ? baseFontSize + 2 : aggEdge ? baseFontSize + 2 : baseFontSize,
-          fontWeight: isHighlighted || aggEdge ? 700 : 500,
-          fill: isHighlighted ? '#000' : aggEdge ? '#e65100' : '#424242',
-          fontFamily: 'Segoe UI, Tahoma, system-ui, sans-serif',
-          letterSpacing: '0.3px',
-        },
-        labelBgStyle: {
-          fill: isHighlighted ? '#fffde7' : aggEdge ? '#fff8e1' : '#ffffff',
-          fillOpacity: isHighlighted || aggEdge ? 1 : 0.85,
-          rx: 4,
-          ry: 4,
-          stroke: isHighlighted ? highlightColor : aggEdge ? aggColor : '#e0e0e0',
-          strokeWidth: isHighlighted || aggEdge ? 1.5 : 0.5,
-        },
-        labelBgPadding: [5, 8] as [number, number],
-        labelBgBorderRadius: 4,
-        animated: isHighlighted,
-      };
+      groupedEdgesMap.get(key)!.push(edge);
     });
+
+    const rfEdgesResult: Edge[] = [];
+
+    // Итерируемся по группам и создаем рёбра с индексами
+    groupedEdgesMap.forEach((group) => {
+      group.forEach((edge, index) => {
+        const isHighlighted = selectedEdgesSet.has(edge.id);
+
+        let highlightColor = '#d32f2f';
+        if (isHighlighted && edgeToPathIndex.size > 0) {
+          const pathIdx = edgeToPathIndex.get(edge.id);
+          if (pathIdx !== undefined) {
+            highlightColor = PATH_COLORS[pathIdx % PATH_COLORS.length];
+          }
+        }
+
+        const edgeLabel = relationTypesMap.get(edge.relationTypeId) || '';
+        const aggCount = (edge as any)._aggregatedEdgeCount || 0;
+        const isAgg = (edge as any)._isAggregated || aggCount > 1;
+        const aggColor = '#ff8f00';
+        const displayLabel = isAgg && aggCount > 1 ? `${edgeLabel} ×${aggCount}` : edgeLabel;
+
+        rfEdgesResult.push({
+          id: edge.id.toString(),
+          source: edge.source.toString(),
+          target: edge.target.toString(),
+          label: displayLabel,
+          // Если в группе более одного ребра — используем кастомный тип 'parallel'
+          type: group.length > 1 ? 'parallel' : 'straight',
+          data: { index, total: group.length },
+          style: {
+            stroke: isHighlighted ? highlightColor : isAgg ? aggColor : getEdgeColor(edge),
+            strokeWidth: isHighlighted ? 6 : isAgg ? 4 : 2,
+            opacity: isHighlighted ? 1 : hasHighlightedEdges ? 0.18 : 1,
+            strokeDasharray: isHighlighted ? '6 6' : isAgg ? '8 3' : undefined,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: isHighlighted ? highlightColor : isAgg ? aggColor : getEdgeColor(edge),
+            width: 20,
+            height: 20,
+          },
+          labelStyle: {
+            fontSize: isHighlighted ? baseFontSize + 2 : isAgg ? baseFontSize + 2 : baseFontSize,
+            fontWeight: isHighlighted || isAgg ? 700 : 500,
+            fill: isHighlighted ? '#000' : isAgg ? '#e65100' : '#424242',
+            fontFamily: 'Segoe UI, Tahoma, system-ui, sans-serif',
+            letterSpacing: '0.3px',
+          },
+          labelBgStyle: {
+            fill: isHighlighted ? '#fffde7' : isAgg ? '#fff8e1' : '#ffffff',
+            fillOpacity: isHighlighted || isAgg ? 1 : 0.85,
+            rx: 4,
+            ry: 4,
+            stroke: isHighlighted ? highlightColor : isAgg ? aggColor : '#e0e0e0',
+            strokeWidth: isHighlighted || isAgg ? 1.5 : 0.5,
+          } as any,
+          labelBgPadding: [5, 8] as [number, number],
+          labelBgBorderRadius: 4,
+          animated: isHighlighted,
+        });
+      });
+    });
+
+    return rfEdgesResult;
   }, [edges, relationTypesMap, selectedEdgesSet, edgeToPathIndex, PATH_COLORS]);
 
   // Debounced callback для обновления позиций
@@ -442,11 +513,31 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
       if (positionChanges.length > 0 && onNodesPositionChange) {
         // Получаем текущие позиции после изменений
         setRfNodes(currentNodes => {
-          const positions = currentNodes.map((n: Node) => ({
-            id: Number(n.id),
-            x: n.position.x,
-            y: n.position.y,
-          }));
+          const containerMap = new Map<string, { x: number; y: number }>();
+          currentNodes.forEach((n: Node) => {
+            if (n.type === 'expandedGroup' || n.id.startsWith('-')) {
+              containerMap.set(n.id, n.position);
+            }
+          });
+
+          const positions = currentNodes
+            .filter((n: Node) => Number(n.id) > 0)
+            .map((n: Node) => {
+              let absX = n.position.x;
+              let absY = n.position.y;
+              if (n.parentId) {
+                const parentPos = containerMap.get(n.parentId);
+                if (parentPos) {
+                  absX += parentPos.x;
+                  absY += parentPos.y;
+                }
+              }
+              return {
+                id: Number(n.id),
+                x: absX,
+                y: absY,
+              };
+            });
 
           // Вызываем debounced обновление
           debouncedPositionUpdate(positions);
@@ -617,9 +708,8 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
               let data = await tryPrimary();
               if (!data) {
                 try {
-                  const r2 = await apiClient.get(
-                    `http://localhost:5000/api/dijkstra-path?fromId=${from}&toId=${to}`
-                  );
+                  const fallbackUrl = `${base}/api/dijkstra-path?fromId=${from}&toId=${to}`.replace(/([^:]?)\/\//g, '$1//');
+                  const r2 = await apiClient.get(fallbackUrl);
                   if (r2.ok) data = await r2.json();
                 } catch (e) { }
               }
@@ -851,6 +941,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={handleNodesChange}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
@@ -864,7 +955,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         minZoom={0.1}
         maxZoom={4}
         defaultEdgeOptions={{
-          type: 'default',
+          type: 'straight', // Прямые линии рендерятся в 10 раз быстрее кривых Безье при зуме
           style: { strokeWidth: 2 },
         }}
         // Оптимизации для больших графов (>1000 элементов)
@@ -1169,4 +1260,6 @@ const menuBtn: React.CSSProperties = {
   borderBottom: '1px solid #eee',
 };
 
+
 export default GraphCanvas;
+

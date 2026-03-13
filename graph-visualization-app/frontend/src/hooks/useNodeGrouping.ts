@@ -378,6 +378,11 @@ export function useNodeGrouping({
     const visibleNodes = nodes.filter(n => !hiddenNodeIds.has(n.id));
     const metaNodes: GraphObject[] = [];
 
+    // Множество узлов, принадлежащих раскрытым группам (для перепозиционирования)
+    const expandedGroupNodeIds = new Set<number>();
+    const expandedGroups = groups.filter(g => expandedGroupIds.has(g.id));
+    expandedGroups.forEach(g => g.nodeIds.forEach(id => expandedGroupNodeIds.add(id)));
+
     // Генерируем мета-узлы для свёрнутых групп
     collapsedGroups.forEach(group => {
       const groupNodes = group.nodeIds
@@ -437,7 +442,67 @@ export function useNodeGrouping({
       metaNodes.push(metaNode);
     });
 
-    return [...visibleNodes, ...metaNodes];
+    // ── Генерируем контейнеры для РАСКРЫТЫХ групп ────────────────────────────
+    const containerNodes: GraphObject[] = [];
+
+    expandedGroups.forEach(group => {
+      const groupNodes = group.nodeIds
+        .map(id => nodesMap.get(id))
+        .filter((n): n is GraphObject => n !== undefined);
+
+      if (groupNodes.length === 0) return;
+
+      // Центр группы
+      const avgX = groupNodes.reduce((s, n) => s + (n.PositionX ?? 0), 0) / groupNodes.length;
+      const avgY = groupNodes.reduce((s, n) => s + (n.PositionY ?? 0), 0) / groupNodes.length;
+
+      // Радиус контейнера: растёт с количеством узлов
+      const nodeSize = 100; // примерный размер узла
+      const padding = 60;
+      const R = Math.max(150, 50 * Math.sqrt(groupNodes.length)) + padding;
+      const containerSize = R * 2;
+
+      const containerIdString = `expanded-container-${group.id}`;
+      // Делаем уникальный отрицательный ID, чтобы GraphCanvas мог его штатно переварить как number
+      const containerNumericId = -(Math.abs(stableHash(containerIdString)) + 100000);
+
+      // Создаём узел-контейнер (parent)
+      containerNodes.push({
+        id: containerNumericId,
+        name: group.propertyValue,
+        objectTypeId: 0,
+        properties: {},
+        PositionX: avgX - R,
+        PositionY: avgY - R,
+        _isExpandedGroupContainer: true,
+        _expandedGroupLabel: group.propertyValue,
+        _expandedGroupCount: groupNodes.length,
+        _expandedGroupWidth: containerSize,
+        _expandedGroupHeight: containerSize,
+        _collapsedGroupId: group.id, // чтобы двойной клик на контейнере свернул группу
+      } as any);
+
+      // Create visible nodes with new positions and parent IDs
+      const circleR = R - padding - nodeSize / 2;
+      const innerVisibleNodes = groupNodes.map((node, i) => {
+        const angle = (2 * Math.PI * i) / groupNodes.length - Math.PI / 2;
+        const relX = R + circleR * Math.cos(angle) - nodeSize / 2;
+        const relY = R + circleR * Math.sin(angle) - nodeSize / 2;
+
+        return {
+          ...node,
+          PositionX: relX,
+          PositionY: relY,
+          _expandedGroupParentId: containerNumericId.toString(),
+        } as any;
+      });
+
+      // Add to visibleNodes
+      visibleNodes.push(...innerVisibleNodes);
+    });
+
+    // ReactFlow requires: parents BEFORE children in the array
+    return [...containerNodes, ...visibleNodes, ...metaNodes];
   }, [nodes, groups, expandedGroupIds, objectTypes, edges, rules]);
 
   // ── Трансформированные рёбра ──────────────────────────────────────────────
@@ -457,25 +522,42 @@ export function useNodeGrouping({
       group.nodeIds.forEach(id => nodeToGroupMeta.set(id, metaNode.id));
     });
 
-    if (nodeToGroupMeta.size === 0) return edges;
-
-    const resultEdgesMap = new Map<string, GraphRelation>();
+    // Результирующий список рёбер. 
+    // Обычные рёбра (между несвёрнутыми узлами) сохраняем как есть.
+    // Рёбра, связанные с мета-узлами, агрегируем.
+    const resultEdges: GraphRelation[] = [];
+    const aggEdgesMap = new Map<string, GraphRelation>();
     const edgeCounts = new Map<string, number>();
 
     edges.forEach(edge => {
-      const newSource = nodeToGroupMeta.get(edge.source) ?? edge.source;
-      const newTarget = nodeToGroupMeta.get(edge.target) ?? edge.target;
+      const sourceMeta = nodeToGroupMeta.get(edge.source);
+      const targetMeta = nodeToGroupMeta.get(edge.target);
+
+      const newSource = sourceMeta ?? edge.source;
+      const newTarget = targetMeta ?? edge.target;
 
       // Пропускаем петли внутри одной группы
       if (newSource === newTarget) return;
 
+      // Если оба узла — оригинальные (или в раскрытых группах), сохраняем ребро целиком.
+      // Это позволяет GraphCanvas отрисовывать их как параллельные кривые.
+      if (sourceMeta === undefined && targetMeta === undefined) {
+        resultEdges.push({
+          ...edge,
+          source: newSource,
+          target: newTarget,
+        });
+        return;
+      }
+
+      // Если хотя бы один узел — мета-узел свёрнутой группы, агрегируем такие связи.
       const [minId, maxId] = [String(newSource), String(newTarget)].sort();
-      const edgeKey = `${minId}::${maxId}::${edge.relationTypeId}`;
+      const edgeKey = `agg::${minId}::${maxId}::${edge.relationTypeId}`;
 
       edgeCounts.set(edgeKey, (edgeCounts.get(edgeKey) ?? 0) + 1);
 
-      if (!resultEdgesMap.has(edgeKey)) {
-        resultEdgesMap.set(edgeKey, {
+      if (!aggEdgesMap.has(edgeKey)) {
+        aggEdgesMap.set(edgeKey, {
           ...edge,
           source: newSource,
           target: newTarget,
@@ -484,12 +566,15 @@ export function useNodeGrouping({
       }
     });
 
-    return Array.from(resultEdgesMap.values()).map(edge => {
+    // Добавляем агрегированные рёбра в результат
+    const finalAggEdges = Array.from(aggEdgesMap.values()).map(edge => {
       const [minId, maxId] = [String(edge.source), String(edge.target)].sort();
-      const edgeKey = `${minId}::${maxId}::${edge.relationTypeId}`;
+      const edgeKey = `agg::${minId}::${maxId}::${edge.relationTypeId}`;
       const count = edgeCounts.get(edgeKey) ?? 1;
       return count > 1 ? { ...edge, _aggregatedEdgeCount: count } : edge;
     });
+
+    return [...resultEdges, ...finalAggEdges];
   }, [edges, groups, expandedGroupIds, transformedNodes]);
 
   // ── Агрегированная статистика по группе ───────────────────────────────────
