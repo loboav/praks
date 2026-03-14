@@ -26,11 +26,11 @@ export function forceDirectedLayout(
 
   const {
     iterations = defaultIterations,
-    repulsion = 15000,
+    repulsion = 40000,
     attraction = 0.005,
     damping = 0.85,
     centerGravity = 0.05,
-    minDistance = 150,
+    minDistance = 350,
   } = options;
 
   // Используем индексированные массивы вместо Map для быстрого доступа
@@ -45,6 +45,7 @@ export function forceDirectedLayout(
   // Маппинг nodeId → index для быстрого доступа
   const idToIndex = new Map<number, number>();
   const ids: number[] = new Array(n);
+  const degrees = new Float64Array(n);
 
   nodes.forEach((node, i) => {
     ids[i] = node.id;
@@ -53,13 +54,14 @@ export function forceDirectedLayout(
     posY[i] = node.PositionY ?? Math.random() * 600 + 100;
   });
 
-  // Предкомпилируем рёбра в индексы для O(1) доступа
   const edgeIndices: Array<[number, number]> = [];
   edges.forEach(edge => {
     const si = idToIndex.get(edge.source);
     const ti = idToIndex.get(edge.target);
     if (si !== undefined && ti !== undefined) {
       edgeIndices.push([si, ti]);
+      degrees[si]++;
+      degrees[ti]++;
     }
   });
 
@@ -114,6 +116,11 @@ export function forceDirectedLayout(
               const dist = Math.sqrt(distSq) || 1;
 
               let rf = repulsion / distSq;
+              // Adaptive repulsion based on degree (more edges = needs more space)
+              const degI = degrees[i];
+              const degJ = degrees[j];
+              rf *= (1 + Math.log1p(degI)) * (1 + Math.log1p(degJ));
+              
               if (dist < minDistance) rf *= 2;
 
               const fx = (dx / dist) * rf;
@@ -141,6 +148,10 @@ export function forceDirectedLayout(
           const dist = Math.sqrt(distSq) || 1;
 
           let rf = repulsion / distSq;
+          const degI = degrees[i];
+          const degJ = degrees[j];
+          rf *= (1 + Math.log1p(degI)) * (1 + Math.log1p(degJ));
+          
           if (dist < minDistance) rf *= 2;
 
           const fx = (dx / dist) * rf;
@@ -195,238 +206,5 @@ export function forceDirectedLayout(
   };
 }
 
-export function circularLayout(nodes: GraphObject[]): LayoutResult {
-  const n = nodes.length;
-  if (n === 0) return { nodes: [] };
-
-  const nodeWidth = 200; // Ширина узла + отступ между узлами
-
-  // Для малых графов (≤50) — один круг
-  if (n <= 50) {
-    const radius = Math.max(250, (n * nodeWidth) / (2 * Math.PI));
-    const centerX = radius + 100;
-    const centerY = radius + 100;
-    const angleStep = (2 * Math.PI) / n;
-
-    return {
-      nodes: nodes.map((node, i) => ({
-        id: node.id,
-        x: centerX + radius * Math.cos(i * angleStep),
-        y: centerY + radius * Math.sin(i * angleStep),
-      })),
-    };
-  }
-
-  // Для больших графов — концентрические кольца
-  // Каждое кольцо вмещает столько узлов, сколько влезает по окружности без перекрытий
-  const ringGap = 120; // Расстояние между кольцами
-  const firstRadius = 300;
-  const result: Array<{ id: number; x: number; y: number }> = [];
-
-  // Распределяем узлы по кольцам
-  const rings: number[][] = []; // индексы узлов в каждом кольце
-  let remaining = n;
-  let idx = 0;
-  let ringIdx = 0;
-
-  while (remaining > 0) {
-    const radius = firstRadius + ringIdx * ringGap;
-    const circumference = 2 * Math.PI * radius;
-    const capacity = Math.max(1, Math.floor(circumference / nodeWidth));
-    const count = Math.min(capacity, remaining);
-
-    const ring: number[] = [];
-    for (let i = 0; i < count; i++) {
-      ring.push(idx++);
-    }
-    rings.push(ring);
-    remaining -= count;
-    ringIdx++;
-  }
-
-  // Вычисляем максимальный радиус для позиционирования центра
-  const maxRadius = firstRadius + (rings.length - 1) * ringGap;
-  const centerX = maxRadius + 200;
-  const centerY = maxRadius + 200;
-
-  // Расставляем узлы по кольцам
-  rings.forEach((ring, rIdx) => {
-    const radius = firstRadius + rIdx * ringGap;
-    const angleStep = (2 * Math.PI) / ring.length;
-    // Сдвигаем каждое чётное кольцо на пол-шага чтобы узлы не были на одной линии
-    const angleOffset = rIdx % 2 === 0 ? 0 : angleStep / 2;
-
-    ring.forEach((nodeIdx, i) => {
-      const angle = i * angleStep + angleOffset;
-      result.push({
-        id: nodes[nodeIdx].id,
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle),
-      });
-    });
-  });
-
-  return { nodes: result };
-}
-
-export function gridLayout(nodes: GraphObject[]): LayoutResult {
-  const cols = Math.ceil(Math.sqrt(nodes.length));
-  const spacing = 150;
-  const startX = 100;
-  const startY = 100;
-
-  return {
-    nodes: nodes.map((node, i) => ({
-      id: node.id,
-      x: startX + (i % cols) * spacing,
-      y: startY + Math.floor(i / cols) * spacing,
-    })),
-  };
-}
-
-export function hierarchicalLayout(nodes: GraphObject[], edges: GraphRelation[]): LayoutResult {
-  const levels = new Map<number, number>();
-  const visited = new Set<number>();
-
-  const findRoots = () => {
-    const hasIncoming = new Set(edges.map(e => e.target));
-    return nodes.filter(n => !hasIncoming.has(n.id));
-  };
-
-  const assignLevels = (nodeId: number, level: number) => {
-    if (visited.has(nodeId)) return;
-    visited.add(nodeId);
-    levels.set(nodeId, Math.max(levels.get(nodeId) || 0, level));
-
-    edges.filter(e => e.source === nodeId).forEach(e => assignLevels(e.target, level + 1));
-  };
-
-  const roots = findRoots();
-  if (roots.length === 0 && nodes.length > 0) {
-    assignLevels(nodes[0].id, 0);
-  } else {
-    roots.forEach(root => assignLevels(root.id, 0));
-  }
-
-  nodes.forEach(node => {
-    if (!levels.has(node.id)) {
-      levels.set(node.id, 0);
-    }
-  });
-
-  const nodesByLevel = new Map<number, number[]>();
-  levels.forEach((level, nodeId) => {
-    if (!nodesByLevel.has(level)) {
-      nodesByLevel.set(level, []);
-    }
-    nodesByLevel.get(level)!.push(nodeId);
-  });
-
-  const levelHeight = 150;
-  const startY = 100;
-  const centerX = 500;
-
-  const result: Array<{ id: number; x: number; y: number }> = [];
-
-  // Адаптивный spacing: минимум 200px (ширина узла + отступ)
-  // Узлы никогда не перекрываются, layout растягивается горизонтально
-  const nodeSpacing = 200;
-
-  nodesByLevel.forEach((nodeIds, level) => {
-    const count = nodeIds.length;
-    const totalWidth = (count - 1) * nodeSpacing;
-    const startX = centerX - totalWidth / 2;
-
-    nodeIds.forEach((nodeId, i) => {
-      result.push({
-        id: nodeId,
-        x: startX + i * nodeSpacing,
-        y: startY + level * levelHeight,
-      });
-    });
-  });
-
-  return { nodes: result };
-}
-
-export function radialLayout(nodes: GraphObject[], edges: GraphRelation[]): LayoutResult {
-  const centerX = 500;
-  const centerY = 400;
-
-  const findRoots = () => {
-    const hasIncoming = new Set(edges.map(e => e.target));
-    return nodes.filter(n => !hasIncoming.has(n.id));
-  };
-
-  const roots = findRoots();
-  const centerNode = roots.length > 0 ? roots[0] : nodes[0];
-
-  if (!centerNode) return { nodes: [] };
-
-  const levels = new Map<number, number>();
-  const visited = new Set<number>();
-
-  const assignLevels = (nodeId: number, level: number) => {
-    if (visited.has(nodeId)) return;
-    visited.add(nodeId);
-    levels.set(nodeId, level);
-
-    edges.filter(e => e.source === nodeId).forEach(e => assignLevels(e.target, level + 1));
-  };
-
-  assignLevels(centerNode.id, 0);
-
-  nodes.forEach(node => {
-    if (!levels.has(node.id)) {
-      levels.set(node.id, 1);
-    }
-  });
-
-  const nodesByLevel = new Map<number, number[]>();
-  levels.forEach((level, nodeId) => {
-    if (!nodesByLevel.has(level)) {
-      nodesByLevel.set(level, []);
-    }
-    nodesByLevel.get(level)!.push(nodeId);
-  });
-
-  const result: Array<{ id: number; x: number; y: number }> = [];
-  let currentRadius = 0;
-  const nodeWidth = 200; // Approximate width including gap
-  const nodeHeight = 100; // Approximate height including gap
-
-  // Sort levels to process from center outwards
-  const sortedLevels = Array.from(nodesByLevel.keys()).sort((a, b) => a - b);
-
-  sortedLevels.forEach(level => {
-    const nodeIds = nodesByLevel.get(level)!;
-
-    if (level === 0) {
-      result.push({ id: nodeIds[0], x: centerX, y: centerY });
-      currentRadius += nodeHeight * 1.5; // Initial radius for next layer
-    } else {
-      // Calculate required circumference to fit all nodes
-      const requiredCircumference = nodeIds.length * nodeWidth;
-      // Calculate minimum radius based on circumference
-      const minRadiusForCircumference = requiredCircumference / (2 * Math.PI);
-
-      // Use the larger of: current accumulated radius OR radius needed for circumference
-      const radius = Math.max(currentRadius, minRadiusForCircumference);
-
-      // Update currentRadius for the NEXT layer (add some spacing)
-      currentRadius = radius + nodeHeight * 1.5;
-
-      const angleStep = (2 * Math.PI) / nodeIds.length;
-
-      nodeIds.forEach((nodeId, i) => {
-        result.push({
-          id: nodeId,
-          x: centerX + radius * Math.cos(i * angleStep),
-          y: centerY + radius * Math.sin(i * angleStep),
-        });
-      });
-    }
-  });
-
-  return { nodes: result };
-}
+// Keep only forceDirectedLayout as it's the most advanced custom fallback, but remove exports for others if not used elsewhere.
+// Note: UI currently uses ELK for everything, so these are technically legacy but kept for safety.

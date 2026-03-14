@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export type LayoutType = 'force' | 'circular' | 'hierarchical' | 'radial' | 'grid' | 'manual' | 'elk-layered' | 'elk-radial' | 'elk-force';
+export type LayoutType = 'manual' | 'elk-layered' | 'elk-disjoint' | 'elk-random' | 'elk-rectpacking' | 'elk-mrtree' | 'elk-box';
 
 interface LayoutSelectorProps {
   currentLayout: LayoutType;
@@ -10,12 +10,12 @@ interface LayoutSelectorProps {
 }
 
 const layoutOptions = [
-  { value: 'hierarchical' as LayoutType, label: '📊 Иерархия' },
-  { value: 'elk-layered' as LayoutType, label: '🌟 Иерархия (Расширенная)' },
-  { value: 'elk-radial' as LayoutType, label: '🎯 Радиальное' },
-  { value: 'elk-force' as LayoutType, label: '⚡ Силовое' },
-  { value: 'circular' as LayoutType, label: '⭕ Круг' },
-  { value: 'grid' as LayoutType, label: '⊞ Сетка' },
+  { value: 'elk-layered' as LayoutType, label: '📊 Иерархия' },
+  { value: 'elk-disjoint' as LayoutType, label: '🧩 Разделение (DDG)' },
+  { value: 'elk-random' as LayoutType, label: '🎲 Случайно' },
+  { value: 'elk-rectpacking' as LayoutType, label: '📦 Упаковка узлов' },
+  { value: 'elk-mrtree' as LayoutType, label: '🌲 Дерево' },
+  { value: 'elk-box' as LayoutType, label: '⊞ Сетка' },
   { value: 'manual' as LayoutType, label: '✋ Вручную' },
 ];
 

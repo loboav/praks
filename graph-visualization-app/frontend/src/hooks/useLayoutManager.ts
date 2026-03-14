@@ -2,24 +2,16 @@ import { useState, useCallback } from 'react';
 import { GraphObject, GraphRelation } from '../types/graph';
 import { toast } from 'react-toastify';
 import { apiClient } from '../utils/apiClient';
-import {
-  circularLayout,
-  gridLayout,
-  hierarchicalLayout,
-  radialLayout,
-} from '../utils/layoutAlgorithms';
 import { elkLayout } from '../utils/elkLayout';
 
 export type LayoutType =
-  | 'force'
-  | 'circular'
-  | 'hierarchical'
-  | 'radial'
-  | 'grid'
   | 'manual'
   | 'elk-layered'
-  | 'elk-radial'
-  | 'elk-force';
+  | 'elk-disjoint'
+  | 'elk-random'
+  | 'elk-rectpacking'
+  | 'elk-mrtree'
+  | 'elk-box';
 
 interface LayoutPosition {
   id: number;
@@ -62,43 +54,41 @@ export const useLayoutManager = ({
       let layoutResult;
 
       switch (currentLayoutType) {
-        case 'hierarchical':
-          toast.info('Применяется иерархический layout...');
-          layoutResult = hierarchicalLayout(nodes, edges);
-          break;
         case 'elk-layered':
-          toast.info('Применяется расширенная иерархия...');
+          toast.info('Применяется иерархический layout...');
           layoutResult = {
             nodes: await elkLayout(nodes, edges, {
               algorithm: 'layered',
-              layerSpacing: 150,
-              nodeSpacing: 100,
+              layerSpacing: 400,
+              nodeSpacing: 250,
             }),
           };
           break;
-        case 'elk-radial':
-          toast.info('Применяется радиальный layout...');
-          // Using improved custom radial layout
-          layoutResult = radialLayout(nodes, edges);
+        case 'elk-disjoint':
+          toast.info('Применяется DDG (разбиение)...');
+          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'disjoint-directed' }) };
           break;
-        case 'elk-force':
-          toast.info('Применяется силовой layout...');
-          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'stress' }) };
+        case 'elk-random':
+          toast.info('Применяется случайное расположение...');
+          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'random' }) };
           break;
-        case 'circular':
-          toast.info('Применяется круговой layout...');
-          layoutResult = circularLayout(nodes);
+        case 'elk-rectpacking':
+          toast.info('Применяется упаковка узлов...');
+          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'rectpacking' }) };
           break;
-        case 'grid':
-          toast.info('Применяется сеточный layout...');
-          layoutResult = gridLayout(nodes);
+        case 'elk-mrtree':
+          toast.info('Применяется древовидный layout...');
+          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'mrtree' }) };
+          break;
+        case 'elk-box':
+          toast.info('Применяется сеточная упаковка...');
+          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'box' }) };
           break;
         default:
           setIsApplyingLayout(false);
           return;
       }
 
-      // O(1) Map lookup вместо O(n²) .find() в цикле
       const newPosMap = new Map<number, { x: number; y: number }>();
       layoutResult.nodes.forEach((n: any) => newPosMap.set(n.id, { x: n.x, y: n.y }));
 
@@ -110,8 +100,12 @@ export const useLayoutManager = ({
         return node;
       });
 
-      onNodesUpdate(() => updatedNodes);
-      setIsApplyingLayout(false);
+      // Use finally to guarantee isApplyingLayout resets even if onNodesUpdate throws
+      try {
+        onNodesUpdate(() => updatedNodes);
+      } finally {
+        setIsApplyingLayout(false);
+      }
 
       if (onAddHistoryAction) {
         onAddHistoryAction({

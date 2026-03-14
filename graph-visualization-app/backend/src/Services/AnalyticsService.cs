@@ -48,7 +48,7 @@ namespace GraphVisualizationApp.Services
             var outDeg = edges.GroupBy(e => e.Source).ToDictionary(g => g.Key, g => g.Count());
 
             var metrics = new List<NodeMetricsDto>(nodes.Count);
-            Dictionary<int, List<int>>? undirected = null;
+            Dictionary<int, HashSet<int>>? undirected = null;
             if (includeCloseness || includeBetweenness)
             {
                 undirected = BuildUndirectedAdjacency(nodes, await _db.GraphRelations.AsNoTracking().ToListAsync());
@@ -152,7 +152,8 @@ namespace GraphVisualizationApp.Services
 
             if (m2 == 0) return new CommunitiesDto { Modularity = 0, Communities = nodes.Select(n => new List<int> { n }).ToList() };
 
-            double currentMod = ComputeModularity(adj, community, m2);
+            var degrees = adj.ToDictionary(kv => kv.Key, kv => kv.Value.Count);
+            double currentMod = ComputeModularity(adj, community, degrees, m2);
             bool improved = true;
             int passes = 0;
             while (improved && passes < maxPasses)
@@ -170,7 +171,7 @@ namespace GraphVisualizationApp.Services
                         if (c == community[v]) continue;
                         var old = community[v];
                         community[v] = c;
-                        var mod = ComputeModularity(adj, community, m2);
+                        var mod = ComputeModularity(adj, community, degrees, m2);
                         var gain = mod - currentMod;
                         if (gain > bestGain)
                         {
@@ -192,19 +193,19 @@ namespace GraphVisualizationApp.Services
             return new CommunitiesDto { Modularity = Math.Round(currentMod, 6), Communities = groups };
         }
 
-        private static Dictionary<int, List<int>> BuildUndirectedAdjacency(IEnumerable<int> nodes, IEnumerable<GraphRelation> edges)
+        private static Dictionary<int, HashSet<int>> BuildUndirectedAdjacency(IEnumerable<int> nodes, IEnumerable<GraphRelation> edges)
         {
-            var adj = nodes.ToDictionary(id => id, _ => new List<int>());
+            var adj = nodes.ToDictionary(id => id, _ => new HashSet<int>());
             foreach (var e in edges)
             {
                 if (!adj.ContainsKey(e.Source) || !adj.ContainsKey(e.Target)) continue;
-                if (!adj[e.Source].Contains(e.Target)) adj[e.Source].Add(e.Target);
-                if (!adj[e.Target].Contains(e.Source)) adj[e.Target].Add(e.Source);
+                adj[e.Source].Add(e.Target);
+                adj[e.Target].Add(e.Source);
             }
             return adj;
         }
 
-        private static double ComputeCloseness(Dictionary<int, List<int>> adj, int start, int total)
+        private static double ComputeCloseness(Dictionary<int, HashSet<int>> adj, int start, int total)
         {
             var dist = new Dictionary<int, int>();
             var q = new Queue<int>();
@@ -227,7 +228,7 @@ namespace GraphVisualizationApp.Services
             return Math.Round((dist.Count - 1) / sum, 6);
         }
 
-        private static int ComputeDiameter(Dictionary<int, List<int>> adj, List<int> nodes)
+        private static int ComputeDiameter(Dictionary<int, HashSet<int>> adj, List<int> nodes)
         {
             int diameter = 0;
             foreach (var s in nodes)
@@ -241,7 +242,7 @@ namespace GraphVisualizationApp.Services
             return diameter;
         }
 
-        private static Dictionary<int, int> BfsDistances(Dictionary<int, List<int>> adj, int start)
+        private static Dictionary<int, int> BfsDistances(Dictionary<int, HashSet<int>> adj, int start)
         {
             var dist = new Dictionary<int, int>();
             var q = new Queue<int>();
@@ -262,7 +263,7 @@ namespace GraphVisualizationApp.Services
             return dist;
         }
 
-        private static List<List<int>> GetConnectedComponents(Dictionary<int, List<int>> adj, List<int> nodes)
+        private static List<List<int>> GetConnectedComponents(Dictionary<int, HashSet<int>> adj, List<int> nodes)
         {
             var visited = new HashSet<int>();
             var comps = new List<List<int>>();
@@ -291,24 +292,38 @@ namespace GraphVisualizationApp.Services
             return comps;
         }
 
-        private static double ComputeModularity(Dictionary<int, List<int>> adj, Dictionary<int, int> comm, double m2)
+        private static double ComputeModularity(Dictionary<int, HashSet<int>> adj, Dictionary<int, int> comm, Dictionary<int, int> degrees, double m2)
         {
-            // Newman-Girvan modularity approximation for unweighted undirected graph
-            var degrees = adj.ToDictionary(kv => kv.Key, kv => kv.Value.Count);
-            double Q = 0.0;
-            foreach (var i in adj.Keys)
+            var Lc = new Dictionary<int, int>();
+            var Kc = new Dictionary<int, long>();
+
+            foreach (var kv in comm)
             {
-                foreach (var j in adj.Keys)
+                var v = kv.Key;
+                var c = kv.Value;
+                if (!Kc.ContainsKey(c)) { Kc[c] = 0; Lc[c] = 0; }
+                Kc[c] += degrees[v];
+                
+                foreach (var w in adj[v])
                 {
-                    if (comm[i] != comm[j]) continue;
-                    int Aij = adj[i].Contains(j) ? 1 : 0;
-                    Q += (Aij - (degrees[i] * degrees[j]) / m2);
+                    if (comm[w] == c)
+                    {
+                        Lc[c]++;
+                    }
                 }
             }
-            return Q / m2;
+
+            double Q = 0.0;
+            foreach (var c in Kc.Keys)
+            {
+                double term1 = Lc[c] / m2;
+                double term2 = Math.Pow(Kc[c] / m2, 2);
+                Q += term1 - term2;
+            }
+            return Q;
         }
 
-        private static Dictionary<int, double> ComputeBetweenness(Dictionary<int, List<int>> adj, List<int> nodes)
+        private static Dictionary<int, double> ComputeBetweenness(Dictionary<int, HashSet<int>> adj, List<int> nodes)
         {
             // Brandes' Algorithm for unweighted graph
             var cb = nodes.ToDictionary(n => n, _ => 0.0);

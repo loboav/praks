@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import ReactFlow, { Controls, Background, useNodesState, NodeChange, Node, Edge, MarkerType } from 'reactflow';
+import ReactFlow, { Controls, Background, useNodesState, NodeChange, Node, Edge, MarkerType, ReactFlowInstance } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { GraphObject, GraphRelation, RelationType, PathAlgorithm } from '../types/graph';
 import { AggregatedEdge } from '../hooks/useEdgeGrouping';
@@ -78,6 +78,12 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
   // Debounce timer ref
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // React Flow Instance
+  const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
+
+  // Timer ref for fitView deduplication (prevent stacking on multiple rapid applies)
+  const fitViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Флаг для отслеживания программных изменений (align)
   const isProgrammaticChangeRef = useRef(false);
@@ -260,6 +266,9 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
       const currentNodesMap = new Map<string, Node>();
       currentNodes.forEach(n => currentNodesMap.set(n.id, n));
 
+      let positionChangedCount = 0;
+      let dataChangedCount = 0;
+
       // Проверяем, действительно ли изменились данные или позиции из props
       const hasDataChanges =
         nodes.length !== currentNodes.length ||
@@ -273,6 +282,8 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           const dataChanged =
             currentNode.data.label !== newLabel ||
             currentNode.data.orig.objectTypeId !== node.objectTypeId;
+
+          if (dataChanged) dataChangedCount++;
 
           // Проверяем изменение позиций из props (например, при выравнивании)
           let currentAbsX = currentNode.position.x;
@@ -289,9 +300,14 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
           const positionChanged = !isVirtual && (
             (node.PositionX !== undefined &&
+              !isNaN(node.PositionX) &&
               Math.abs(currentAbsX - node.PositionX) > 1) ||
-            (node.PositionY !== undefined && Math.abs(currentAbsY - node.PositionY) > 1)
+            (node.PositionY !== undefined && 
+              !isNaN(node.PositionY) &&
+              Math.abs(currentAbsY - node.PositionY) > 1)
           );
+
+          if (positionChanged) positionChangedCount++;
 
           return dataChanged || positionChanged;
         });
@@ -303,7 +319,26 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           debounceTimerRef.current = null;
         }
         isProgrammaticChangeRef.current = true;
-        return initialRfNodes;
+        
+        // Safety check for NaNs in output
+        const safeNodes = initialRfNodes.map(n => {
+           if (isNaN(n.position.x) || isNaN(n.position.y)) {
+              console.error("[GraphCanvas] NaN position detected!!!", n);
+              return { ...n, position: { x: 400, y: 300 } };
+           }
+           return n;
+        });
+
+        if (positionChangedCount > 0 && rfInstance) {
+          // Dedup: cancel any pending fitView before scheduling a new one
+          if (fitViewTimerRef.current) clearTimeout(fitViewTimerRef.current);
+          fitViewTimerRef.current = setTimeout(() => {
+            rfInstance.fitView({ padding: 0.2, duration: 800 });
+            fitViewTimerRef.current = null;
+          }, 100);
+        }
+        
+        return safeNodes;
       }
 
       // O(n) Map lookup для nodes вместо O(n²) .find() в цикле
@@ -634,9 +669,9 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
         return;
       }
       if (action === 'fit-view') {
-        // fitView() вызывается через ref, но у нас его нет под рукой в этом компоненте,
-        // можно прокинуть или просто сбросить зум
-        // Пока оставим заглушку или уберем кнопку
+        if (rfInstance) {
+          rfInstance.fitView({ padding: 0.2, duration: 800 });
+        }
         setMenu(null);
         return;
       }
@@ -938,6 +973,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <ReactFlow
+        onInit={setRfInstance}
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
