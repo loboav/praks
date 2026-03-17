@@ -957,14 +957,22 @@ namespace GraphVisualizationApp.Data
                 new PropertySchema { ObjectTypeId = personType.Id, Key = "Роль", PropertyType = "enum", Options = "[\"Developer\",\"Manager\",\"Analyst\",\"Architect\",\"Director\"]" },
                 new PropertySchema { ObjectTypeId = personType.Id, Key = "Паспорт", PropertyType = "string" },
                 new PropertySchema { ObjectTypeId = personType.Id, Key = "Опыт (лет)", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "latitude", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "longitude", PropertyType = "number" },
                 new PropertySchema { ObjectTypeId = companyType.Id, Key = "УНП", PropertyType = "string", Required = true },
                 new PropertySchema { ObjectTypeId = companyType.Id, Key = "Дата регистрации", PropertyType = "date" },
                 new PropertySchema { ObjectTypeId = companyType.Id, Key = "Размер", PropertyType = "enum", Options = "[\"Small\",\"Medium\",\"Large\",\"Enterprise\"]" },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "latitude", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "longitude", PropertyType = "number" },
                 new PropertySchema { ObjectTypeId = projectType.Id, Key = "Статус", PropertyType = "enum", Options = "[\"Planning\",\"Active\",\"Review\",\"Completed\"]" },
                 new PropertySchema { ObjectTypeId = projectType.Id, Key = "Бюджет", PropertyType = "string" },
                 new PropertySchema { ObjectTypeId = projectType.Id, Key = "Дата старта", PropertyType = "date" },
+                new PropertySchema { ObjectTypeId = projectType.Id, Key = "latitude", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = projectType.Id, Key = "longitude", PropertyType = "number" },
                 new PropertySchema { ObjectTypeId = assetType.Id, Key = "Тип", PropertyType = "enum", Options = "[\"Server\",\"License\",\"Database\",\"API\",\"Tool\"]" },
-                new PropertySchema { ObjectTypeId = assetType.Id, Key = "Стоимость", PropertyType = "string" }
+                new PropertySchema { ObjectTypeId = assetType.Id, Key = "Стоимость", PropertyType = "string" },
+                new PropertySchema { ObjectTypeId = assetType.Id, Key = "latitude", PropertyType = "number" },
+                new PropertySchema { ObjectTypeId = assetType.Id, Key = "longitude", PropertyType = "number" }
             );
             await context.SaveChangesAsync();
 
@@ -1018,7 +1026,9 @@ namespace GraphVisualizationApp.Data
                     {
                         new ObjectProperty { Key = "УНП", Value = $"{random.Next(100000000, 999999999)}" },
                         new ObjectProperty { Key = "Дата регистрации", Value = $"{2010 + random.Next(15)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" },
-                        new ObjectProperty { Key = "Размер", Value = new[] { "Small", "Medium", "Large", "Enterprise" }[random.Next(4)] }
+                        new ObjectProperty { Key = "Размер", Value = new[] { "Small", "Medium", "Large", "Enterprise" }[random.Next(4)] },
+                        new ObjectProperty { Key = "latitude", Value = (35.0 + random.NextDouble() * 40.0).ToString("F6").Replace(",", ".") },
+                        new ObjectProperty { Key = "longitude", Value = (20.0 + random.NextDouble() * 160.0).ToString("F6").Replace(",", ".") }
                     }
                 };
                 companies.Add(company);
@@ -1046,7 +1056,9 @@ namespace GraphVisualizationApp.Data
                         new ObjectProperty { Key = "Возраст", Value = random.Next(22, 65).ToString() },
                         new ObjectProperty { Key = "Роль", Value = roles[random.Next(roles.Length)] },
                         new ObjectProperty { Key = "Паспорт", Value = $"MP{random.Next(1000000, 9999999)}" },
-                        new ObjectProperty { Key = "Опыт (лет)", Value = random.Next(1, 25).ToString() }
+                        new ObjectProperty { Key = "Опыт (лет)", Value = random.Next(1, 25).ToString() },
+                        new ObjectProperty { Key = "latitude", Value = (35.0 + random.NextDouble() * 40.0).ToString("F6").Replace(",", ".") },
+                        new ObjectProperty { Key = "longitude", Value = (20.0 + random.NextDouble() * 160.0).ToString("F6").Replace(",", ".") }
                     }
                 };
                 people.Add(person);
@@ -1071,7 +1083,9 @@ namespace GraphVisualizationApp.Data
                     {
                         new ObjectProperty { Key = "Статус", Value = new[] { "Planning", "Active", "Review", "Completed" }[random.Next(4)] },
                         new ObjectProperty { Key = "Бюджет", Value = $"{random.Next(10, 1000)}k USD" },
-                        new ObjectProperty { Key = "Дата старта", Value = $"{2020 + random.Next(5)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" }
+                        new ObjectProperty { Key = "Дата старта", Value = $"{2020 + random.Next(5)}-{random.Next(1, 13):D2}-{random.Next(1, 29):D2}" },
+                        new ObjectProperty { Key = "latitude", Value = (35.0 + random.NextDouble() * 40.0).ToString("F6").Replace(",", ".") },
+                        new ObjectProperty { Key = "longitude", Value = (20.0 + random.NextDouble() * 160.0).ToString("F6").Replace(",", ".") }
                     }
                 };
                 projects.Add(project);
@@ -1095,7 +1109,9 @@ namespace GraphVisualizationApp.Data
                     Properties = new List<ObjectProperty>
                     {
                         new ObjectProperty { Key = "Тип", Value = assetTypes[random.Next(assetTypes.Length)] },
-                        new ObjectProperty { Key = "Стоимость", Value = $"${random.Next(100, 100000)}" }
+                        new ObjectProperty { Key = "Стоимость", Value = $"${random.Next(100, 100000)}" },
+                        new ObjectProperty { Key = "latitude", Value = (35.0 + random.NextDouble() * 40.0).ToString("F6").Replace(",", ".") },
+                        new ObjectProperty { Key = "longitude", Value = (20.0 + random.NextDouble() * 160.0).ToString("F6").Replace(",", ".") }
                     }
                 };
                 assets.Add(asset);
