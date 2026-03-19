@@ -1,7 +1,7 @@
-import React from 'react';
-import { EdgeProps, EdgeLabelRenderer, BaseEdge } from 'reactflow';
+import React, { memo } from 'react';
+import { EdgeProps, EdgeLabelRenderer, BaseEdge, useStore, ReactFlowState } from 'reactflow';
 
-const ParallelEdge: React.FC<EdgeProps> = ({
+const ParallelEdge: React.FC<EdgeProps> = memo(({
   id,
   sourceX,
   sourceY,
@@ -32,8 +32,13 @@ const ParallelEdge: React.FC<EdgeProps> = ({
   const ny = dx / len;
 
   // Смещение зависит от индекса ребра в группе параллельных ребер
-  const baseOffset = 40;
+  // Для большого количества ребер уменьшаем шаг, чтобы веер был компактнее
+  const baseOffset = total > 10 ? Math.max(12, 40 - Math.log2(total) * 4) : 40;
   const curvature = (index - (total - 1) / 2) * baseOffset;
+
+  // Zoom level для скрытия меток при сильном отдалении
+  const zoom = useStore((s: ReactFlowState) => s.transform[2]);
+  const showLabel = label && (total < 5 || zoom > 0.7);
 
   // Для того чтобы параллельные ребра в разных направлениях (A->B и B->A) 
   // не накладывались, инвертируем кривизну для "обратных" ребер.
@@ -51,7 +56,7 @@ const ParallelEdge: React.FC<EdgeProps> = ({
   return (
     <>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
-      {label && (
+      {showLabel && (
         <EdgeLabelRenderer>
           <div
             style={{
@@ -83,6 +88,6 @@ const ParallelEdge: React.FC<EdgeProps> = ({
       )}
     </>
   );
-};
+});
 
 export default ParallelEdge;

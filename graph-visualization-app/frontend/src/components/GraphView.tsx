@@ -573,6 +573,7 @@ export default function GraphView() {
                   <GraphCanvas
                     nodes={nodesWithPositions}
                     edges={edgeGroupedEdges}
+                    originalEdges={groupedTransformedEdges}
                     relationTypes={relationTypes}
                     onSelectNode={node => {
                       const isShiftPressed = (window.event as KeyboardEvent)?.shiftKey;

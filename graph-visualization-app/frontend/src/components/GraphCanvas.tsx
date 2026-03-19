@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import ReactFlow, { Controls, Background, useNodesState, NodeChange, Node, Edge, MarkerType, ReactFlowInstance } from 'reactflow';
+import ReactFlow, { Controls, Background, useNodesState, NodeChange, Node, Edge, MarkerType, ReactFlowInstance, useStore, ReactFlowState, ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { GraphObject, GraphRelation, RelationType, PathAlgorithm } from '../types/graph';
 import { AggregatedEdge } from '../hooks/useEdgeGrouping';
@@ -28,6 +28,7 @@ interface GraphCanvasProps {
   onExpandAllGroups?: () => void;
   onGroupSelected?: (nodeIds: number[]) => void;
   layoutId?: number;
+  originalEdges?: GraphRelation[];
 }
 
 interface HighlightProps {
@@ -35,7 +36,7 @@ interface HighlightProps {
   selectedEdges?: number[];
 }
 
-const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
+const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
   // Note: onGroupSelected is destructured below alongside other props
   nodes,
   edges,
@@ -54,6 +55,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   onExpandAllGroups,
   onGroupSelected,
   layoutId,
+  originalEdges = [],
 }) => {
   // Local highlighting for found path
   const [selectedNodesLocal, setSelectedNodesLocal] = useState<number[]>([]);
@@ -100,6 +102,19 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
   // Fallback state for find-path flow when parent handler doesn't implement it
   const [fallbackFindFirst, setFallbackFindFirst] = useState<number | null>(null);
+
+  // --- Semantic Zoom Logic ---
+  const zoom = useStore((s: ReactFlowState) => s.transform[2]);
+  const ZOOM_THRESHOLD = 0.7; // Снижаем порог, чтобы انفجار происходил раньше при зуме
+  const isZoomedIn = zoom > ZOOM_THRESHOLD;
+
+  // Решаем, какой набор рёбер показывать: агрегированный или полный
+  const displayEdges = useMemo(() => {
+    if (isZoomedIn && originalEdges.length > 0) {
+      return originalEdges;
+    }
+    return edges;
+  }, [isZoomedIn, edges, originalEdges]);
 
   // 10 distinct colors for multi-path visualization
   const PATH_COLORS = useMemo(
@@ -412,13 +427,13 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     const hasHighlightedEdges = selectedEdgesSet.size > 0;
 
     const baseFontSize =
-      edges.length < 100
+      displayEdges.length < 100
         ? 11
-        : edges.length < 500
+        : displayEdges.length < 500
           ? 10
-          : edges.length < 1000
+          : displayEdges.length < 1000
             ? 9
-            : edges.length < 2000
+            : displayEdges.length < 2000
               ? 8
               : 7;
 
@@ -429,7 +444,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
 
     // Группируем рёбра по парам узлов для выявления параллельных связей
     const groupedEdgesMap = new Map<string, GraphRelation[]>();
-    edges.forEach(edge => {
+    displayEdges.forEach(edge => {
       // Используем отсортированные ID для того, чтобы связи A->B и B->A попали в одну группу
       const id1 = Math.min(edge.source, edge.target);
       const id2 = Math.max(edge.source, edge.target);
@@ -505,7 +520,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
     });
 
     return rfEdgesResult;
-  }, [edges, relationTypesMap, selectedEdgesSet, edgeToPathIndex, PATH_COLORS]);
+  }, [displayEdges, relationTypesMap, selectedEdgesSet, edgeToPathIndex, PATH_COLORS]);
 
   // Debounced callback для обновления позиций
   const debouncedPositionUpdate = useCallback(
@@ -616,9 +631,9 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   // O(1) Map для поиска рёбер по клику вместо O(n) .find()
   const edgesMap = useMemo(() => {
     const map = new Map<string, GraphRelation>();
-    edges.forEach(e => map.set(e.id.toString(), e));
+    displayEdges.forEach(e => map.set(e.id.toString(), e));
     return map;
-  }, [edges]);
+  }, [displayEdges]);
 
   // Обработка клика по рёбру
   const handleEdgeClick = useCallback(
@@ -1300,6 +1315,13 @@ const menuBtn: React.CSSProperties = {
   borderBottom: '1px solid #eee',
 };
 
+const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = (props) => {
+  return (
+    <ReactFlowProvider>
+      <GraphCanvasInner {...props} />
+    </ReactFlowProvider>
+  );
+};
 
 export default GraphCanvas;
 
