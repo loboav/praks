@@ -500,7 +500,7 @@ export function useNodeGrouping({
           PositionX: relX,
           PositionY: relY,
           _expandedGroupParentId: containerNumericId.toString(),
-        } as any;
+        };
       });
 
       // Add to visibleNodes
