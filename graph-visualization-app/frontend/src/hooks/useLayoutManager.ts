@@ -35,6 +35,7 @@ export const useLayoutManager = ({
   const [currentLayoutType, setCurrentLayoutType] = useState<LayoutType>('manual');
   const [isApplyingLayout, setIsApplyingLayout] = useState(false);
   const [layout, setLayout] = useState<any>(null);
+  const [layoutVersion, setLayoutVersion] = useState(0);
 
   const applyLayout = useCallback(async () => {
     if (nodes.length === 0) {
@@ -103,6 +104,7 @@ export const useLayoutManager = ({
       // Use finally to guarantee isApplyingLayout resets even if onNodesUpdate throws
       try {
         onNodesUpdate(() => updatedNodes);
+        setLayoutVersion(v => v + 1);
       } finally {
         setIsApplyingLayout(false);
       }
@@ -181,5 +183,6 @@ export const useLayoutManager = ({
     applyLayout,
     saveLayout,
     loadLayout,
+    layoutVersion,
   };
 };

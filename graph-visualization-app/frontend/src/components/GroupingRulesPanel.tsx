@@ -7,7 +7,7 @@ interface GroupingRulesPanelProps {
   activeRule: GroupingRule | null;
   availableProperties: string[];
   objectTypes: ObjectType[];
-  onCreateRule: (title: string, propertyKey: string, categoryIds?: number[]) => void;
+  onCreateRule: (title: string, propertyKeys: string[], categoryIds?: number[]) => void;
   onCreateManualGroup: (title: string, nodeIds: number[], color?: string, icon?: string) => void;
   onDeleteRule: (ruleId: string) => void;
   onToggleRule: (ruleId: string) => void;
@@ -63,7 +63,7 @@ export default function GroupingRulesPanel({
   // ── Create property rule form ──────────────────────────────────────────
   const [creatingProperty, setCreatingProperty] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newPropertyKey, setNewPropertyKey] = useState('objectTypeId');
+  const [newPropertyKeys, setNewPropertyKeys] = useState<string[]>(['objectTypeId']);
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
 
   // ── Create manual group form ───────────────────────────────────────────
@@ -74,22 +74,22 @@ export default function GroupingRulesPanel({
 
   // Auto-select categories when property changes
   useEffect(() => {
-    if (newPropertyKey === 'objectTypeId') {
+    if (newPropertyKeys.length === 1 && newPropertyKeys[0] === 'objectTypeId') {
       setSelectedCategories(objectTypes.map(t => t.id));
     } else {
       const matching = objectTypes.filter(t => {
         if (!t.propertySchemas || t.propertySchemas.length === 0) return true;
-        return t.propertySchemas.some(s => s.key === newPropertyKey);
+        return t.propertySchemas.some(s => newPropertyKeys.includes(s.key));
       });
       setSelectedCategories(matching.map(t => t.id));
     }
-  }, [newPropertyKey, objectTypes]);
+  }, [newPropertyKeys, objectTypes]);
 
   const handleCreateProperty = () => {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || newPropertyKeys.length === 0) return;
     onCreateRule(
       newTitle.trim(),
-      newPropertyKey,
+      newPropertyKeys,
       selectedCategories.length > 0 ? selectedCategories : undefined
     );
     setNewTitle('');
@@ -180,7 +180,7 @@ export default function GroupingRulesPanel({
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{activeRule.title}</div>
                   <div style={{ fontSize: 12, color: '#555' }}>
-                    По: {getPropertyLabel(activeRule.propertyKey)}
+                    По: {(activeRule.propertyKeys || [activeRule.propertyKey]).map(k => getPropertyLabel(k || '')).join(', ')}
                   </div>
                 </div>
               </div>
@@ -224,7 +224,7 @@ export default function GroupingRulesPanel({
                       {rule.title}
                     </div>
                     <div style={{ fontSize: 11, color: '#888', marginTop: 1 }}>
-                      {getPropertyLabel(rule.propertyKey)}
+                      {(rule.propertyKeys || [rule.propertyKey]).map(k => getPropertyLabel(k || '')).join(', ')}
                       {rule.categoryIds && rule.categoryIds.length > 0 && (
                         <span style={{ marginLeft: 4, color: '#aaa' }}>
                           · {rule.categoryIds.length} тип(ов)
@@ -271,17 +271,25 @@ export default function GroupingRulesPanel({
                   if (e.key === 'Escape') setCreatingProperty(false);
                 }}
               />
-              <select
-                value={newPropertyKey}
-                onChange={e => setNewPropertyKey(e.target.value)}
-                style={selectStyle}
-              >
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Выберите свойства:</div>
+              <div style={{ maxHeight: 120, overflowY: 'auto', border: '1px solid #ddd', borderRadius: 5, padding: '5px 8px', background: '#fff' }}>
                 {availableProperties.map(prop => (
-                  <option key={prop} value={prop}>
+                  <label key={prop} style={checkboxLabelStyle}>
+                    <input
+                      type="checkbox"
+                      checked={newPropertyKeys.includes(prop)}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setNewPropertyKeys([...newPropertyKeys, prop]);
+                        } else {
+                          setNewPropertyKeys(newPropertyKeys.filter(k => k !== prop));
+                        }
+                      }}
+                    />
                     {getPropertyLabel(prop)}
-                  </option>
+                  </label>
                 ))}
-              </select>
+              </div>
 
               <div style={{ fontSize: 11, color: '#888', marginTop: 8, marginBottom: 4 }}>
                 Применить к типам объектов:
@@ -289,9 +297,9 @@ export default function GroupingRulesPanel({
               <div style={{ maxHeight: 90, overflowY: 'auto', marginBottom: 8 }}>
                 {objectTypes
                   .filter(t => {
-                    if (newPropertyKey === 'objectTypeId') return true;
+                    if (newPropertyKeys.includes('objectTypeId')) return true;
                     if (!t.propertySchemas || t.propertySchemas.length === 0) return true;
-                    return t.propertySchemas.some(s => s.key === newPropertyKey);
+                    return t.propertySchemas.some(s => newPropertyKeys.includes(s.key));
                   })
                   .map(type => (
                     <label key={type.id} style={checkboxLabelStyle}>

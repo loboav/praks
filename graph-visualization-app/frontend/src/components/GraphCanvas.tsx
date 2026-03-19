@@ -27,6 +27,7 @@ interface GraphCanvasProps {
   onCollapseAllGroups?: () => void;
   onExpandAllGroups?: () => void;
   onGroupSelected?: (nodeIds: number[]) => void;
+  layoutId?: number;
 }
 
 interface HighlightProps {
@@ -52,6 +53,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
   onCollapseAllGroups,
   onExpandAllGroups,
   onGroupSelected,
+  layoutId,
 }) => {
   // Local highlighting for found path
   const [selectedNodesLocal, setSelectedNodesLocal] = useState<number[]>([]);
@@ -302,7 +304,7 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
             (node.PositionX !== undefined &&
               !isNaN(node.PositionX) &&
               Math.abs(currentAbsX - node.PositionX) > 1) ||
-            (node.PositionY !== undefined && 
+            (node.PositionY !== undefined &&
               !isNaN(node.PositionY) &&
               Math.abs(currentAbsY - node.PositionY) > 1)
           );
@@ -319,25 +321,16 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
           debounceTimerRef.current = null;
         }
         isProgrammaticChangeRef.current = true;
-        
+
         // Safety check for NaNs in output
         const safeNodes = initialRfNodes.map(n => {
-           if (isNaN(n.position.x) || isNaN(n.position.y)) {
-              console.error("[GraphCanvas] NaN position detected!!!", n);
-              return { ...n, position: { x: 400, y: 300 } };
-           }
-           return n;
+          if (isNaN(n.position.x) || isNaN(n.position.y)) {
+            console.error("[GraphCanvas] NaN position detected!!!", n);
+            return { ...n, position: { x: 400, y: 300 } };
+          }
+          return n;
         });
 
-        if (positionChangedCount > 0 && rfInstance) {
-          // Dedup: cancel any pending fitView before scheduling a new one
-          if (fitViewTimerRef.current) clearTimeout(fitViewTimerRef.current);
-          fitViewTimerRef.current = setTimeout(() => {
-            rfInstance.fitView({ padding: 0.2, duration: 800 });
-            fitViewTimerRef.current = null;
-          }, 100);
-        }
-        
         return safeNodes;
       }
 
@@ -396,6 +389,17 @@ const GraphCanvas: React.FC<GraphCanvasProps & HighlightProps> = ({
       });
     });
   }, [nodes, combinedSelectedNodes, initialRfNodes, selectedNodesSet]);
+
+  // Эффект для fitView при смене layoutId
+  useEffect(() => {
+    if (layoutId !== undefined && rfInstance) {
+      if (fitViewTimerRef.current) clearTimeout(fitViewTimerRef.current);
+      fitViewTimerRef.current = setTimeout(() => {
+        rfInstance.fitView({ padding: 0.2, duration: 800 });
+        fitViewTimerRef.current = null;
+      }, 100);
+    }
+  }, [layoutId, rfInstance]);
 
   // Мемоизация relationTypesMap для оптимизации (не пересоздаём на каждом рендере)
   const relationTypesMap = useMemo(() => {

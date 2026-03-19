@@ -129,6 +129,7 @@ export default function GraphView() {
     applyLayout,
     saveLayout,
     loadLayout,
+    layoutVersion,
   } = useLayoutManager({
     nodes,
     edges,
@@ -630,6 +631,7 @@ export default function GraphView() {
                       toast.success(`Создана группа из ${nodeIds.length} узлов`);
                       clearSelection();
                     }}
+                    layoutId={layoutVersion}
                   />
                 ) : (
                   <GeoMapView

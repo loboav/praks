@@ -20,7 +20,7 @@ interface SidebarProps {
   groupingRules?: GroupingRule[];
   activeGroupingRule?: GroupingRule | null;
   availableProperties?: string[];
-  onCreateGroupingRule?: (title: string, propertyKey: string, categoryIds?: number[]) => void;
+  onCreateGroupingRule?: (title: string, propertyKeys: string[], categoryIds?: number[]) => void;
   onCreateManualGroupingRule?: (
     title: string,
     nodeIds: number[],

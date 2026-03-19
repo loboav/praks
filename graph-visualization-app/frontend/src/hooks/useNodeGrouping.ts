@@ -11,7 +11,8 @@ import { GraphObject, GraphRelation, ObjectType } from '../types/graph';
 export interface GroupingRule {
   id: string;
   title: string;
-  propertyKey: string; // для mode='property'
+  propertyKeys: string[]; // <-- Изменено с propertyKey
+  propertyKey?: string;   // Для обратной совместимости
   categoryIds?: number[]; // фильтр по типам объектов, для mode='property'
   isActive: boolean;
   createdAt: number;
@@ -74,7 +75,7 @@ interface UseNodeGroupingProps {
 
 interface UseNodeGroupingReturn {
   rules: GroupingRule[];
-  createRule: (title: string, propertyKey: string, categoryIds?: number[]) => void;
+  createRule: (title: string, propertyKeys: string[], categoryIds?: number[]) => void;
   createManualGroup: (title: string, nodeIds: number[], color?: string, icon?: string) => void;
   deleteRule: (ruleId: string) => void;
   toggleRule: (ruleId: string) => void;
@@ -196,11 +197,11 @@ export function useNodeGrouping({
 
   // ── Создание property-правила ──────────────────────────────────────────────
 
-  const createRule = useCallback((title: string, propertyKey: string, categoryIds?: number[]) => {
+  const createRule = useCallback((title: string, propertyKeys: string[], categoryIds?: number[]) => {
     const newRule: GroupingRule = {
       id: `rule-${Date.now()}-${++_ruleIdCounter}`,
       title,
-      propertyKey,
+      propertyKeys,
       categoryIds,
       isActive: false,
       createdAt: Date.now(),
@@ -216,8 +217,8 @@ export function useNodeGrouping({
       if (nodeIds.length < 2) return;
       const newRule: GroupingRule = {
         id: `manual-${Date.now()}-${++_ruleIdCounter}`,
-        title,
-        propertyKey: '__manual__',
+      title,
+      propertyKeys: ['__manual__'],
         isActive: true, // manual-группы всегда активны
         createdAt: Date.now(),
         mode: 'manual',
@@ -285,12 +286,17 @@ export function useNodeGrouping({
       nodes.forEach(node => {
         if (categoryFilter && !categoryFilter.has(node.objectTypeId)) return;
 
-        let value: string;
-        if (activeRule.propertyKey === 'objectTypeId') {
-          value = objectTypeMap.get(node.objectTypeId) ?? `Type ${node.objectTypeId}`;
-        } else {
-          value = node.properties?.[activeRule.propertyKey] ?? 'Не указано';
-        }
+        // Собираем свойства (поддержка старого propertyKey и нового propertyKeys)
+        const keys = activeRule.propertyKeys || (activeRule.propertyKey ? [activeRule.propertyKey] : []);
+        
+        const values = keys.map(key => {
+          if (key === 'objectTypeId') {
+            return objectTypeMap.get(node.objectTypeId) ?? `Type ${node.objectTypeId}`;
+          }
+          return node.properties?.[key] ?? 'Не указано';
+        });
+
+        const value = values.length > 0 ? values.join(' | ') : 'Без свойств';
 
         const existing = groupMap.get(value) ?? [];
         existing.push(node.id);

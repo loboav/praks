@@ -51,12 +51,12 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         expect(result.current.rules).toHaveLength(1);
         expect(result.current.rules[0].title).toBe('By City');
-        expect(result.current.rules[0].propertyKey).toBe('city');
+        expect(result.current.rules[0].propertyKeys).toEqual(['city']);
         expect(result.current.rules[0].categoryIds).toEqual([1]);
     });
 
@@ -66,7 +66,7 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         const ruleId = result.current.rules[0].id;
@@ -84,7 +84,7 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         const ruleId = result.current.rules[0].id;
@@ -108,14 +108,14 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         const rule1Id = result.current.rules[0].id;
 
         // Separate act() to ensure different Date.now() IDs
         act(() => {
-            result.current.createRule('By Name', 'name', [1]);
+            result.current.createRule('By Name', ['name'], [1]);
         });
 
         const rule2Id = result.current.rules[1].id;
@@ -143,7 +143,7 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         act(() => {
@@ -169,7 +169,7 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         act(() => {
@@ -212,7 +212,7 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         act(() => {
@@ -241,7 +241,7 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         act(() => {
@@ -267,7 +267,7 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         act(() => {
@@ -298,7 +298,7 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         act(() => {
@@ -321,7 +321,7 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         act(() => {
@@ -343,7 +343,7 @@ describe('useNodeGrouping', () => {
         );
 
         act(() => {
-            result.current.createRule('By City', 'city', [1]);
+            result.current.createRule('By City', ['city'], [1]);
         });
 
         act(() => {
@@ -375,5 +375,60 @@ describe('useNodeGrouping', () => {
 
         expect(result.current.transformedNodes).toEqual(nodes);
         expect(result.current.transformedEdges).toEqual(edges);
+    });
+
+    it('should group by multiple properties', () => {
+        const nodes: GraphObject[] = [
+            { id: 1, name: 'A', objectTypeId: 1, properties: { city: 'Mow', status: 'Act' } },
+            { id: 2, name: 'B', objectTypeId: 1, properties: { city: 'Mow', status: 'Act' } },
+            { id: 3, name: 'C', objectTypeId: 1, properties: { city: 'Mow', status: 'Inact' } },
+            { id: 4, name: 'D', objectTypeId: 1, properties: { city: 'Lon', status: 'Act' } },
+        ];
+        const { result } = renderHook(() =>
+            useNodeGrouping({ nodes, edges: [], objectTypes })
+        );
+
+        act(() => {
+            result.current.createRule('Multi', ['city', 'status'], [1]);
+        });
+
+        act(() => {
+            result.current.toggleRule(result.current.rules[0].id);
+        });
+
+        // 1 & 2 should be in one group ("Mow | Act")
+        // 3 should be in another group or solo (if single node groups are excluded)
+        // In the hook, result.push if nodeIds.length < 2 return;
+        // So only Mow | Act group should be created.
+        const groups = result.current.groups;
+        expect(groups).toHaveLength(1);
+        expect(groups[0].propertyValue).toBe('Mow | Act');
+        expect(groups[0].nodeIds).toEqual([1, 2]);
+    });
+
+    it('should handle backward compatibility with single propertyKey', () => {
+        // Mock a saved rule with the old propertyKey format
+        const oldRule = {
+            id: 'old-1',
+            title: 'Old Rule',
+            propertyKey: 'city',
+            isActive: true,
+            createdAt: Date.now(),
+            mode: 'property'
+        };
+        localStorageMock.setItem('graph_grouping_rules_v2', JSON.stringify([oldRule]));
+
+        const nodes = createNodes();
+        const { result } = renderHook(() =>
+            useNodeGrouping({ nodes, edges: [], objectTypes })
+        );
+
+        expect(result.current.rules).toHaveLength(1);
+        expect(result.current.activeRule?.id).toBe('old-1');
+        
+        // Grouping should still work
+        const groups = result.current.groups;
+        expect(groups.length).toBeGreaterThan(0);
+        expect(groups[0].propertyValue).toBe('Moscow');
     });
 });
