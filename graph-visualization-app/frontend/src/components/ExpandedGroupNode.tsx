@@ -1,12 +1,18 @@
 import React, { memo } from 'react';
-import { NodeProps } from 'reactflow';
+import { NodeProps, Node } from '@xyflow/react';
+
+interface ExpandedGroupData {
+    label: string;
+    count: number;
+    [key: string]: unknown;
+}
 
 /**
  * Визуальный контейнер для раскрытой группы узлов.
  * Используется как parent-узел (ReactFlow Sub Flow).
  * Дочерние узлы позиционируются внутри и двигаются вместе с ним.
  */
-const ExpandedGroupNode = memo(({ data }: NodeProps) => {
+const ExpandedGroupNode = memo(({ data }: NodeProps<Node<ExpandedGroupData>>) => {
     const label = data.label || 'Группа';
     const count = data.count || 0;
 

@@ -120,7 +120,7 @@ export function forceDirectedLayout(
               const degI = degrees[i];
               const degJ = degrees[j];
               rf *= (1 + Math.log1p(degI)) * (1 + Math.log1p(degJ));
-              
+
               if (dist < minDistance) rf *= 2;
 
               const fx = (dx / dist) * rf;
@@ -151,7 +151,7 @@ export function forceDirectedLayout(
           const degI = degrees[i];
           const degJ = degrees[j];
           rf *= (1 + Math.log1p(degI)) * (1 + Math.log1p(degJ));
-          
+
           if (dist < minDistance) rf *= 2;
 
           const fx = (dx / dist) * rf;

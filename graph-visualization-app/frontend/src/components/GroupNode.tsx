@@ -1,9 +1,23 @@
 import React, { memo } from 'react';
-import { Handle, Position, NodeProps } from 'reactflow';
+import { Handle, Position, NodeProps, Node } from '@xyflow/react';
+
+import { GraphObject } from '../types/graph';
+
+interface GroupNodeData {
+  label: string;
+  count: number;
+  color: string;
+  icon: string;
+  orig: GraphObject;
+  nodeNames: string[];
+  edgeCount: number;
+  isMixed: boolean;
+  [key: string]: unknown;
+}
 
 // Компонент для отображения сгруппированного узла (мета-узла)
 // Стиль Linkurious: серый пунктирный круг + бейдж с количеством + иконка категории
-const GroupNode = memo(({ data, selected }: NodeProps) => {
+const GroupNode = memo(({ data, selected }: NodeProps<Node<GroupNodeData>>) => {
   // data: { label, count, color, icon, orig, nodeNames, edgeCount, isMixed }
   const count = data.count || 1;
   const color = data.color || '#9e9e9e';

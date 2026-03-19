@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import ReactFlow, { Controls, Background, useNodesState, NodeChange, Node, Edge, MarkerType, ReactFlowInstance, useStore, ReactFlowState, ReactFlowProvider } from 'reactflow';
-import 'reactflow/dist/style.css';
+import { ReactFlow, Controls, Background, useNodesState, NodeChange, Node, Edge, MarkerType, ReactFlowInstance, useStore, ReactFlowState, ReactFlowProvider, NodeProps as RFNodeProps, EdgeProps as RFEdgeProps } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import { GraphObject, GraphRelation, RelationType, PathAlgorithm } from '../types/graph';
 import { AggregatedEdge } from '../hooks/useEdgeGrouping';
 import { apiClient } from '../utils/apiClient';
@@ -84,7 +84,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // React Flow Instance
-  const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
+  const [rfInstance, setRfInstance] = useState<ReactFlowInstance<Node<any>, Edge<any>> | null>(null);
 
   // Timer ref for fitView deduplication (prevent stacking on multiple rapid applies)
   const fitViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -176,7 +176,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
   }), []);
 
   // Мемоизация преобразования узлов для ReactFlow
-  const initialRfNodes = useMemo<Node[]>(() => {
+  const initialRfNodes = useMemo<Node<any>[]>(() => {
     return nodes.map(node => {
       const isSelected = selectedNodesSet.has(node.id);
       const isCollapsedGroup = node.isCollapsedGroup === true;
@@ -273,14 +273,14 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
     });
   }, [nodes, combinedSelectedNodes, selectedNodesSet]);
 
-  const [rfNodes, setRfNodes, onNodesChange] = useNodesState(initialRfNodes);
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node<any>>(initialRfNodes);
 
   // Синхронизация узлов только при изменении nodes или selection
   // Но НЕ при перемещении (это важно для устранения мигания)
   useEffect(() => {
     setRfNodes(currentNodes => {
       // O(n) Map lookup вместо O(n²) .find() в цикле
-      const currentNodesMap = new Map<string, Node>();
+      const currentNodesMap = new Map<string, Node<any>>();
       currentNodes.forEach(n => currentNodesMap.set(n.id, n));
 
       let positionChangedCount = 0;
@@ -403,7 +403,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
         };
       });
     });
-  }, [nodes, combinedSelectedNodes, initialRfNodes, selectedNodesSet]);
+  }, [nodes, combinedSelectedNodes, initialRfNodes, selectedNodesSet, setRfNodes]);
 
   // Эффект для fitView при смене layoutId
   useEffect(() => {
@@ -423,7 +423,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
     return map;
   }, [relationTypes]);
 
-  const rfEdges = useMemo<Edge[]>(() => {
+  const rfEdges = useMemo<Edge<any>[]>(() => {
     const hasHighlightedEdges = selectedEdgesSet.size > 0;
 
     const baseFontSize =
@@ -604,15 +604,19 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
   );
 
   // Контекстное меню по правому клику на узел
-  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: any) => {
+  const onNodeContextMenu = useCallback((event: React.MouseEvent | MouseEvent, node: Node<any>) => {
     event.preventDefault();
-    setMenu({ x: event.clientX, y: event.clientY, type: 'node', node: node.data.orig });
+    if ('clientX' in event) {
+      setMenu({ x: event.clientX, y: event.clientY, type: 'node', node: node.data.orig });
+    }
   }, []);
 
   // Контекстное меню по правому клику на фон
-  const onPaneContextMenu = useCallback((event: React.MouseEvent) => {
+  const onPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
     event.preventDefault();
-    setMenu({ x: event.clientX, y: event.clientY, type: 'pane', node: null });
+    if ('clientX' in event) {
+      setMenu({ x: event.clientX, y: event.clientY, type: 'pane', node: null });
+    }
   }, []);
 
   // Проверяем есть ли активные группы
@@ -622,7 +626,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
 
   // Обработка клика по узлу
   const handleNodeClick = useCallback(
-    (_: any, node: any) => {
+    (_: any, node: Node<any>) => {
       onSelectNode(node.data.orig);
     },
     [onSelectNode]
@@ -648,7 +652,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
 
   // Обработка двойного клика по узлу
   const handleNodeDoubleClick = useCallback(
-    (event: React.MouseEvent, node: any) => {
+    (event: React.MouseEvent | MouseEvent, node: Node<any>) => {
       // Если это сгруппированный узел, разворачиваем его
       if (node.data.orig.isCollapsedGroup) {
         if (onNodeAction) {

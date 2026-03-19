@@ -1,7 +1,13 @@
 import React, { memo } from 'react';
-import { EdgeProps, EdgeLabelRenderer, BaseEdge, useStore, ReactFlowState } from 'reactflow';
+import { EdgeProps, EdgeLabelRenderer, BaseEdge, useStore, ReactFlowState, Edge } from '@xyflow/react';
 
-const ParallelEdge: React.FC<EdgeProps> = memo(({
+interface ParallelEdgeData {
+  index: number;
+  total: number;
+  [key: string]: unknown;
+}
+
+const ParallelEdge: React.FC<EdgeProps<Edge<ParallelEdgeData>>> = memo(({
   id,
   sourceX,
   sourceY,
