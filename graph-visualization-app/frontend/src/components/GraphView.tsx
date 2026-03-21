@@ -37,6 +37,8 @@ import GroupInfoPanel from './GroupInfoPanel';
 import CommonNeighborsPanel from './CommonNeighborsPanel';
 import EdgeGroupingPanel from './EdgeGroupingPanel';
 import AggregatedEdgeCard from './AggregatedEdgeCard';
+import AggregatedPropertiesCard from './AggregatedPropertiesCard';
+import { extractPropertyMetadata } from '../utils/propertyAggregations';
 
 export default function GraphView() {
   const { user, isAuthenticated } = useAuth();
@@ -325,6 +327,8 @@ export default function GraphView() {
       y: typeof node.PositionY === 'number' ? node.PositionY : 0,
     }));
   }, [groupedTransformedNodes]);
+
+  const propertyMetadata = useMemo(() => extractPropertyMetadata(nodes), [nodes]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -716,7 +720,14 @@ export default function GraphView() {
                   />
                 )}
 
-                {selected?.type === 'node' && <ObjectCard object={selected.data} />}
+                {selectedIds.length > 1 ? (
+                  <AggregatedPropertiesCard
+                    nodes={nodes.filter(n => selectedIds.includes(n.id))}
+                    onClose={() => clearSelection()}
+                  />
+                ) : (
+                  selected?.type === 'node' && <ObjectCard object={selected.data} />
+                )}
                 {selected?.type === 'edge' && (
                   <RelationCard
                     relation={selected.data}
@@ -946,6 +957,8 @@ export default function GraphView() {
           relationTypes={relationTypes}
           onApplyFilter={applyFilters}
           currentFilters={filters}
+          availableProperties={availableProperties}
+          propertyMetadata={propertyMetadata}
         />
 
         <BulkActionsPanel

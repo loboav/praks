@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ObjectType, RelationType } from '../../types/graph';
+import { FilterGroup } from '../../hooks/useGraphFilters';
+import { PropertyMetadata } from '../../utils/propertyAggregations';
+import AdvancedFilterBuilder from './AdvancedFilterBuilder';
 
 export interface FilterModalProps {
   open: boolean;
@@ -8,12 +11,15 @@ export interface FilterModalProps {
   relationTypes: RelationType[];
   onApplyFilter: (filters: FilterState) => void;
   currentFilters?: FilterState;
+  availableProperties: string[];
+  propertyMetadata: PropertyMetadata[];
 }
 
 export interface FilterState {
   selectedObjectTypes: number[];
   selectedRelationTypes: number[];
   showIsolatedNodes: boolean;
+  advancedFilter?: FilterGroup;
 }
 
 const FilterModal: React.FC<FilterModalProps> = ({
@@ -23,6 +29,8 @@ const FilterModal: React.FC<FilterModalProps> = ({
   relationTypes,
   onApplyFilter,
   currentFilters,
+  availableProperties,
+  propertyMetadata,
 }) => {
   const [selectedObjectTypes, setSelectedObjectTypes] = useState<number[]>(
     currentFilters?.selectedObjectTypes || objectTypes.map(t => t.id)
@@ -33,6 +41,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
   const [showIsolatedNodes, setShowIsolatedNodes] = useState<boolean>(
     currentFilters?.showIsolatedNodes ?? true
   );
+  const [advancedFilter, setAdvancedFilter] = useState<FilterGroup | undefined>(
+    currentFilters?.advancedFilter
+  );
 
   useEffect(() => {
     if (open && !currentFilters) {
@@ -40,6 +51,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
       setSelectedObjectTypes(objectTypes.map(t => t.id));
       setSelectedRelationTypes(relationTypes.map(t => t.id));
       setShowIsolatedNodes(true);
+      setAdvancedFilter(undefined);
+    } else if (open && currentFilters) {
+      setAdvancedFilter(currentFilters.advancedFilter);
     }
   }, [open, objectTypes, relationTypes, currentFilters]);
 
@@ -78,6 +92,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
       selectedObjectTypes,
       selectedRelationTypes,
       showIsolatedNodes,
+      advancedFilter,
     });
     onClose();
   };
@@ -86,12 +101,14 @@ const FilterModal: React.FC<FilterModalProps> = ({
     setSelectedObjectTypes(objectTypes.map(t => t.id));
     setSelectedRelationTypes(relationTypes.map(t => t.id));
     setShowIsolatedNodes(true);
+    setAdvancedFilter(undefined);
   };
 
   const activeFiltersCount =
     (objectTypes.length - selectedObjectTypes.length) +
     (relationTypes.length - selectedRelationTypes.length) +
-    (showIsolatedNodes ? 0 : 1);
+    (showIsolatedNodes ? 0 : 1) +
+    (advancedFilter && advancedFilter.children.length > 0 ? 1 : 0);
 
   return (
     <div
@@ -306,6 +323,15 @@ const FilterModal: React.FC<FilterModalProps> = ({
               )}
             </div>
           </div>
+
+          <AdvancedFilterBuilder 
+            filterGroup={advancedFilter} 
+            onChange={setAdvancedFilter} 
+            availableProperties={availableProperties} 
+            propertyMetadata={propertyMetadata}
+          />
+
+          <hr style={{ border: 'none', borderTop: '1px solid #e0e0e0', margin: '24px 0' }} />
 
           {/* Additional Options */}
           <div style={{ marginBottom: 12 }}>
