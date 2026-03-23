@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { GraphObject, GraphRelation, ObjectType } from '../types/graph';
 
 // ─── Типы ───────────────────────────────────────────────────────────────────
@@ -150,6 +150,9 @@ export function useNodeGrouping({
   edges,
   objectTypes,
 }: UseNodeGroupingProps): UseNodeGroupingReturn {
+  // Кэш для позиций узлов внутри групп (предотвращает эффект прилипания/сброса обратно в круг)
+  const groupNodePositionsRef = useRef<Map<number, { absX: number, absY: number, relX: number, relY: number }>>(new Map());
+
   // ── Правила ────────────────────────────────────────────────────────────────
 
   const [rules, setRules] = useState<GroupingRule[]>(() => {
@@ -217,8 +220,8 @@ export function useNodeGrouping({
       if (nodeIds.length < 2) return;
       const newRule: GroupingRule = {
         id: `manual-${Date.now()}-${++_ruleIdCounter}`,
-      title,
-      propertyKeys: ['__manual__'],
+        title,
+        propertyKeys: ['__manual__'],
         isActive: true, // manual-группы всегда активны
         createdAt: Date.now(),
         mode: 'manual',
@@ -288,7 +291,7 @@ export function useNodeGrouping({
 
         // Собираем свойства (поддержка старого propertyKey и нового propertyKeys)
         const keys = activeRule.propertyKeys || (activeRule.propertyKey ? [activeRule.propertyKey] : []);
-        
+
         const values = keys.map(key => {
           if (key === 'objectTypeId') {
             return objectTypeMap.get(node.objectTypeId) ?? `Type ${node.objectTypeId}`;
@@ -490,15 +493,48 @@ export function useNodeGrouping({
 
       // Create visible nodes with new positions and parent IDs
       const circleR = R - padding - nodeSize / 2;
+      const parentAbsX = avgX - R;
+      const parentAbsY = avgY - R;
+
       const innerVisibleNodes = groupNodes.map((node, i) => {
         const angle = (2 * Math.PI * i) / groupNodes.length - Math.PI / 2;
-        const relX = R + circleR * Math.cos(angle) - nodeSize / 2;
-        const relY = R + circleR * Math.sin(angle) - nodeSize / 2;
+        const circleRelX = R + circleR * Math.cos(angle) - nodeSize / 2;
+        const circleRelY = R + circleR * Math.sin(angle) - nodeSize / 2;
+
+        const currentAbsX = node.PositionX ?? avgX;
+        const currentAbsY = node.PositionY ?? avgY;
+
+        let finalRelX = circleRelX;
+        let finalRelY = circleRelY;
+
+        const cached = groupNodePositionsRef.current.get(node.id);
+
+        if (cached) {
+          // Если текущая абсолютная позиция с бэкенда изменилась по сравнению с той, что мы видели в прошлый раз,
+          // значит юзер перетащил узел! (т.к. мы в бэкенд не пушим круговые координаты, а только юзер пушит при драге)
+          if (Math.abs(cached.absX - currentAbsX) > 1 || Math.abs(cached.absY - currentAbsY) > 1) {
+            // Юзер передвинул узел. Считаем новые относительные координаты:
+            finalRelX = currentAbsX - parentAbsX;
+            finalRelY = currentAbsY - parentAbsY;
+          } else {
+            // Бэкенд-абсолютная позиция не менялась. Переиспользуем закэшированный relX (круг или старое перетаскивание)
+            finalRelX = cached.relX;
+            finalRelY = cached.relY;
+          }
+        }
+
+        // Обновляем кэш свежими данными
+        groupNodePositionsRef.current.set(node.id, {
+          absX: currentAbsX,
+          absY: currentAbsY,
+          relX: finalRelX,
+          relY: finalRelY
+        });
 
         return {
           ...node,
-          PositionX: relX,
-          PositionY: relY,
+          PositionX: finalRelX,
+          PositionY: finalRelY,
           _expandedGroupParentId: containerNumericId.toString(),
         };
       });

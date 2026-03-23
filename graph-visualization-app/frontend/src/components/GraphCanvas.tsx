@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { ReactFlow, Controls, Background, useNodesState, NodeChange, Node, Edge, MarkerType, ReactFlowInstance, useStore, ReactFlowState, ReactFlowProvider, NodeProps as RFNodeProps, EdgeProps as RFEdgeProps } from '@xyflow/react';
+import { ReactFlow, Controls, Background, useNodesState, NodeChange, Node, Edge, MarkerType, ReactFlowInstance, useStore, ReactFlowState, ReactFlowProvider, NodeProps as RFNodeProps, EdgeProps as RFEdgeProps, MiniMap, Panel } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { GraphObject, GraphRelation, RelationType, PathAlgorithm } from '../types/graph';
 import { AggregatedEdge } from '../hooks/useEdgeGrouping';
@@ -7,6 +7,7 @@ import { apiClient } from '../utils/apiClient';
 import GroupNode from './GroupNode';
 import ExpandedGroupNode from './ExpandedGroupNode';
 import ParallelEdge from './ParallelEdge';
+import GraphNodeToolbar from './GraphNodeToolbar';
 
 
 interface GraphCanvasProps {
@@ -29,6 +30,7 @@ interface GraphCanvasProps {
   onGroupSelected?: (nodeIds: number[]) => void;
   layoutId?: number;
   originalEdges?: GraphRelation[];
+  supportsFindPath?: boolean;
 }
 
 interface HighlightProps {
@@ -56,6 +58,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
   onGroupSelected,
   layoutId,
   originalEdges = [],
+  supportsFindPath = false,
 }) => {
   // Local highlighting for found path
   const [selectedNodesLocal, setSelectedNodesLocal] = useState<number[]>([]);
@@ -89,19 +92,19 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
   // Timer ref for fitView deduplication (prevent stacking on multiple rapid applies)
   const fitViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Флаг для отслеживания программных изменений (align)
-  const isProgrammaticChangeRef = useRef(false);
 
-  // Контекстное меню
+  // Контекстное меню (только глобальное меню)
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
-    node: GraphObject | null; // null для глобального меню
-    type?: 'pane' | 'node'; // Тип меню
+    type: 'pane';
   } | null>(null);
 
   // Fallback state for find-path flow when parent handler doesn't implement it
   const [fallbackFindFirst, setFallbackFindFirst] = useState<number | null>(null);
+
+  // State for the node context menu (NodeToolbar)
+  const [contextMenuNodeId, setContextMenuNodeId] = useState<string | null>(null);
 
   // --- Semantic Zoom Logic ---
   const zoom = useStore((s: ReactFlowState) => s.transform[2]);
@@ -196,9 +199,10 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
             y: node.PositionY ?? 0,
           },
           // Явная передача width и height критически важна для onlyRenderVisibleElements!
-          // Иначе движок думает, что размер узла 0x0, и выгружает его, когда мы приближаемся 
-          width: (node as any)._expandedGroupWidth || 300,
-          height: (node as any)._expandedGroupHeight || 300,
+          // В React Flow v12 необходимо использовать initialWidth/initialHeight или measured
+          initialWidth: (node as any)._expandedGroupWidth || 300,
+          initialHeight: (node as any)._expandedGroupHeight || 300,
+          measured: { width: (node as any)._expandedGroupWidth || 300, height: (node as any)._expandedGroupHeight || 300 },
           style: {
             width: (node as any)._expandedGroupWidth || 300,
             height: (node as any)._expandedGroupHeight || 300,
@@ -229,6 +233,9 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
             y: node.PositionY ?? 300,
           },
           selected: isSelected,
+          initialWidth: 150,
+          initialHeight: 50,
+          measured: { width: 150, height: 50 },
         };
       }
 
@@ -261,6 +268,9 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
           fontSize: 14,
           opacity: 1,
         },
+        initialWidth: 150,
+        initialHeight: 80,
+        measured: { width: 150, height: 80 },
       };
 
       // Восстанавливаем встроенную физическую привязку React Flow (Sub Flows) по просьбе пользователя
@@ -335,7 +345,6 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
           clearTimeout(debounceTimerRef.current);
           debounceTimerRef.current = null;
         }
-        isProgrammaticChangeRef.current = true;
 
         // Safety check for NaNs in output
         const safeNodes = initialRfNodes.map(n => {
@@ -553,11 +562,6 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
       // Применяем все изменения к ReactFlow
       onNodesChange(changes);
 
-      // Игнорируем изменения позиций если это программное изменение (align)
-      if (isProgrammaticChangeRef.current) {
-        isProgrammaticChangeRef.current = false;
-        return;
-      }
 
       // Фильтруем только изменения позиций от пользователя
       const positionChanges = changes.filter(
@@ -603,19 +607,18 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
     [onNodesChange, onNodesPositionChange, debouncedPositionUpdate, setRfNodes]
   );
 
-  // Контекстное меню по правому клику на узел
+  // Контекстное меню по правому клику на узел (показываем спавн тулбара)
   const onNodeContextMenu = useCallback((event: React.MouseEvent | MouseEvent, node: Node<any>) => {
     event.preventDefault();
-    if ('clientX' in event) {
-      setMenu({ x: event.clientX, y: event.clientY, type: 'node', node: node.data.orig });
-    }
+    setContextMenuNodeId(node.id);
   }, []);
 
   // Контекстное меню по правому клику на фон
   const onPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
     event.preventDefault();
+    setContextMenuNodeId(null);
     if ('clientX' in event) {
-      setMenu({ x: event.clientX, y: event.clientY, type: 'pane', node: null });
+      setMenu({ x: event.clientX, y: event.clientY, type: 'pane' });
     }
   }, []);
 
@@ -628,6 +631,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
   const handleNodeClick = useCallback(
     (_: any, node: Node<any>) => {
       onSelectNode(node.data.orig);
+      setContextMenuNodeId(null); // скрываем тулбар при левом клике
     },
     [onSelectNode]
   );
@@ -670,12 +674,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
 
   // Действия из меню
   const handleMenuAction = useCallback(
-    (action: string) => {
-      if (!menu) {
-        setMenu(null);
-        return;
-      }
-
+    (action: string, targetNode?: GraphObject) => {
       // Глобальные действия (не требуют node)
       if (action === 'expand-all') {
         if (onExpandAllGroups) {
@@ -699,31 +698,32 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
         return;
       }
 
-      // Действия с узлом (требуют node)
-      if (!menu.node) {
+      // Действия с узлом (требуют targetNode)
+      if (!targetNode) {
         setMenu(null);
+        setContextMenuNodeId(null);
         return;
       }
 
       // Fallback: if action is 'find-path' and parent handler doesn't support it, handle here
       if (action === 'find-path') {
-        const parentStr =
-          onNodeAction && (onNodeAction as any).toString ? (onNodeAction as any).toString() : '';
-        const parentHasFind = parentStr.includes('find-path');
+        if (onNodeAction) {
+          onNodeAction(action, targetNode);
+        }
 
-        if (!parentHasFind) {
+        if (!supportsFindPath) {
           // First click: store origin; second click: call backend
           if (!fallbackFindFirst) {
-            setFallbackFindFirst(menu.node.id);
+            setFallbackFindFirst(targetNode.id);
             setFindMessage(
-              'Первый узел для поиска пути выбран: ' + (menu.node.name || menu.node.id)
+              'Первый узел для поиска пути выбран: ' + (targetNode.name || targetNode.id)
             );
             setTimeout(() => setFindMessage(null), 2200);
             setMenu(null);
             return;
-          } else if (fallbackFindFirst && fallbackFindFirst !== menu.node.id) {
+          } else if (fallbackFindFirst && fallbackFindFirst !== targetNode.id) {
             const from = fallbackFindFirst;
-            const to = menu.node.id;
+            const to = targetNode.id;
             const base = (window as any).__API_BASE || '';
 
             // Выбираем endpoint в зависимости от алгоритма
@@ -963,26 +963,27 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
 
       if (onNodeAction && typeof onNodeAction === 'function') {
         try {
-          if (menu.node) {
-            onNodeAction(action, menu.node);
-          }
+          onNodeAction(action, targetNode);
         } catch (err) {
           console.error('GraphCanvas: ошибка при вызове onNodeAction', err);
         }
       }
 
       setMenu(null);
+      setContextMenuNodeId(null);
     },
-    [menu, onNodeAction, fallbackFindFirst, nodes, propsSelectedNodes, onGroupSelected]
+    [menu, onNodeAction, fallbackFindFirst, nodes, propsSelectedNodes, onGroupSelected, onExpandAllGroups, onCollapseAllGroups, rfInstance]
   );
 
   // Закрыть меню при клике вне
   useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
+    const close = () => {
+      setMenu(null);
+      setContextMenuNodeId(null);
+    };
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
-  }, [menu]);
+  }, []);
 
   // Обработчик закрытия модального окна пути
   const handleClosePathModal = useCallback(() => {
@@ -1031,26 +1032,39 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
       >
         <Background />
         <Controls />
-      </ReactFlow>
 
-      {/* Transient on-screen message */}
-      {findMessage && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 24,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: '#323232',
-            color: '#fff',
-            padding: '10px 16px',
-            borderRadius: 8,
-            zIndex: 1200,
-          }}
-        >
-          {findMessage}
-        </div>
-      )}
+        {/* Transient on-screen message */}
+        {findMessage && (
+          <Panel position="bottom-center" style={{ zIndex: 1200 }}>
+            <div style={{
+              background: '#323232',
+              color: '#fff',
+              padding: '10px 18px',
+              borderRadius: 8,
+              boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
+              fontWeight: 500,
+              fontSize: '15px'
+            }}>
+              {findMessage}
+            </div>
+          </Panel>
+        )}
+
+        {/* Native Render of Custom Node Toolbars for selected nodes */}
+        {contextMenuNodeId && (() => {
+          const node = nodes.find(n => n.id.toString() === contextMenuNodeId.toString());
+          if (!node) return null;
+          return (
+            <GraphNodeToolbar
+              key={`toolbar-${contextMenuNodeId}`}
+              nodeId={contextMenuNodeId.toString()}
+              node={node}
+              onAction={handleMenuAction}
+              selectedNodesCount={propsSelectedNodes?.length || 0}
+            />
+          );
+        })()}
+      </ReactFlow>
 
       {/* Path details modal */}
       {pathModalOpen && pathResult && (
@@ -1216,8 +1230,8 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
         </div>
       )}
 
-      {/* Context menu */}
-      {menu && (
+      {/* Context menu (now only for pane global actions) */}
+      {menu && menu.type === 'pane' && (
         <div
           style={{
             position: 'fixed',
@@ -1231,75 +1245,20 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
             minWidth: 160,
           }}
         >
-          {/* Глобальное меню (клик по фону) */}
-          {menu.type === 'pane' ? (
+          {hasActiveGroups && (
             <>
-              {hasActiveGroups && (
-                <>
-                  <button style={menuBtn} onClick={() => handleMenuAction('expand-all')}>
-                    🔓 Развернуть все группы
-                  </button>
-                  <button style={menuBtn} onClick={() => handleMenuAction('collapse-all')}>
-                    🔒 Свернуть все группы
-                  </button>
-                  <div style={{ height: 1, background: '#eee', margin: '4px 0' }} />
-                </>
-              )}
-              <button style={menuBtn} onClick={() => handleMenuAction('fit-view')}>
-                📐 Показать всё
+              <button style={menuBtn} onClick={() => handleMenuAction('expand-all')}>
+                🔓 Развернуть все группы
               </button>
-            </>
-          ) : menu.node && menu.node.isCollapsedGroup ? (
-            /* Меню для мета-узла */
-            <>
-              <button
-                style={{ ...menuBtn, color: '#4caf50', fontWeight: 600 }}
-                onClick={() => handleMenuAction('expand-group')}
-              >
-                🔓 Развернуть группу ({menu.node._collapsedCount} узлов)
+              <button style={menuBtn} onClick={() => handleMenuAction('collapse-all')}>
+                🔒 Свернуть все группы
               </button>
               <div style={{ height: 1, background: '#eee', margin: '4px 0' }} />
-              <button style={menuBtn} onClick={() => handleMenuAction('select-group-nodes')}>
-                Выбрать узлы группы
-              </button>
-            </>
-          ) : (
-            /* Меню для обычного узла */
-            <>
-              <button style={menuBtn} onClick={() => handleMenuAction('create-relation')}>
-                Создать связь
-              </button>
-              <button style={menuBtn} onClick={() => handleMenuAction('expand')}>
-                Раскрыть связи
-              </button>
-              <button style={menuBtn} onClick={() => handleMenuAction('edit')}>
-                Редактировать
-              </button>
-              <button style={menuBtn} onClick={() => handleMenuAction('hide')}>
-                Скрыть
-              </button>
-              <button
-                style={{ ...menuBtn, color: '#f44336' }}
-                onClick={() => handleMenuAction('delete')}
-              >
-                Удалить
-              </button>
-              <button style={menuBtn} onClick={() => handleMenuAction('find-path')}>
-                Поиск пути
-              </button>
-              {onGroupSelected && propsSelectedNodes && propsSelectedNodes.length >= 2 && (
-                <>
-                  <div style={{ height: 1, background: '#eee', margin: '4px 0' }} />
-                  <button
-                    style={{ ...menuBtn, color: '#1976d2', fontWeight: 600 }}
-                    onClick={() => handleMenuAction('group-selected')}
-                  >
-                    🗂 Сгруппировать выбранные ({propsSelectedNodes.length})
-                  </button>
-                </>
-              )}
             </>
           )}
+          <button style={menuBtn} onClick={() => handleMenuAction('fit-view')}>
+            📐 Показать всё
+          </button>
         </div>
       )}
     </div>
