@@ -124,20 +124,6 @@ export default function GraphView() {
     hideNode,
   } = useGraphData({ onAddHistoryAction: addAction });
 
-  const {
-    currentLayoutType,
-    setCurrentLayoutType,
-    isApplyingLayout,
-    applyLayout,
-    saveLayout,
-    loadLayout,
-    layoutVersion,
-  } = useLayoutManager({
-    nodes,
-    edges,
-    onNodesUpdate: setNodes,
-    onAddHistoryAction: addAction,
-  });
 
   const { filters, filteredNodes, filteredEdges, applyFilters, hasActiveFilters } = useGraphFilters(
     {
@@ -194,6 +180,22 @@ export default function GraphView() {
     availableProperties,
     computeGroupStats,
   } = useNodeGrouping({ nodes: filteredNodes, edges: timelineFilteredEdges, objectTypes });
+
+  const {
+    currentLayoutType,
+    setCurrentLayoutType,
+    isApplyingLayout,
+    applyLayout,
+    saveLayout,
+    loadLayout,
+    layoutVersion,
+  } = useLayoutManager({
+    rawNodes: nodes,
+    layoutNodes: groupedTransformedNodes,
+    layoutEdges: groupedTransformedEdges,
+    onNodesUpdate: setNodes,
+    onAddHistoryAction: addAction,
+  });
 
   // Edge Grouping Hook — независимая группировка параллельных рёбер по типу
   const {
@@ -523,58 +525,10 @@ export default function GraphView() {
               </div>
             ) : (
               <>
-                {/* View Mode Toggle */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 12,
-                    right: 12,
-                    zIndex: 1000,
-                    display: 'flex',
-                    background: '#fff',
-                    borderRadius: 8,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <button
-                    onClick={() => setViewMode('graph')}
-                    style={{
-                      padding: '8px 16px',
-                      border: 'none',
-                      background: viewMode === 'graph' ? '#2196f3' : '#fff',
-                      color: viewMode === 'graph' ? '#fff' : '#333',
-                      cursor: 'pointer',
-                      fontWeight: 500,
-                      fontSize: 14,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    📊 Граф
-                  </button>
-                  <button
-                    onClick={() => setViewMode('map')}
-                    style={{
-                      padding: '8px 16px',
-                      border: 'none',
-                      background: viewMode === 'map' ? '#2196f3' : '#fff',
-                      color: viewMode === 'map' ? '#fff' : '#333',
-                      cursor: 'pointer',
-                      fontWeight: 500,
-                      fontSize: 14,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    🗺️ Карта
-                  </button>
-                </div>
-
                 {viewMode === 'graph' ? (
                   <GraphCanvas
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
                     nodes={nodesWithPositions}
                     edges={edgeGroupedEdges}
                     originalEdges={groupedTransformedEdges}
@@ -640,6 +594,8 @@ export default function GraphView() {
                   />
                 ) : (
                   <GeoMapView
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
                     nodes={nodesWithPositions}
                     edges={timelineFilteredEdges}
                     relationTypes={relationTypes}

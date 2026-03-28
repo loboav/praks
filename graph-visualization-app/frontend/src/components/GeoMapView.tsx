@@ -21,6 +21,8 @@ interface GeoMapViewProps {
     onSelectEdge: (edge: GraphRelation) => void;
     selectedNodes?: number[];
     selectedEdges?: number[];
+    viewMode?: 'graph' | 'map';
+    onViewModeChange?: (mode: 'graph' | 'map') => void;
 }
 
 // Create custom marker icon with node color
@@ -56,6 +58,8 @@ const GeoMapView: React.FC<GeoMapViewProps> = ({
     onSelectEdge,
     selectedNodes = [],
     selectedEdges = [],
+    viewMode,
+    onViewModeChange,
 }) => {
     const { geoNodes, geoEdges, hiddenCount } = useGeoNodes(nodes, edges);
 
@@ -90,6 +94,54 @@ const GeoMapView: React.FC<GeoMapViewProps> = ({
 
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            {viewMode && onViewModeChange && (
+                <div style={{
+                    position: 'absolute',
+                    top: 12,
+                    right: 12,
+                    zIndex: 1000,
+                    display: 'flex',
+                    background: '#fff',
+                    borderRadius: 8,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                    overflow: 'hidden',
+                }}>
+                    <button
+                        onClick={() => onViewModeChange('graph')}
+                        style={{
+                            padding: '8px 16px',
+                            border: 'none',
+                            background: viewMode === 'graph' ? '#2196f3' : '#fff',
+                            color: viewMode === 'graph' ? '#fff' : '#333',
+                            cursor: 'pointer',
+                            fontWeight: 500,
+                            fontSize: 14,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                        }}
+                    >
+                        📊 Граф
+                    </button>
+                    <button
+                        onClick={() => onViewModeChange('map')}
+                        style={{
+                            padding: '8px 16px',
+                            border: 'none',
+                            background: viewMode === 'map' ? '#2196f3' : '#fff',
+                            color: viewMode === 'map' ? '#fff' : '#333',
+                            cursor: 'pointer',
+                            fontWeight: 500,
+                            fontSize: 14,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                        }}
+                    >
+                        🗺️ Карта
+                    </button>
+                </div>
+            )}
             <MapContainer
                 center={center}
                 zoom={zoom}

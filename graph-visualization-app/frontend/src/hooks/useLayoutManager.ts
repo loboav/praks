@@ -20,15 +20,17 @@ interface LayoutPosition {
 }
 
 interface UseLayoutManagerProps {
-  nodes: GraphObject[];
-  edges: GraphRelation[];
+  rawNodes: GraphObject[];
+  layoutNodes: GraphObject[];
+  layoutEdges: GraphRelation[];
   onNodesUpdate: (updater: (prev: GraphObject[]) => GraphObject[]) => void;
   onAddHistoryAction?: (action: any) => void;
 }
 
 export const useLayoutManager = ({
-  nodes,
-  edges,
+  rawNodes,
+  layoutNodes,
+  layoutEdges,
   onNodesUpdate,
   onAddHistoryAction,
 }: UseLayoutManagerProps) => {
@@ -38,12 +40,12 @@ export const useLayoutManager = ({
   const [layoutVersion, setLayoutVersion] = useState(0);
 
   const applyLayout = useCallback(async () => {
-    if (nodes.length === 0) {
+    if (layoutNodes.length === 0) {
       toast.warning('Нет узлов для расположения');
       return;
     }
 
-    const oldPositions: LayoutPosition[] = nodes.map(n => ({
+    const oldPositions: LayoutPosition[] = rawNodes.map(n => ({
       id: n.id,
       x: n.PositionX ?? 0,
       y: n.PositionY ?? 0,
@@ -58,7 +60,7 @@ export const useLayoutManager = ({
         case 'elk-layered':
           toast.info('Применяется иерархический layout...');
           layoutResult = {
-            nodes: await elkLayout(nodes, edges, {
+            nodes: await elkLayout(layoutNodes, layoutEdges, {
               algorithm: 'layered',
               layerSpacing: 400,
               nodeSpacing: 250,
@@ -67,23 +69,23 @@ export const useLayoutManager = ({
           break;
         case 'elk-disjoint':
           toast.info('Применяется DDG (разбиение)...');
-          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'disjoint-directed' }) };
+          layoutResult = { nodes: await elkLayout(layoutNodes, layoutEdges, { algorithm: 'disjoint-directed' }) };
           break;
         case 'elk-random':
           toast.info('Применяется случайное расположение...');
-          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'random' }) };
+          layoutResult = { nodes: await elkLayout(layoutNodes, layoutEdges, { algorithm: 'random' }) };
           break;
         case 'elk-rectpacking':
           toast.info('Применяется упаковка узлов...');
-          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'rectpacking' }) };
+          layoutResult = { nodes: await elkLayout(layoutNodes, layoutEdges, { algorithm: 'rectpacking' }) };
           break;
         case 'elk-mrtree':
           toast.info('Применяется древовидный layout...');
-          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'mrtree' }) };
+          layoutResult = { nodes: await elkLayout(layoutNodes, layoutEdges, { algorithm: 'mrtree' }) };
           break;
         case 'elk-box':
           toast.info('Применяется сеточная упаковка...');
-          layoutResult = { nodes: await elkLayout(nodes, edges, { algorithm: 'box' }) };
+          layoutResult = { nodes: await elkLayout(layoutNodes, layoutEdges, { algorithm: 'box' }) };
           break;
         default:
           setIsApplyingLayout(false);
@@ -93,7 +95,7 @@ export const useLayoutManager = ({
       const newPosMap = new Map<number, { x: number; y: number }>();
       layoutResult.nodes.forEach((n: any) => newPosMap.set(n.id, { x: n.x, y: n.y }));
 
-      const updatedNodes = nodes.map(node => {
+      const updatedNodes = rawNodes.map(node => {
         const newPos = newPosMap.get(node.id);
         if (newPos) {
           return { ...node, PositionX: newPos.x, PositionY: newPos.y };
@@ -118,7 +120,7 @@ export const useLayoutManager = ({
             const oldPosMap = new Map<number, { x: number; y: number }>();
             oldPositions.forEach(p => oldPosMap.set(p.id, { x: p.x, y: p.y }));
 
-            const restoredNodes = nodes.map(node => {
+            const restoredNodes = rawNodes.map(node => {
               const oldPos = oldPosMap.get(node.id);
               if (oldPos) {
                 return { ...node, PositionX: oldPos.x, PositionY: oldPos.y };
@@ -137,11 +139,11 @@ export const useLayoutManager = ({
       toast.error('Ошибка применения layout');
       setIsApplyingLayout(false);
     }
-  }, [nodes, edges, currentLayoutType, onNodesUpdate, onAddHistoryAction]);
+  }, [layoutNodes, layoutEdges, rawNodes, currentLayoutType, onNodesUpdate, onAddHistoryAction]);
 
   const saveLayout = useCallback(async () => {
     const layoutObj = {
-      nodes: nodes.map(n => ({
+      nodes: rawNodes.map(n => ({
         id: n.id,
         x: n.PositionX ?? 0,
         y: n.PositionY ?? 0,
@@ -155,7 +157,7 @@ export const useLayoutManager = ({
     } else {
       toast.error('Ошибка сохранения layout');
     }
-  }, [nodes]);
+  }, [rawNodes]);
 
   const loadLayout = useCallback(async () => {
     try {

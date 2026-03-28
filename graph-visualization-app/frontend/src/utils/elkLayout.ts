@@ -28,12 +28,45 @@ export async function elkLayout(
 
     const n = nodes.length;
 
-    // Convert to ELK graph format
-    const elkNodes = nodes.map(node => ({
-        id: String(node.id),
-        width: 220,
-        height: 90
-    }));
+    // Build hierarchy using maps
+    const rootNodes: any[] = [];
+    const elkNodeMap = new Map<string, any>();
+
+    // 1. Create all ELK nodes
+    nodes.forEach(node => {
+        const isContainer = (node as any)._isExpandedGroupContainer;
+        const width = isContainer ? ((node as any)._expandedGroupWidth || 300) : 220;
+        const height = isContainer ? ((node as any)._expandedGroupHeight || 300) : 90;
+
+        const elkNode: any = {
+            id: String(node.id),
+            width,
+            height,
+        };
+
+        if (isContainer) {
+            elkNode.layoutOptions = {
+                'elk.padding': '[top=50,left=50,bottom=50,right=50]',
+            };
+            elkNode.children = [];
+        }
+
+        elkNodeMap.set(String(node.id), elkNode);
+    });
+
+    // 2. Assign children to parents
+    nodes.forEach(node => {
+        const parentId = (node as any)._expandedGroupParentId;
+        const elkNode = elkNodeMap.get(String(node.id));
+
+        if (parentId && elkNodeMap.has(String(parentId))) {
+            const parentElkNode = elkNodeMap.get(String(parentId));
+            if (!parentElkNode.children) parentElkNode.children = [];
+            parentElkNode.children.push(elkNode);
+        } else {
+            rootNodes.push(elkNode);
+        }
+    });
 
     const elkEdges = edges.map((edge, i) => ({
         id: edge.id ? `e${edge.id}` : `e${edge.source}-${edge.target}-${i}`,
@@ -71,18 +104,36 @@ export async function elkLayout(
     const graph = {
         id: 'root',
         layoutOptions,
-        children: elkNodes,
+        children: rootNodes,
         edges: elkEdges
     };
 
     try {
         const layoutedGraph = await elk.layout(graph);
 
-        const positions = layoutedGraph.children?.map(node => ({
-            id: Number(node.id),
-            x: (node.x || 0) + 100,
-            y: (node.y || 0) + 100
-        })) || [];
+        const positions: Array<{ id: number; x: number; y: number }> = [];
+
+        // Recursively extract positions, calculating absolute coordinates
+        const extractPositions = (elkNode: any, offsetX = 0, offsetY = 0) => {
+            const absX = (elkNode.x || 0) + offsetX;
+            const absY = (elkNode.y || 0) + offsetY;
+
+            // Skip the virtual root node itself
+            if (elkNode.id !== 'root') {
+                positions.push({
+                    id: Number(elkNode.id),
+                    x: absX,
+                    y: absY
+                });
+            }
+
+            if (elkNode.children) {
+                elkNode.children.forEach((child: any) => extractPositions(child, absX, absY));
+            }
+        };
+
+        // Pass 100,100 starting offset as originally intended by the layout container
+        extractPositions(layoutedGraph, 100, 100);
 
         return positions;
     } catch (error) {

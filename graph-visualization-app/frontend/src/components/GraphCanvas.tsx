@@ -31,6 +31,8 @@ interface GraphCanvasProps {
   layoutId?: number;
   originalEdges?: GraphRelation[];
   supportsFindPath?: boolean;
+  viewMode?: 'graph' | 'map';
+  onViewModeChange?: (mode: 'graph' | 'map') => void;
 }
 
 interface HighlightProps {
@@ -59,6 +61,8 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
   layoutId,
   originalEdges = [],
   supportsFindPath = false,
+  viewMode,
+  onViewModeChange,
 }) => {
   // Local highlighting for found path
   const [selectedNodesLocal, setSelectedNodesLocal] = useState<number[]>([]);
@@ -193,6 +197,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
             label: (node as any)._expandedGroupLabel || node.name,
             count: (node as any)._expandedGroupCount || 0,
             orig: node,
+            color: '#e2e8f0', // Visible light gray container color
           },
           position: {
             x: node.PositionX ?? 0,
@@ -202,6 +207,8 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
           // В React Flow v12 необходимо использовать initialWidth/initialHeight или measured
           initialWidth: (node as any)._expandedGroupWidth || 300,
           initialHeight: (node as any)._expandedGroupHeight || 300,
+          width: (node as any)._expandedGroupWidth || 300,
+          height: (node as any)._expandedGroupHeight || 300,
           measured: { width: (node as any)._expandedGroupWidth || 300, height: (node as any)._expandedGroupHeight || 300 },
           style: {
             width: (node as any)._expandedGroupWidth || 300,
@@ -235,6 +242,8 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
           selected: isSelected,
           initialWidth: 150,
           initialHeight: 50,
+          width: 150,
+          height: 50,
           measured: { width: 150, height: 50 },
         };
       }
@@ -247,6 +256,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
         data: {
           label: node.icon ? `${node.icon} ${node.name}` : node.name,
           orig: node,
+          color: node.color || '#2196f3',
         },
         position: {
           x: node.PositionX ?? 400,
@@ -270,6 +280,8 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
         },
         initialWidth: 150,
         initialHeight: 80,
+        width: 150,
+        height: 80,
         measured: { width: 150, height: 80 },
       };
 
@@ -1032,6 +1044,53 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
       >
         <Background />
         <Controls />
+
+        {viewMode && onViewModeChange && (
+          <Panel position="top-right" style={{ zIndex: 1000 }}>
+            <div style={{
+              display: 'flex',
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+              overflow: 'hidden',
+            }}>
+              <button
+                onClick={() => onViewModeChange('graph')}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  background: viewMode === 'graph' ? '#2196f3' : '#fff',
+                  color: viewMode === 'graph' ? '#fff' : '#333',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  fontSize: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                📊 Граф
+              </button>
+              <button
+                onClick={() => onViewModeChange('map')}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  background: viewMode === 'map' ? '#2196f3' : '#fff',
+                  color: viewMode === 'map' ? '#fff' : '#333',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  fontSize: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                🗺️ Карта
+              </button>
+            </div>
+          </Panel>
+        )}
 
         {/* Transient on-screen message */}
         {findMessage && (
