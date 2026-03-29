@@ -7,6 +7,7 @@ import { apiClient } from '../utils/apiClient';
 import GroupNode from './GroupNode';
 import ExpandedGroupNode from './ExpandedGroupNode';
 import ParallelEdge from './ParallelEdge';
+import FloatingEdge from './edges/FloatingEdge';
 import GraphNodeToolbar from './GraphNodeToolbar';
 
 
@@ -180,6 +181,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
   // Регистрируем типы рёбер
   const edgeTypes = useMemo(() => ({
     parallel: ParallelEdge,
+    floating: FloatingEdge,
   }), []);
 
   // Мемоизация преобразования узлов для ReactFlow
@@ -504,7 +506,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
           target: edge.target.toString(),
           label: displayLabel,
           // Если в группе более одного ребра — используем кастомный тип 'parallel'
-          type: group.length > 1 ? 'parallel' : 'straight',
+          type: group.length > 1 ? 'parallel' : 'floating',
           data: { index, total: group.length },
           style: {
             stroke: isHighlighted ? highlightColor : isAgg ? aggColor : getEdgeColor(edge),
@@ -1027,7 +1029,7 @@ const GraphCanvasInner: React.FC<GraphCanvasProps & HighlightProps> = ({
         minZoom={0.1}
         maxZoom={4}
         defaultEdgeOptions={{
-          type: 'straight', // Прямые линии рендерятся в 10 раз быстрее кривых Безье при зуме
+          type: 'floating', // Умная маршрутизация с привязкой к краям
           style: { strokeWidth: 2 },
         }}
         // Оптимизации для больших графов (>1000 элементов)
