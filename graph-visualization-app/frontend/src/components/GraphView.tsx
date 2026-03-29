@@ -246,6 +246,13 @@ export default function GraphView() {
   const [selectedGroup, setSelectedGroup] = useState<GraphObject | null>(null);
 
   const handleSelectNode = (node: GraphObject) => {
+    // Режим создания связи: если источник выбран, следующий узел становится целью
+    if (addRelation.source && !addRelation.target && node.id !== addRelation.source.id) {
+      setAddRelation(r => ({ ...r, target: node }));
+      setAddRelationOpen(true);
+      return; 
+    }
+
     if (node.isCollapsedGroup) {
       setSelectedGroup(node);
       setSelected(null); // Скрываем карточку обычного объекта
@@ -350,6 +357,10 @@ export default function GraphView() {
       }
 
       if (e.key === 'Escape') {
+        if (addRelation.source && !addRelation.target) {
+          setAddRelation({ source: null, target: null });
+          return;
+        }
         if (searchPanelOpen) {
           setSearchPanelOpen(false);
         } else {
@@ -380,7 +391,7 @@ export default function GraphView() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIds, nodes, undo, redo, clearSelection, searchPanelOpen]);
+  }, [selectedIds, nodes, undo, redo, clearSelection, searchPanelOpen, addRelation]);
 
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#f4f6fa', overflow: 'hidden' }}>
@@ -525,6 +536,46 @@ export default function GraphView() {
               </div>
             ) : (
               <>
+                {addRelation.source && !addRelation.target && !addRelationOpen && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 24,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 1200,
+                    background: '#323232',
+                    color: '#fff',
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    fontWeight: 500,
+                    fontSize: '15px',
+                    pointerEvents: 'auto',
+                  }}>
+                    <span>🔗 Выберите целевой узел для создания связи с <strong>{addRelation.source.name}</strong></span>
+                    <button 
+                      onClick={() => setAddRelation({ source: null, target: null })}
+                      style={{ 
+                        background: 'rgba(255,255,255,0.15)', 
+                        border: 'none', 
+                        color: 'white', 
+                        borderRadius: 6, 
+                        padding: '4px 12px', 
+                        cursor: 'pointer', 
+                        fontSize: 13, 
+                        fontWeight: 500,
+                        transition: 'background 0.2s',
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
+                      onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+                    >
+                      Отмена (Esc)
+                    </button>
+                  </div>
+                )}
                 {viewMode === 'graph' ? (
                   <GraphCanvas
                     viewMode={viewMode}

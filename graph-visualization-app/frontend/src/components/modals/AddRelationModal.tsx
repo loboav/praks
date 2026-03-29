@@ -150,116 +150,151 @@ const AddRelationModal: React.FC<AddRelationModalProps> = ({
         }}
       >
         <h3>{isEdit ? 'Редактировать связь' : 'Создать связь'}</h3>
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 14 }}>
-            <label>Тип связи:</label>
-            <select
-              value={relationTypeId}
-              onChange={e => setRelationTypeId(Number(e.target.value))}
-              style={{ width: '100%', marginTop: 4 }}
+        {relationTypes.length === 0 ? (
+          <div style={{ marginTop: 16 }}>
+            <div
+              style={{
+                padding: 16,
+                backgroundColor: '#fff4e5',
+                borderLeft: '4px solid #ff9800',
+                borderRadius: 4,
+                marginBottom: 20,
+              }}
             >
-              {relationTypes.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
+              <p style={{ margin: 0, color: '#663c00', fontSize: 14, lineHeight: '1.5' }}>
+                <strong>Внимание:</strong> У данного типа объекта нет доступных типов связей.
+                Сначала добавьте соответствующий тип связи в боковой панели.
+              </p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  background: '#eee',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '7px 18px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: 14 }}>
+              <label>Тип связи:</label>
+              <select
+                value={relationTypeId}
+                onChange={e => setRelationTypeId(Number(e.target.value))}
+                style={{ width: '100%', marginTop: 4 }}
+              >
+                {relationTypes.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Предзаданные поля из схемы типа связи */}
+            <SchemaFields
+              schemas={currentSchemas}
+              values={schemaValues}
+              onChange={(key, value) => setSchemaValues(prev => ({ ...prev, [key]: value }))}
+            />
+
+            {/* Кастомные свойства */}
+            <div style={{ marginBottom: 18 }}>
+              <label>Дополнительные свойства:</label>
+              {properties.map((p, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                  <input
+                    placeholder="Ключ"
+                    value={p.key}
+                    onChange={e =>
+                      setProperties(props =>
+                        props.map((item, idx) =>
+                          idx === i ? { ...item, key: e.target.value } : item
+                        )
+                      )
+                    }
+                  />
+                  <input
+                    placeholder="Значение"
+                    value={p.value}
+                    onChange={e =>
+                      setProperties(props =>
+                        props.map((item, idx) =>
+                          idx === i ? { ...item, value: e.target.value } : item
+                        )
+                      )
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setProperties(props => props.filter((_, idx) => idx !== i))}
+                    style={{
+                      background: '#eee',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '2px 8px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
               ))}
-            </select>
-          </div>
-
-          {/* Предзаданные поля из схемы типа связи */}
-          <SchemaFields
-            schemas={currentSchemas}
-            values={schemaValues}
-            onChange={(key, value) => setSchemaValues(prev => ({ ...prev, [key]: value }))}
-          />
-
-          {/* Кастомные свойства */}
-          <div style={{ marginBottom: 18 }}>
-            <label>Дополнительные свойства:</label>
-            {properties.map((p, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                <input
-                  placeholder="Ключ"
-                  value={p.key}
-                  onChange={e =>
-                    setProperties(props =>
-                      props.map((item, idx) =>
-                        idx === i ? { ...item, key: e.target.value } : item
-                      )
-                    )
-                  }
-                />
-                <input
-                  placeholder="Значение"
-                  value={p.value}
-                  onChange={e =>
-                    setProperties(props =>
-                      props.map((item, idx) =>
-                        idx === i ? { ...item, value: e.target.value } : item
-                      )
-                    )
-                  }
-                />
-                <button
-                  type="button"
-                  onClick={() => setProperties(props => props.filter((_, idx) => idx !== i))}
-                  style={{
-                    background: '#eee',
-                    border: 'none',
-                    borderRadius: 6,
-                    padding: '2px 8px',
-                    fontWeight: 500,
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => setProperties(props => [...props, { key: '', value: '' }])}
-              style={{
-                marginTop: 6,
-                background: '#2196f3',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                padding: '4px 12px',
-                fontWeight: 500,
-              }}
-            >
-              Добавить свойство
-            </button>
-          </div>
-          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-            <button
-              type="submit"
-              style={{
-                background: '#2196f3',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                padding: '7px 18px',
-                fontWeight: 500,
-              }}
-            >
-              {isEdit ? 'Сохранить' : 'Создать'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                background: '#eee',
-                border: 'none',
-                borderRadius: 6,
-                padding: '7px 18px',
-                fontWeight: 500,
-              }}
-            >
-              Отмена
-            </button>
-          </div>
-        </form>
+              <button
+                type="button"
+                onClick={() => setProperties(props => [...props, { key: '', value: '' }])}
+                style={{
+                  marginTop: 6,
+                  background: '#2196f3',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '4px 12px',
+                  fontWeight: 500,
+                }}
+              >
+                Добавить свойство
+              </button>
+            </div>
+            <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+              <button
+                type="submit"
+                style={{
+                  background: '#2196f3',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '7px 18px',
+                  fontWeight: 500,
+                }}
+              >
+                {isEdit ? 'Сохранить' : 'Создать'}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  background: '#eee',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '7px 18px',
+                  fontWeight: 500,
+                }}
+              >
+                Отмена
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
