@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { GraphObject, GraphRelation, PathAlgorithm } from '../types/graph';
 import GraphCanvas from './GraphCanvas';
 import ObjectCard from './ObjectCard';
@@ -80,7 +80,7 @@ export default function GraphView() {
   }, [selectedAlgorithm]);
 
   // Custom Hooks
-  const { selectedIds, toggleSelection, selectAll, clearSelection } = useMultiSelection();
+  const { selectedIds, toggleSelection, selectAll, clearSelection, selectMultiple } = useMultiSelection();
   const { history, currentIndex, addAction, undo, redo, canUndo, canRedo } = useHistory({
     maxSize: 20,
   });
@@ -250,7 +250,7 @@ export default function GraphView() {
     if (addRelation.source && !addRelation.target && node.id !== addRelation.source.id) {
       setAddRelation(r => ({ ...r, target: node }));
       setAddRelationOpen(true);
-      return; 
+      return;
     }
 
     if (node.isCollapsedGroup) {
@@ -338,6 +338,11 @@ export default function GraphView() {
   }, [groupedTransformedNodes]);
 
   const propertyMetadata = useMemo(() => extractPropertyMetadata(nodes), [nodes]);
+
+  // Highlight search results
+  const handleHighlightSearchResults = useCallback((objectIds: number[], relationIds: number[]) => {
+    selectMultiple(objectIds);
+  }, [selectMultiple]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -556,16 +561,16 @@ export default function GraphView() {
                     pointerEvents: 'auto',
                   }}>
                     <span>🔗 Выберите целевой узел для создания связи с <strong>{addRelation.source.name}</strong></span>
-                    <button 
+                    <button
                       onClick={() => setAddRelation({ source: null, target: null })}
-                      style={{ 
-                        background: 'rgba(255,255,255,0.15)', 
-                        border: 'none', 
-                        color: 'white', 
-                        borderRadius: 6, 
-                        padding: '4px 12px', 
-                        cursor: 'pointer', 
-                        fontSize: 13, 
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        color: 'white',
+                        borderRadius: 6,
+                        padding: '4px 12px',
+                        cursor: 'pointer',
+                        fontSize: 13,
                         fontWeight: 500,
                         transition: 'background 0.2s',
                       }}
@@ -1034,11 +1039,7 @@ export default function GraphView() {
                   setSelected({ type: 'edge', data: relation });
                 }
               }}
-              onHighlightResults={(objectIds, relationIds) => {
-                // Подсветка найденных элементов
-                clearSelection();
-                objectIds.forEach(id => toggleSelection(id, true));
-              }}
+              onHighlightResults={handleHighlightSearchResults}
             />
           </div>
         )}
