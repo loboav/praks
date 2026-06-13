@@ -267,13 +267,15 @@ namespace GraphVisualizationApp.Data
             // 1.5. Схемы свойств для типов объектов
             context.PropertySchemas.AddRange(
                 new PropertySchema { ObjectTypeId = personType.Id, Key = "Возраст", PropertyType = "number" },
-                new PropertySchema { ObjectTypeId = personType.Id, Key = "Роль", PropertyType = "enum", Options = "[\"Организатор\",\"Номинальный директор\",\"Бухгалтер\",\"Юрист\",\"Свидетель\"]" },
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "Роль", PropertyType = "enum", Options = "[\"Организатор схемы\",\"Номинальный директор\",\"Номинальный учредитель\",\"Главный бухгалтер\",\"Юридическое сопровождение\",\"Супруга организатора\",\"Свидетель\",\"Инвестор\",\"Аудитор\"]" },
                 new PropertySchema { ObjectTypeId = personType.Id, Key = "Паспорт", PropertyType = "string" },
+                new PropertySchema { ObjectTypeId = personType.Id, Key = "Город", PropertyType = "enum", Options = "[\"Минск\",\"Брест\",\"Москва\",\"Кипр\"]" },
                 new PropertySchema { ObjectTypeId = personType.Id, Key = "latitude", PropertyType = "number" },
                 new PropertySchema { ObjectTypeId = personType.Id, Key = "longitude", PropertyType = "number" },
                 new PropertySchema { ObjectTypeId = companyType.Id, Key = "УНП", PropertyType = "string", Required = true },
                 new PropertySchema { ObjectTypeId = companyType.Id, Key = "Дата регистрации", PropertyType = "date" },
-                new PropertySchema { ObjectTypeId = companyType.Id, Key = "Статус", PropertyType = "enum", Options = "[\"Действующая\",\"Ликвидирована\",\"В процессе ликвидации\"]" },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "Статус", PropertyType = "enum", Options = "[\"Действующая\",\"Ликвидирована\",\"В процессе ликвидации\",\"Фирма-однодневка\",\"Транзитная компания\",\"Оффшор\"]" },
+                new PropertySchema { ObjectTypeId = companyType.Id, Key = "Отрасль", PropertyType = "enum", Options = "[\"Торговля\",\"IT\",\"Строительство\",\"Консалтинг\",\"Финансы\",\"Недвижимость\"]" },
                 new PropertySchema { ObjectTypeId = companyType.Id, Key = "latitude", PropertyType = "number" },
                 new PropertySchema { ObjectTypeId = companyType.Id, Key = "longitude", PropertyType = "number" },
                 new PropertySchema { ObjectTypeId = bankAccountType.Id, Key = "Банк", PropertyType = "string" },
@@ -635,6 +637,159 @@ namespace GraphVisualizationApp.Data
                 contract1, contract2,
                 apartment, car
             );
+
+            // ДОПОЛНИТЕЛЬНЫЕ ОБЪЕКТЫ ДЛЯ ДЕМОНСТРАЦИИ (РАСШИРЕНИЕ ДАТАСЕТА)
+            var investor = new GraphObject
+            {
+                Name = "Михаил Захаров",
+                ObjectTypeId = personType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Возраст", Value = "60" },
+                    new ObjectProperty { Key = "Роль", Value = "Инвестор" },
+                    new ObjectProperty { Key = "Паспорт", Value = "MP9876543" },
+                    new ObjectProperty { Key = "Город", Value = "Москва" },
+                    new ObjectProperty { Key = "latitude", Value = "55.7558" },
+                    new ObjectProperty { Key = "longitude", Value = "37.6173" }
+                },
+                Color = "#FFC107", Icon = "😎", PositionX = 900, PositionY = 100
+            };
+
+            var auditor = new GraphObject
+            {
+                Name = "Сергей Смирнов",
+                ObjectTypeId = personType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Возраст", Value = "38" },
+                    new ObjectProperty { Key = "Роль", Value = "Аудитор" },
+                    new ObjectProperty { Key = "Город", Value = "Минск" },
+                    new ObjectProperty { Key = "latitude", Value = "53.8930" },
+                    new ObjectProperty { Key = "longitude", Value = "27.5674" }
+                },
+                Color = "#9C27B0", Icon = "🕵️", PositionX = 450, PositionY = 150
+            };
+
+            var courier = new GraphObject
+            {
+                Name = "Алексей Дроздов",
+                ObjectTypeId = personType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Возраст", Value = "24" },
+                    new ObjectProperty { Key = "Роль", Value = "Свидетель" },
+                    new ObjectProperty { Key = "Город", Value = "Брест" },
+                    new ObjectProperty { Key = "latitude", Value = "52.0975" },
+                    new ObjectProperty { Key = "longitude", Value = "23.6877" }
+                },
+                Color = "#8D6E63", Icon = "🏃", PositionX = 100, PositionY = 150
+            };
+
+            var newShell = new GraphObject
+            {
+                Name = "ООО 'ВекторПлюс'",
+                ObjectTypeId = companyType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "УНП", Value = "195678901" },
+                    new ObjectProperty { Key = "Дата регистрации", Value = "10.01.2023" },
+                    new ObjectProperty { Key = "Статус", Value = "В процессе ликвидации" },
+                    new ObjectProperty { Key = "Отрасль", Value = "Строительство" },
+                    new ObjectProperty { Key = "latitude", Value = "53.9000" },
+                    new ObjectProperty { Key = "longitude", Value = "27.5667" }
+                },
+                Color = "#F44336", Icon = "🏚️", PositionX = 300, PositionY = 550
+            };
+
+            var investCorp = new GraphObject
+            {
+                Name = "ЗАО 'ГлобалИнвест'",
+                ObjectTypeId = companyType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "УНП", Value = "100234567" },
+                    new ObjectProperty { Key = "Дата регистрации", Value = "05.05.2015" },
+                    new ObjectProperty { Key = "Статус", Value = "Действующая" },
+                    new ObjectProperty { Key = "Отрасль", Value = "Финансы" },
+                    new ObjectProperty { Key = "latitude", Value = "55.7512" },
+                    new ObjectProperty { Key = "longitude", Value = "37.6184" }
+                },
+                Color = "#1976D2", Icon = "🏦", PositionX = 900, PositionY = 450
+            };
+
+            var account4 = new GraphObject
+            {
+                Name = "RU04SBER30125555666677778888",
+                ObjectTypeId = bankAccountType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Банк", Value = "Сбербанк" },
+                    new ObjectProperty { Key = "Валюта", Value = "RUB" },
+                    new ObjectProperty { Key = "Открыт", Value = "20.06.2021" }
+                },
+                Color = "#4CAF50", Icon = "💳", PositionX = 900, PositionY = 650
+            };
+
+            var tx4 = new GraphObject
+            {
+                Name = "Платёж #TRX-004",
+                ObjectTypeId = transactionType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Сумма", Value = "5 000 000 RUB" },
+                    new ObjectProperty { Key = "Назначение", Value = "Пополнение оборотных средств" },
+                    new ObjectProperty { Key = "Дата", Value = "10.05.2023" }
+                },
+                Color = "#E91E63", Icon = "💸", PositionX = 900, PositionY = 850
+            };
+
+            var tx5 = new GraphObject
+            {
+                Name = "Платёж #TRX-005",
+                ObjectTypeId = transactionType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Сумма", Value = "120 000 BYN" },
+                    new ObjectProperty { Key = "Назначение", Value = "Оплата строительных материалов" },
+                    new ObjectProperty { Key = "Дата", Value = "12.06.2023" }
+                },
+                Color = "#E91E63", Icon = "💸", PositionX = 300, PositionY = 950
+            };
+
+            var contract3 = new GraphObject
+            {
+                Name = "Договор займа №05/23",
+                ObjectTypeId = documentType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Дата", Value = "05.05.2023" },
+                    new ObjectProperty { Key = "Предмет", Value = "Беспроцентный займ" },
+                    new ObjectProperty { Key = "Сумма", Value = "5 000 000 RUB" },
+                    new ObjectProperty { Key = "Статус", Value = "Действующий" }
+                },
+                Color = "#FF9800", Icon = "📄", PositionX = 750, PositionY = 350
+            };
+
+            var countryHouse = new GraphObject
+            {
+                Name = "Коттедж в Раубичах",
+                ObjectTypeId = propertyType.Id,
+                Properties = new List<ObjectProperty>
+                {
+                    new ObjectProperty { Key = "Адрес", Value = "Минский р-н, д. Раубичи" },
+                    new ObjectProperty { Key = "Площадь", Value = "350 кв.м" },
+                    new ObjectProperty { Key = "Стоимость", Value = "450 000 USD" },
+                    new ObjectProperty { Key = "Дата покупки", Value = "01.08.2023" }
+                },
+                Color = "#3F51B5", Icon = "🏡", PositionX = 950, PositionY = 0
+            };
+
+            context.GraphObjects.AddRange(
+                investor, auditor, courier,
+                newShell, investCorp,
+                account4, tx4, tx5,
+                contract3, countryHouse
+            );
             await context.SaveChangesAsync();
 
             // 9. СВЯЗИ (с датами для Timeline!)
@@ -885,7 +1040,24 @@ namespace GraphVisualizationApp.Data
                 }
             };
 
+            var newRelations = new[]
+            {
+                new GraphRelation { Source = investor.Id, Target = investCorp.Id, RelationTypeId = ownsRelation.Id, Color = "#1976D2", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "05.05.2015" }, new RelationProperty { Key = "Доля", Value = "100%" } } },
+                new GraphRelation { Source = investCorp.Id, Target = account4.Id, RelationTypeId = hasAccountRelation.Id, Color = "#4CAF50", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "20.06.2021" } } },
+                new GraphRelation { Source = account4.Id, Target = tx4.Id, RelationTypeId = transferRelation.Id, Color = "#E91E63", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "10.05.2023" }, new RelationProperty { Key = "Направление", Value = "Исходящий" } } },
+                new GraphRelation { Source = tx4.Id, Target = account1.Id, RelationTypeId = transferRelation.Id, Color = "#E91E63", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "10.05.2023" }, new RelationProperty { Key = "Направление", Value = "Входящий" } } },
+                new GraphRelation { Source = investor.Id, Target = contract3.Id, RelationTypeId = signedRelation.Id, Color = "#FF9800", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "05.05.2023" }, new RelationProperty { Key = "Роль", Value = "Кредитор" } } },
+                new GraphRelation { Source = mainCompany.Id, Target = contract3.Id, RelationTypeId = signedRelation.Id, Color = "#FF9800", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "05.05.2023" }, new RelationProperty { Key = "Роль", Value = "Заемщик" } } },
+                new GraphRelation { Source = auditor.Id, Target = mainCompany.Id, RelationTypeId = worksForRelation.Id, Color = "#1976D2", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "01.04.2022" }, new RelationProperty { Key = "Должность", Value = "Независимый аудитор" } } },
+                new GraphRelation { Source = courier.Id, Target = shell1.Id, RelationTypeId = worksForRelation.Id, Color = "#F44336", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "10.08.2022" }, new RelationProperty { Key = "Должность", Value = "Курьер" } } },
+                new GraphRelation { Source = mastermind.Id, Target = newShell.Id, RelationTypeId = controlsRelation.Id, Color = "#D32F2F", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "10.01.2023" }, new RelationProperty { Key = "Тип", Value = "Теневой контроль" } } },
+                new GraphRelation { Source = mastermind.Id, Target = countryHouse.Id, RelationTypeId = ownsRelation.Id, Color = "#3F51B5", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "01.08.2023" }, new RelationProperty { Key = "Доля", Value = "100%" } } },
+                new GraphRelation { Source = account1.Id, Target = tx5.Id, RelationTypeId = transferRelation.Id, Color = "#E91E63", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "12.06.2023" }, new RelationProperty { Key = "Направление", Value = "Исходящий" } } },
+                new GraphRelation { Source = tx5.Id, Target = account2.Id, RelationTypeId = transferRelation.Id, Color = "#E91E63", Properties = new List<RelationProperty> { new RelationProperty { Key = "date", Value = "12.06.2023" }, new RelationProperty { Key = "Направление", Value = "Входящий" } } }
+            };
+
             context.GraphRelations.AddRange(relations);
+            context.GraphRelations.AddRange(newRelations);
             await context.SaveChangesAsync();
 
             Console.WriteLine($"Fraud Investigation template created: {context.GraphObjects.Count()} objects, {context.GraphRelations.Count()} relations");
