@@ -18,7 +18,7 @@ WORKDIR /src/backend/tests/GraphVisualizationApp.Tests
 RUN dotnet test --logger "trx;LogFileName=test_results.trx" --no-restore
 
 # Основной образ (без изменений)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 80
 
